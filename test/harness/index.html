@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Fake Vest (offline harness)</title>
+<style>body{background:#0b0d11;color:#ccc;font:13px system-ui;margin:0} iframe{position:absolute;left:10px;top:44px;width:900px;height:520px;border:1px solid #333} #ctl{padding:10px}</style>
+</head>
+<body>
+<div id="ctl">
+  Harness offline:
+  <button onclick="H.tick(+5)">price +5</button>
+  <button onclick="H.tick(-5)">price −5</button>
+  <button onclick="H.feedClose()">feed: close B</button>
+  <button onclick="H.recreateChart()">recreate chart</button>
+  <button onclick="H.vestDraw()">Vest draws its lines</button>
+</div>
+<iframe id="tv" srcdoc="<html><body style='margin:0;background:#111'><div class='chart-gui-wrapper' style='position:absolute;left:0;top:0;width:836px;height:470px'><canvas style='display:block;width:836px;height:470px;background:#161a20'></canvas></div></body></html>"></iframe>
+<script>
+// ── Vest simulation. Everything is fake: tokens, accounts, prices, orders. Only for watching the script run.
+(function () {
+  const b64 = (o) => btoa(JSON.stringify(o)).replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');
+  const jwt = (c) => b64({ alg: 'none' }) + '.' + b64(c) + '.firma';
+  const now = Date.now();
+  let gen = 1; // Vest session: when the token rotates, the old ones (user and account) get 401
+  let USER = jwt({ userId: 'U1', exp: Math.floor(now / 1000) + 3600, gen });
+  sessionStorage.setItem('vest-active-account:U1', 'A'); // account on screen in Vest
+
+  const bc = new BroadcastChannel('vest-session-sync');
+  bc.onmessage = (e) => {
+    if (e.data && e.data.type === 'request-session')
+      setTimeout(() => bc.postMessage({ type: 'session-snapshot', snapshot: { user: { id: 'U1' }, userPair: { accessToken: USER, accessTokenExpiresAt: now + 3600e3 } } }), 50);
+  };
+
+  let mark = 20010;
+  const SYM = 'NDX-USD-PERP';
+  const accounts = [
+    { id: 'A', name: null, attempt_index: 0, account_type: 2, initial_capital: '50000', max_drawdown_limit: '47500', daily_loss_floor: '48500', max_daily_loss_pct: '0.03', daily_reset_balance: '50000', daily_reset_base_limit: '1500' },
+    { id: 'B', name: 'Funded 100k', attempt_index: 1, account_type: 3, initial_capital: '100000', max_drawdown_limit: '96000' },
+  ];
+  if (/[?&]ddnear/.test(location.search)) accounts[0].max_drawdown_limit = '49940'; // ?ddnear: A's floor close (50% drawdown label on screen)
+  const positions = {
+    A: [{ positionId: 'PA', symbol: SYM, side: 'long', quantity: '2', openPrice: '20000', collateral: '800', leverage: '50',
+      stopLosses: [{ id: 'SLA', triggerPrice: '19950', executionType: 'market' }], takeProfits: [] }],
+    B: [{ positionId: 'PB', symbol: SYM, side: 'short', quantity: '1', openPrice: '20050', collateral: '400', leverage: '50', stopLosses: [], takeProfits: [] }],
+  };
+  // ?both: B long too (1 at 20020), for the all-accounts P&L on SL/TP
+  if (/[?&]both/.test(location.search)) Object.assign(positions.B[0], { side: 'long', openPrice: '20020' });
+  let legN = 1;
+  const openOrders = { A: [], B: [{ orderId: 'OB1', symbol: SYM, orderType: 'limit', side: 'short', price: '20100', quantity: '1', collateral: '400' }] };
+  // ?lm2: second entry limit on B, closer (for AVG NEXT)
+  if (/[?&]lm2/.test(location.search)) openOrders.B.push({ orderId: 'OB2', symbol: SYM, orderType: 'limit', side: 'short', price: '20070', quantity: '1', collateral: '400' });
+  if (/[?&]noob/.test(location.search)) openOrders.B.length = 0; // ?noob: B without pending orders (green dot when flat)
+  if (/[?&]bflat/.test(location.search)) { positions.B.length = 0; openOrders.B.length = 0; } // ?bflat: B with no positions and no orders (copier test)
+  if (/[?&]oa(&|$)/.test(location.search)) openOrders.A.push({ orderId: 'OA1', symbol: SYM, orderType: 'limit', side: 'long', price: '19900', quantity: '1', collateral: '400' }); // ?oa: pending limit on A
+  if (/[?&]oan/.test(location.search)) openOrders.A.push({ orderId: 'OAN', symbol: SYM, orderType: 'limit', side: 'long', price: '19990', quantity: '1', collateral: '0' }); // collateral 0: the harness does not reduce free, the balance would grow. ?oan: close limit on A (50% drawdown with limit)
+  window.__orders = [];
+  const tokenOf = (h) => { try { return JSON.parse(atob(String(h).split(' ')[1].split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))); } catch { return {}; } };
+  function order(method, p, acc, b) {
+    if (p === '/v3/positions/cancel-order') {
+      const i = (openOrders[acc] || []).findIndex((o) => o.orderId === b.orderId); if (i < 0) return [400, { message: 'order does not exist' }];
+      const [o] = openOrders[acc].splice(i, 1);
+      // as Vest: with no orders left the size-0 placeholder disappears
+      if (o.positionId && !openOrders[acc].some((x) => x.positionId === o.positionId)) positions[acc] = positions[acc].filter((x) => !(x.positionId === o.positionId && +x.quantity === 0));
+      return [200, {}];
+    }
+    // entries: open (market = new position, limit = pending order), append, reduce
+    if (p === '/v3/positions/open') {
+      // as Vest: with a position (even a placeholder) on the market, a second open is accepted and then REJECTED (10006)
+      if (positions[acc].some((x) => x.symbol === b.symbol)) {
+        setTimeout(() => window.__ws.push({ channel: 'command_events', data: { account_id: acc, status: 'REJECTED', order_id: 'X' + legN++, error_code: 10006, event_type: 'OPEN' } }), 100);
+        return [200, { orderId: 'X' }];
+      }
+      if (b.orderType === 'limit') {
+        const pid = 'P' + legN++;
+        positions[acc].push({ positionId: pid, symbol: b.symbol, side: b.side, quantity: '0', openPrice: '0', collateral: '0', leverage: b.leverage, stopLosses: [], takeProfits: [] });
+        openOrders[acc].push({ orderId: 'O' + legN++, symbol: b.symbol, orderType: 'limit', side: b.side, price: b.price, quantity: b.quantity, positionId: pid, collateral: '10' });
+        return [200, { orderId: 'O' + (legN - 1), positionId: pid }];
+      }
+      positions[acc].push({ positionId: 'P' + legN++, symbol: b.symbol, side: b.side, quantity: b.quantity, openPrice: String(mark), collateral: '10', leverage: b.leverage, stopLosses: [], takeProfits: [] });
+      return [200, { positionId: 'P' + (legN - 1) }];
+    }
+    const pos = (positions[acc] || []).find((x) => x.positionId === b.positionId);
+    if (!pos) return [400, { message: 'posizione inesistente' }];
+    if (p === '/v3/positions/append') {
+      if (b.orderType === 'limit') { openOrders[acc].push({ orderId: 'O' + legN++, symbol: b.symbol, orderType: 'limit', side: pos.side, price: b.price, quantity: b.quantity, positionId: pos.positionId, collateral: '10' }); return [200, {}]; }
+      const q0 = +pos.quantity, q1 = +b.quantity;
+      pos.openPrice = String(((+pos.openPrice * q0) + mark * q1) / (q0 + q1));
+      pos.quantity = String(q0 + q1);
+      return [200, {}];
+    }
+    if (p === '/v3/positions/reduce') { pos.quantity = String(+(+pos.quantity - +b.quantity).toFixed(4)); return [200, {}]; }
+    if (p === '/v3/positions/close') {
+      // ?flatlag: the first close is accepted but lost (the position stays), like a FLAT that left the position open
+      if (/flatlag/.test(location.search) && !window.__lagDone) { window.__lagDone = true; return [200, { orderId: 'C' + legN++ }]; }
+      positions[acc] = positions[acc].filter((x) => x !== pos); return [200, { orderId: 'C' + legN++ }];
+    }
+    const list = p.endsWith('stop-loss') ? pos.stopLosses : pos.takeProfits;
+    const idKey = p.endsWith('stop-loss') ? 'stopLossId' : 'takeProfitId';
+    if (method === 'DELETE') { const i = list.findIndex((l) => l.id === b[idKey]); if (i < 0) return [400, { message: 'leg inesistente' }]; list.splice(i, 1); return [200, {}]; }
+    if (method === 'POST') { list.push({ id: (p.endsWith('stop-loss') ? 'SL' : 'TP') + legN++, triggerPrice: b.triggerPrice, executionType: 'market' }); return [200, {}]; }
+    const leg = list.find((l) => l.id === b[idKey]);
+    if (!leg) return [400, { message: 'leg inesistente' }];
+    leg.triggerPrice = b.triggerPrice;
+    return [200, {}];
+  }
+  window.__calls = [];
+  window.fetch = async (url, init = {}) => {
+    const u = new URL(url);
+    const method = (init.method || 'GET').toUpperCase();
+    const claims = tokenOf(init.headers && init.headers.Authorization);
+    window.__calls.push(method + ' ' + u.pathname);
+    let body = null, status = 200;
+    const p = u.pathname;
+    const pub = p === '/v3/exchangeInfo' || p === '/v3/ticker/latest';
+    if (!pub && claims.gen !== gen) {
+      window.__calls.push('401 ' + p);
+      return new Response(JSON.stringify({ message: 'Unauthorized' }), { status: 401, headers: { 'content-type': 'application/json' } });
+    }
+    if (p.startsWith('/v3/positions/') && method !== 'GET') {
+      const b = JSON.parse(init.body);
+      window.__orders.push({ method, path: p, body: b, idem: init.headers['Idempotency-Key'] || null, account: claims.accountId });
+      [status, body] = order(method, p, claims.accountId, b);
+      await new Promise((r) => setTimeout(r, 150));
+    }
+    else if (method !== 'GET' && p !== '/v3/auth/account-token') { status = 418; body = { message: 'harness: unexpected write ' + p }; }
+    else if (p === '/v3/auth/account-token') { const id = JSON.parse(init.body).accountId; body = { accessToken: jwt({ accountId: id, canTrade: true, exp: Math.floor(Date.now() / 1000) + 900, gen }), accessExpiresAtMs: Date.now() + 900e3 }; }
+    else if (p === '/v3/capital/accounts/active') body = { accounts };
+    else if (p === '/v3/user-state') body = { accounts: [{ accountId: 'A', leverages: [{ symbol: SYM, leverage: '50' }] }, { accountId: 'B', name: 'B vestname', leverages: [] }] };
+    else if (p === '/v3/accounts') body = { accounts: [{ account_id: 'A', amount: '49200', balance_version: 3, account_type: 2 }, { account_id: 'B', amount: '99800', balance_version: 7, account_type: 3 }] };
+    else if (p === '/v3/trading-performance/series') body = { items: [{ account_id: 'A', ts: Date.now(), equity_value: '50020', total_unrealized_pnl: '20' }, { account_id: 'A', ts: Date.now() - 3600e3, equity_value: '49900', total_unrealized_pnl: '0' }, { account_id: 'B', ts: Date.now() - 3600e3, equity_value: '100000', total_unrealized_pnl: '0' }] };
+    else if (p === '/v3/positions') body = { total: 2, positions: (u.searchParams.get('account_id') === 'A' && u.searchParams.get('offset') === '0') ? [
+      { positionId: 'H1', accountId: 'A', symbol: SYM, side: 'long', quantity: '1', openPrice: '19990', closePrice: '20002.5', openDate: Date.now() - 2 * 3600e3, closeDate: Date.now() - 3600e3 },
+      { positionId: 'H2', accountId: 'A', symbol: SYM, side: 'short', quantity: '1', openPrice: '20010', closePrice: '20014', openDate: Date.now() - 1800e3, closeDate: Date.now() - 1200e3 } ] : [] }; // storico: +12.5 e -4 punti oggi
+    else if (p === '/v3/positions/opened') body = { positions: JSON.parse(JSON.stringify(positions[claims.accountId] || [])) };
+    else if (p === '/v3/positions/opened-orders') body = { orders: JSON.parse(JSON.stringify(openOrders[claims.accountId] || [])) };
+    else if (p === '/v3/exchangeInfo') {
+      const all = [{ symbol: SYM, displaySymbol: 'NQ', minTickSize: '0.25', sizeDecimals: 4, initMarginRatio: '0.02', fundedInitMarginRatio: '0.04', capitalPlans: [], takerFee: '0.00025' }, { symbol: 'ETH-USD-PERP', displaySymbol: 'ETH', minTickSize: '0.01', sizeDecimals: 3 }];
+      const want = u.searchParams.get('symbols');
+      body = { symbols: want ? all.filter((x) => want.split(',').includes(x.symbol)) : all };
+    }
+    else if (p === '/v3/ticker/latest') body = { tickers: [{ symbol: SYM, markPrice: String(mark), marginMarkPrice: String(mark) }, { symbol: 'ETH-USD-PERP', markPrice: '2420.29' }] };
+    else { status = 404; body = { message: 'harness: ' + p }; }
+    return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', 'x-ratelimit-remaining': '190', 'x-ratelimit-limit': '200' } });
+  };
+
+  // fake WebSocket, defined BEFORE the script (which wraps it in its Proxy)
+  class FakeWS extends EventTarget {
+    constructor(url) { super(); this.url = url; this.readyState = 1; window.__ws = this; }
+    push(obj) { this.dispatchEvent(new MessageEvent('message', { data: JSON.stringify(obj) })); }
+    send() { throw new Error('the script must not send on the feed'); }
+    close() { this.readyState = 3; this.dispatchEvent(new Event('close')); }
+  }
+  window.WebSocket = FakeWS;
+
+  // fake TradingView lines: methods on the PROTOTYPE, like the real ones
+  const SETTERS = ['setPrice', 'setText', 'setQuantity', 'setLineColor', 'setBodyBorderColor', 'setBodyTextColor', 'setBodyBackgroundColor',
+    'setQuantityBorderColor', 'setQuantityBackgroundColor', 'setQuantityTextColor', 'setLineStyle', 'setEditable', 'setCancellable', 'setLineLength', 'setExtendLeft'];
+  class FakeLine { constructor(kind) { this.kind = kind; this.props = {}; this.removed = false; window.__lines.push(this); } remove() { this.removed = true; } getPrice() { return this.props.setPrice && this.props.setPrice[0]; } }
+  for (const n of SETTERS) FakeLine.prototype[n] = function (...a) { this.props[n] = a; return this; };
+  window.__lines = [];
+
+  // fake chart: price scale 19900-20200 over the canvas height, 6 px per bar
+  let ro = 5, chartSym = 'NQ';
+  const QS = new URLSearchParams(location.search), RES = Number(QS.get('res')) || 5, SKEW = (Number(QS.get('skew')) || 0) * 1000;
+  function makeChart() {
+    return {
+      symbol: () => chartSym,
+      crossHairMoved: () => ({ subscribe() {}, unsubscribe() {} }),
+      createOrderLine() { return new FakeLine('order'); },
+      createPositionLine() { return new FakeLine('position'); },
+      getPanes: () => [{ getHeight: () => 470, getRightPriceScales: () => [{ getMode: () => 0, isInverted: () => false, getVisiblePriceRange: () => ({ from: 19900, to: 20200 }) }] }],
+      getTimeScale: () => ({ barSpacing: () => 6, rightOffset: () => ro, width: () => 836, setRightOffset: (v) => (ro = v) }),
+      // candles (5 minutes, ?res=1 for 1 minute): highs and lows on a slow wave around 20000, the last one follows the price.
+      // ?skew=44: the fake server clock is 44 s ahead of the PC (PC clock behind), as on a PC that has not synced its clock
+      resolution: () => String(RES),
+      exportData: async (opt) => {
+        const step = RES * 60, now = Math.floor((Date.now() + SKEW) / 1000), last = now - (now % step);
+        const data = [];
+        for (let t = Math.max(opt.from - (opt.from % step), last - 3000 * step); t <= last; t += step) {
+          const k = (t / step) % 40, mid = 20000 + 40 * Math.sin(k / 6.4);
+          data.push(t === last ? [t, mark, Math.max(mid + 6, mark), Math.min(mid - 6, mark), mark] : [t, mid, mid + 12, mid - 12, mid]);
+        }
+        return { schema: [{ type: 'time' }, { type: 'value', sourceType: 'series', plotTitle: 'open' }, { type: 'value', sourceType: 'series', plotTitle: 'high' },
+          { type: 'value', sourceType: 'series', plotTitle: 'low' }, { type: 'value', sourceType: 'series', plotTitle: 'close' }], data };
+      },
+    };
+  }
+  let chart = makeChart();
+  function installTv() {
+    const w = document.getElementById('tv').contentWindow;
+    w.tradingViewApi = { activeChart: () => chart, subscribe() {}, unsubscribe() {}, onContextMenu() {} };
+  }
+  window.addEventListener('load', installTv);
+
+  window.H = {
+    tick(d) { mark += d; },
+    feedClose() { window.__ws.push({ channel: 'account_state', data: { account_id: 'B', account_seq: '10', positions: [{ position_id: 'PB', status: 'closed', event_type: 'POSITION_EVENT_TYPE_CLOSED' }], final_balance: { amount: '100150', balance_version: 8 } } }); },
+    recreateChart() { chart = makeChart(); installTv(); },
+    // as Vest does: position line (text "PnL") and stop line (length 20%)
+    vestDraw() {
+      window.__vestPnl = chart.createPositionLine().setText('PnL +$20.00').setQuantity('2').setPrice(20000).setLineColor('#0f0');
+      window.__vestSl = chart.createOrderLine().setText('SL −$100.00').setLineLength(60, 'percentage').setPrice(19950).setLineColor('#f00');
+      window.__vestOther = chart.createOrderLine().setText('Limit').setLineLength(60, 'percentage').setPrice(19920).setLineColor('#888');
+    },
+    rightOffset: () => ro,
+    vestOrder() { window.__vestOrder = chart.createOrderLine().setText('BUY LIMIT').setQuantity('0.092').setPrice(19950).setLineColor('#0f0'); },
+    state: () => JSON.parse(JSON.stringify({ positions, openOrders, mark })),
+    // as Vest: chart on ETH, then the feed announces a new short on ETH (market never read before)
+    ethOpen() {
+      chartSym = 'ETH';
+      positions.A.push({ positionId: 'PE', symbol: 'ETH-USD-PERP', side: 'short', quantity: '0.01', openPrice: '2420.24', collateral: '1', leverage: '25', stopLosses: [], takeProfits: [] });
+      window.__ws.push({ channel: 'account_state', data: { account_id: 'A', account_seq: '50', positions: [{ position_id: 'PE', status: 'opened', symbol: 'ETH-USD-PERP', side: 'short', quantity: '0.01', open_price: '2420.24', collateral: '1', leverage: '25' }], final_balance: { amount: '49199', balance_version: 9 } } });
+      return Date.now();
+    },
+    vestMoveSl(p) { window.__vestSl.setPrice(p); }, // Vest redraws its SL at a new price
+    // as Vest: new user token, the old ones invalidated (the page does not announce it on the channel)
+    rotate() { gen++; USER = jwt({ userId: 'U1', exp: Math.floor(Date.now() / 1000) + 3600, gen }); },
+  };
+})();
+</script>
+<script src="../../dist/vest-tool.user.js"></script>
+<script>
+setTimeout(() => { new WebSocket('wss://finto/ws/private?listenKey=SEGRETO'); }, 300);
+</script>
+</body>
+</html>

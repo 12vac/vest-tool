@@ -1,0 +1,6 @@
+reference/
+node_modules/
+docs/captures/*.har
+internal/
+CLAUDE.md
+.claude/

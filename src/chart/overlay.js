@@ -1,0 +1,1146 @@
+// Trade overlay on the chart: HTML on top of the TradingView iframe, in the free area right of the last candle.
+// - main card ALWAYS visible: when flat, instrument and price; with a position, side, P&L, size, entry, FLAT
+// - second card: size in %, LIMIT and STOP to drag onto the chart (order on release, no confirmation),
+//   cancel buttons, TP SL to drag, BE, LONG SHORT (at market)
+// - third card: partial close, margin, daily goal, drawdown bars; fourth card: copier accounts
+// - position SL and TP: lines + draggable labels with X; pending orders and local stops: lines + labels with X
+// Geometry: visible price range of the right price scale + the main pane's canvas inside the chart iframe.
+
+const css = require('./overlay.css');
+const G = require('../domain/geometry');
+const { roundToTick } = require('../domain/num');
+const { checkLeg } = require('../domain/orders');
+const { entrySide, tooClose } = require('../domain/sizing');
+const { pnlUsd } = require('../domain/money');
+const { microOf } = require('../domain/micro');
+const Fmt = require('../ui/format');
+const F = { ...Fmt, usd: Fmt.usdUS }; // same US dollar format as the panel
+const log = require('../diag/log');
+const bars = require('./bars');
+
+// RESERVED AREA on the right. Distances from the right edge of the chart (start of the price axis):
+//   cards 232 px wide, 20 px from the axis; labels right next to the cards.
+// The block of cards sits at the vertical CENTRE of the chart: it does not follow the price. Measurements in overlay.css.
+// side arrow (10.4 x 16.3, head 11.2 high, stem 2.6)
+const ARROW_UP = '<svg viewBox="0 0 10.4 16.3" fill="currentColor"><path d="M5.2 0L10.4 11.2H6.5V16.3H3.9V11.2H0Z"/></svg>';
+const ARROW_DOWN = '<svg viewBox="0 0 10.4 16.3" fill="currentColor"><path d="M5.2 16.3L10.4 5.1H6.5V0H3.9V5.1H0Z"/></svg>';
+// SCALE from the main panel: cards and labels are enlarged with a CSS transform, so text, radii, borders and
+// alignment stay in proportion. overlay.css keeps the design measurements (cards at 100%).
+const CARD_W = 232; // CSS width (on screen: x card scale)
+const SCALE_MIN = 50,
+  SCALE_MAX = 250;
+const scaleOf = (v, def) => {
+  const n = +v;
+  return (n >= SCALE_MIN && n <= SCALE_MAX ? n : def) / 100;
+};
+const CARD_RIGHT = 20; // cards from the price axis
+const ROOM_MIN = 150, ROOM_MAX = 900, ROOM_DEF = 360; // space between the last candle and the cards (px)
+const LEAD_W = 24; // slanted stroke between the line end and a shifted label
+const CHIP_GAP = 19; // SL/TP/LIMIT/STOP labels aligned to the RIGHT, this far from the cards
+const CANDLE_RIGHT = 535; // centre of the last candle, from the price axis (candles and indicators stop there)
+const CARD2_GAP = 6; // gap between the cards
+const ROOM_IDLE_MS = 500; // the chart margin is restored half a second after zoom/drag
+const CLICK_PX = 3;
+const GRAB_HALF = 4; // SL/TP/LIMIT/STOP lines can be grabbed: invisible band of 2*4+1 px around the line
+const PRESETS = [1, 2, 4, 8, 5, 16]; // defaults of the 6 % buttons; changed from the panel (presets), ascending on the card
+const FRACS = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]; // fixed top row: fractions of 1%
+const COLORS = { avg: '#5ad1e6', avg1: '#5ad1e6', ko: '#c58cff', dd50: '#f472b6', mfp: '#ff9f43', avgn: '#5ad1e6', long: '#3ecf8e', short: '#ff6b61', tp: '#3ecf8e', sl: '#ff6b61', lm: '#7fb2ff', st: '#e8b84a' };
+// names shown for the order kinds (labels, messages)
+const NAME = { tp: 'TP', sl: 'SL', lm: 'LIMIT', st: 'STOP' };
+// line style per kind (colour, dash, width): from the panel (m.lineStyles), otherwise the defaults
+let lineStyles = null;
+const LS = (k) => (lineStyles && lineStyles[k]) || { c: COLORS[k] || '#8b93a3', s: 'dashed', w: 1 };
+
+let root = null,
+  els = {},
+  getModel = () => null,
+  actions = {},
+  enabled = true;
+let legEls = new Map(); // id -> { line, chip, html } (position SL/TP and pending orders)
+let drag = null; // { kind, existing, startY, moved, price, ok, g }
+let pending = null; // { kind, legId, price, until }
+let msgTimer = null;
+let state = { visible: false, why: 'not started', posId: null };
+let room = null; // { orig, set }
+let lastTouch = 0;
+let hoverSide = null; // 'long' | 'short' while the mouse is over LONG / SHORT: fail price preview on the chart
+const hookedDocs = new WeakSet();
+
+function mount(opts) {
+  getModel = opts.getModel;
+  actions = opts.actions;
+  const host = document.createElement('div');
+  root = host.attachShadow({ mode: 'closed' });
+  root.innerHTML = `<style>${css}</style><div class="root">
+    <div class="hl" data-el="dragLine" style="display:none"></div>
+    <div class="tseg stop" data-el="trS" style="display:none" title="Trailing: stop"></div>
+    <div class="tseg act" data-el="trA" style="display:none" title="Trailing: start level"></div>
+    <div class="tseg next" data-el="trN" style="display:none" title="Trailing: next step"></div>
+    <div class="tseg be" data-el="trB" style="display:none" title="BE+"></div>
+    <div class="tseg bet" data-el="trT" style="display:none" title="Auto BE"></div>
+    <div class="tseg hl" data-el="hlH" style="display:none"></div>
+    <div class="tseg hl" data-el="hlL" style="display:none"></div>
+    <div class="chip" data-el="dragChip" style="display:none"></div>
+    <div class="card" data-el="card">
+      <span class="side" data-el="side"><b data-el="sym"></b><i class="cd" data-el="cd"></i><i data-el="clk"></i></span>
+      <span class="pnl" data-el="pnl"></span>
+      <span class="gap" data-el="gap"></span>
+      <span class="w q" data-el="qty"></span>
+      <span class="w vs" data-el="sideTxt"></span>
+      <span class="w e" data-el="entry"></span>
+      <span class="acc" data-el="acc"></span>
+      <span class="dpt" data-el="dpt"></span>
+      <span class="tgl ordl">ORDERS</span><button class="ordc" data-a="orders" data-el="ordc">OFF</button>
+      <span class="tgl cpl" data-el="cpl">COPY</span><button class="cpc" data-a="copy" data-el="cpc">OFF</button>
+      <span class="mic" data-el="mic"></span>
+      <button class="flat" data-a="flat">FLAT</button>
+    </div>
+    <div class="card2" data-el="card2">
+      ${FRACS.map((p, i) => `<button class="pp pf f${i}" data-p="${p}">${p}</button>`).join('')}
+      ${PRESETS.map((p, i) => `<button class="pp p${i}" data-p="${p}">${p}</button>`).join('')}
+      <label class="pctbox"><input data-el="pctIn" inputmode="decimal" autocomplete="off"><span>%</span></label>
+      <span class="sz" data-el="sz"></span>
+      <button class="lm" data-a="lm">LIMIT</button>
+      <button class="st" data-a="st">STOP</button>
+      <button class="cx cxb" data-a="cxmenu">CANCEL ▾</button>
+      <div class="cxm" data-el="cxm" style="display:none">
+        <button data-cx="lm" data-el="cxLm">Pending limits</button>
+        <button data-cx="st" data-el="cxSt">Local stops</button>
+        <button data-cx="all" data-el="cxAll">All orders</button>
+      </div>
+      <button class="tp" data-a="tp">TP</button>
+      <button class="sl" data-a="sl">SL</button>
+      <button class="be" data-a="be">BE</button>
+      <button class="long" data-a="long">LONG</button>
+      <button class="short" data-a="short">SHORT</button>
+    </div>
+    <div class="card3" data-el="card3">
+      <label class="pctbox cp"><input data-el="cpIn" inputmode="decimal" autocomplete="off"><span>%</span></label>
+      <button class="close" data-a="close">PARTIAL CLOSE</button>
+      <button class="close all" data-a="closeall">CLOSE</button>
+      <div class="bars">
+        <div class="bar"><div class="bl"><span>MARGIN USED</span><span data-el="m1t"></span></div><div class="track"><i data-el="m1f"></i></div></div>
+        <div class="bar"><div class="bl"><span>MARGIN + ORDERS</span><span data-el="m2t"></span></div><div class="track"><i data-el="m2f"></i></div></div>
+        <div class="bar"><div class="bl"><span>DAILY GOAL</span><span data-el="dgt"></span></div><div class="track"><i data-el="dgf"></i></div></div>
+        <div class="bar"><div class="bl"><span>OPEN LOSS</span><span data-el="rkt"></span></div><div class="track"><i data-el="rkf"></i></div></div>
+        <div class="bar"><div class="bl"><span data-el="ddl">DAILY LOSS LEFT</span><span data-el="ddt"></span></div><div class="track"><i data-el="ddf"></i></div></div>
+        <div class="bar"><div class="bl"><span data-el="dml">DRAWDOWN LEFT</span><span data-el="dmt"></span></div><div class="track"><i data-el="dmf"></i></div></div>
+        <div class="bar"><div class="bl"><span>PROFIT TARGET</span><span data-el="tgt"></span></div><div class="track"><i data-el="tgf" class="goal"></i></div></div>
+      </div>
+      <div class="msg" data-el="msg"></div>
+    </div>
+    <div class="card4" data-el="card4"><table data-el="cpt"></table></div>
+    <div class="card5" data-el="card5">
+      <div class="c5r" data-el="swRow"><span>SWING RANGE</span><b data-el="swg"></b></div>
+      <div class="c5r" data-el="atrRow"><span>VOLATILITY</span><i data-el="atrHd"></i></div>
+      <div class="hm" data-el="hm"></div>
+    </div>
+  </div>`;
+  document.documentElement.appendChild(host);
+  for (const el of root.querySelectorAll('[data-el]')) els[el.dataset.el] = el;
+  els.layer = root.querySelector('.root');
+  // CANCEL menu closes on a press elsewhere: outside the overlay (window sees only the host of the closed shadow root)
+  // or inside it but not on the menu or its button
+  const menuOpen = () => els.cxm.style.display !== 'none';
+  window.addEventListener('pointerdown', (ev) => menuOpen() && ev.target !== host && cxMenu(false), true);
+  root.addEventListener('pointerdown', (ev) => {
+    if (menuOpen() && !ev.composedPath().some((n) => n === els.cxm || (n.dataset && n.dataset.a === 'cxmenu'))) cxMenu(false);
+  }, true);
+  // no tooltips on the cards (they cover the rest of the page); the chart labels keep theirs.
+  // An observer removes any that draw() might set.
+  const noTips = (el) => {
+    if (el.hasAttribute && el.hasAttribute('title')) el.removeAttribute('title');
+    if (el.querySelectorAll) for (const t of el.querySelectorAll('[title]')) t.removeAttribute('title');
+  };
+  const tipObs = new MutationObserver((list) => {
+    for (const r of list) if (r.type === 'attributes' ? r.target.hasAttribute('title') : r.addedNodes.length) noTips(r.target);
+  });
+  for (const k of ['card', 'card2', 'card3', 'card4', 'card5']) {
+    noTips(els[k]);
+    tipObs.observe(els[k], { subtree: true, childList: true, attributes: true, attributeFilter: ['title'] });
+  }
+
+  els.card.addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-a]');
+    if (!b || b.disabled) return;
+    const a = b.dataset.a;
+    if (a === 'flat') run(actions.flat(), 'FLAT sent');
+    else if (a === 'orders') actions.toggleOrders();
+    else if (a === 'copy' && actions.copyToggle) actions.copyToggle();
+  });
+  // preview while hovering LONG / SHORT (no orders: lines only)
+  for (const side of ['long', 'short']) {
+    const b = els.card2.querySelector(`button[data-a="${side}"]`);
+    b.addEventListener('pointerenter', () => (hoverSide = side));
+    b.addEventListener('pointerleave', () => hoverSide === side && (hoverSide = null));
+  }
+  // TP / SL from the card: they are dragged (a plain click explains how)
+  for (const kind of ['tp', 'sl']) {
+    const b = els.card2.querySelector(`button[data-a="${kind}"]`);
+    b.addEventListener('pointerdown', (e) => {
+      if (b.disabled) return;
+      const m = getModel();
+      if (!m || !m.pos) return;
+      const legs = m.pos.triggers.filter((t) => t.kind === kind);
+      if (legs.length > 1) return say(`More than one ${kind.toUpperCase()}: drag the line you want to move`, 'err');
+      startDrag(e, b, kind, legs[0] || null, 'card');
+    });
+  }
+  // second card: LIMIT / STOP are dragged; percentage, presets
+  for (const kind of ['lm', 'st']) {
+    const b = els.card2.querySelector(`button[data-a="${kind}"]`);
+    b.addEventListener('pointerdown', (e) => {
+      if (b.disabled) return;
+      startDrag(e, b, kind, null, 'card2');
+    });
+  }
+  els.card2.addEventListener('click', (e) => {
+    const pp = e.target.closest('button[data-p]');
+    if (pp) {
+      actions.setPct(+pp.dataset.p);
+      els.pctIn.value = pp.dataset.p;
+      return;
+    }
+    const cx = e.target.closest('button[data-cx]');
+    if (cx) {
+      cxMenu(false);
+      if (cx.disabled) return;
+      const kind = cx.dataset.cx;
+      return run(actions.cancelOrders(kind), kind === 'lm' ? 'pending limits cancelled' : kind === 'st' ? 'local stops cancelled' : 'all orders cancelled');
+    }
+    const b = e.target.closest('button[data-a]');
+    if (!b || b.disabled) return;
+    if (b.dataset.a === 'cxmenu') return cxMenu(els.cxm.style.display === 'none');
+    if (b.dataset.a === 'be') run(actions.breakeven(), 'BE sent');
+    else if (b.dataset.a === 'long' || b.dataset.a === 'short') run(actions.market(b.dataset.a), b.dataset.a.toUpperCase() + ' sent');
+  });
+  // COPIER: click on a row = account shown by the tool (on press: the table is redrawn)
+  els.card4.addEventListener('pointerdown', (e) => {
+    if (e.target.closest('[data-a="copy"]')) return actions.copyToggle && actions.copyToggle();
+    const tr = e.target.closest('tr[data-id]');
+    if (tr && actions.select) actions.select(tr.dataset.id);
+  });
+  els.card3.addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-a="close"], button[data-a="closeall"]');
+    if (!b || b.disabled) return;
+    if (b.dataset.a === 'closeall') run(actions.closeAll(), 'CLOSE sent: pending orders stay');
+    else run(actions.closePct(), 'PARTIAL CLOSE sent');
+  });
+  els.cpIn.addEventListener('input', () => {
+    const v = parseFloat(els.cpIn.value.replace(',', '.'));
+    actions.setClosePct(v > 0 ? Math.min(100, v) : 0);
+  });
+  els.pctIn.addEventListener('input', () => {
+    const v = parseFloat(els.pctIn.value.replace(',', '.'));
+    actions.setPct(v > 0 ? v : 0);
+  });
+  window.addEventListener(
+    'keydown',
+    (e) => {
+      if (e.key === 'Escape') cxMenu(false);
+      if (e.key === 'Escape' && drag) {
+        endDrag(false);
+        say('Cancelled', '');
+      }
+    },
+    true,
+  );
+  requestAnimationFrame(frame);
+}
+
+// CANCEL menu of the second card: closes on a choice, on Esc and on a click elsewhere
+function cxMenu(open) {
+  if (!els.cxm) return;
+  els.cxm.style.display = open ? '' : 'none';
+  els.card2.classList.toggle('cxopen', !!open);
+}
+
+function say(text, kind) {
+  if (!els.msg) return;
+  els.msg.textContent = text;
+  els.msg.className = 'msg ' + (kind || '');
+  clearTimeout(msgTimer);
+  msgTimer = setTimeout(() => {
+    els.msg.textContent = '';
+  }, kind === 'err' ? 7000 : 3500);
+}
+
+function run(p, okText) {
+  p.then(
+    () => say(okText, 'ok'),
+    (e) => say(e.message, 'err'),
+  );
+}
+
+// ── geometry
+function geometry(found) {
+  const chart = found.api.activeChart();
+  const frame = found.frame;
+  if (!frame || !frame.isConnected) return { why: 'chart iframe missing' };
+  let idoc;
+  try {
+    idoc = frame.contentDocument;
+  } catch {
+    return { why: 'chart iframe not readable' };
+  }
+  if (!idoc) return { why: 'chart iframe not readable' };
+  hookInput(idoc);
+  const scale = readScale(chart);
+  if (scale.why) return scale;
+  const { vr, paneH, mode } = scale;
+  const cached = canvasCache.el;
+  const fresh = cached && cached.isConnected && Date.now() - canvasCache.at < 2000 && Math.abs(cached.clientHeight - paneH) <= 2;
+  if (fresh) return finish(chart, frame, cached, vr, mode);
+  const host = idoc.querySelector('.chart-gui-wrapper');
+  const canvas = host ? pickPaneCanvas([...host.querySelectorAll('canvas')], paneH) : null;
+  if (!canvas) return { why: 'chart area not found' };
+  canvasCache.el = canvas;
+  canvasCache.at = Date.now();
+  return finish(chart, frame, canvas, vr, mode);
+}
+
+/** Right price scale of the main pane: { vr, paneH, mode } (mode 0 linear, 1 log) or { why } when unsupported. */
+function readScale(chart) {
+  try {
+    const pane = chart.getPanes()[0];
+    const priceScale = pane.getRightPriceScales()[0];
+    if (!priceScale) return { why: 'price scale on the left: not supported' };
+    if (typeof priceScale.isInverted === 'function' && priceScale.isInverted()) return { why: 'inverted scale: not supported' };
+    const mode = typeof priceScale.getMode === 'function' ? priceScale.getMode() : 0;
+    if (mode !== 0 && mode !== 1) return { why: 'percentage scale: not supported' };
+    const vr = priceScale.getVisiblePriceRange();
+    if (!vr || !(vr.to > vr.from)) return { why: 'price range not readable' };
+    return { vr, mode, paneH: typeof pane.getHeight === 'function' ? pane.getHeight() : 0 };
+  } catch (e) {
+    return { why: 'price scale API missing (' + e.message + ')' };
+  }
+}
+
+/** Main pane canvas: the widest one as tall as the pane (+-2 px); failing that, the one with the largest area. */
+function pickPaneCanvas(canvases, paneH) {
+  const sameHeight = paneH > 0 ? canvases.filter((c) => Math.abs(c.clientHeight - paneH) <= 2) : [];
+  const widest = sameHeight.reduce((top, c) => (!top || c.clientWidth > top.clientWidth ? c : top), null);
+  if (widest && widest.clientWidth > 0) return widest;
+  const area = (c) => c.clientWidth * c.clientHeight;
+  const largest = canvases.reduce((top, c) => (!top || area(c) > area(top) ? c : top), null);
+  return largest && area(largest) > 0 ? largest : null;
+}
+
+const canvasCache = { el: null, at: 0 };
+function finish(chart, frame, canvas, vr, mode) {
+  const ir = frame.getBoundingClientRect(),
+    cr = canvas.getBoundingClientRect();
+  const g = { left: ir.left + cr.left, top: ir.top + cr.top, width: cr.width, height: cr.height, vr: { from: vr.from, to: vr.to, log: mode === 1 } };
+  if (g.width < 320 || g.height < 120) return { why: 'chart too small' };
+  g.ts = null;
+  try {
+    const timeScale = chart.getTimeScale();
+    const spacing = Number(timeScale.barSpacing());
+    const offsetBars = Number(timeScale.rightOffset());
+    const tsWidth = Number(timeScale.width());
+    if (spacing > 0 && tsWidth > 0 && Number.isFinite(offsetBars)) {
+      const k = g.width / tsWidth; // time-scale px -> canvas CSS px
+      // centre of the last candle: right edge, minus the empty bars on the right, minus half a bar (and the 1 px border)
+      const lastCenter = tsWidth - 1 - spacing * (offsetBars + 0.5);
+      g.lastX = lastCenter * k;
+      g.ts = { ts: timeScale, bs: spacing, ro: offsetBars, k };
+    }
+  } catch {
+    /* no time scale: fixed free area on the right */
+  }
+  return g;
+}
+
+function hookInput(idoc) {
+  if (hookedDocs.has(idoc)) return;
+  hookedDocs.add(idoc);
+  const touch = () => (lastTouch = Date.now());
+  for (const t of ['pointerdown', 'wheel', 'keydown']) idoc.addEventListener(t, touch, { capture: true, passive: true });
+}
+
+/** Right margin of the chart: enough for the cards, only with the last candle on screen and the chart still. */
+// CSS width of the widest label in the previous pass (used for the trailing segments)
+let chipW = 0,
+  frameChipW = 0,
+  chipKey = '',
+  chipShrinkAt = 0;
+const CHIP_SHRINK_MS = 30000;
+function manageRoom(g, show, needPx) {
+  if (!g || !g.ts) return;
+  const { ts, bs, ro } = g.ts;
+  const idle = !drag && Date.now() - lastTouch > ROOM_IDLE_MS;
+  try {
+    if (show) {
+      // margin (in bars) that puts the last candle exactly at the wanted distance: set in BOTH directions
+      // (even if it had been left wider), only while the chart is still and the last candle is on screen
+      const px = Math.max(CANDLE_RIGHT, needPx || 0);
+      const want = Math.max(0, (px / (g.ts.k || 1) - 1) / bs - 0.5);
+      if (!idle || ro < 0 || Math.abs(ro - want) < 0.3) return;
+      if (!room) room = { orig: ro, set: want };
+      room.set = want;
+      ts.setRightOffset(want);
+    } else if (room && idle) {
+      if (Math.abs(ro - room.set) < 0.5) ts.setRightOffset(room.orig); // restore only if nobody changed it
+      room = null;
+    }
+  } catch {
+    /* no setRightOffset: the cards overlap the last candles */
+  }
+}
+
+// ── drawing
+const show = (el, on) => (el.style.display = on ? '' : 'none');
+
+// clipX: if the line would run over the cards, it stops 4 px before their column
+function hline(el, g, y, st, clipX) {
+  el.style.left = g.left + 'px';
+  el.style.width = (clipX ? Math.max(0, clipX - g.left - 4) : g.width) + 'px';
+  // line centred on the price even when thick
+  el.style.top = g.top + y - (el.classList.contains('grab') ? GRAB_HALF : 0) - Math.floor((st.w - 1) / 2) + 'px';
+  if (el.dataset.st !== st.c + st.s + st.w) {
+    el.dataset.st = st.c + st.s + st.w;
+    el.style.setProperty('--c', st.c);
+    el.style.setProperty('--s', st.s);
+    el.style.setProperty('--w', st.w + 'px');
+  }
+}
+
+function frame() {
+  requestAnimationFrame(frame);
+  try {
+    draw();
+  } catch (e) {
+    state = { visible: false, why: 'errore: ' + e.message, posId: null };
+    hideAll();
+  }
+}
+
+function clearLegs() {
+  for (const { line, chip, lead } of legEls.values()) {
+    line.remove();
+    chip.remove();
+    if (lead) lead.remove();
+  }
+  legEls.clear();
+}
+
+function hideAll() {
+  if (!els.card) return;
+  show(els.card, false);
+  show(els.card2, false);
+  show(els.card3, false);
+  show(els.card4, false);
+  show(els.card5, false);
+  show(els.dragLine, false);
+  show(els.dragChip, false);
+  for (const k of ['trS', 'trA', 'trN', 'trB', 'trT', 'hlH', 'hlL']) show(els[k], false);
+  clearLegs();
+  if (drag) endDrag(false);
+}
+
+let lastWhy = null;
+const QUIET = new Set(['chart market not recognised', 'overlay off', 'chart not found']);
+function setState(s) {
+  state = s;
+  if (s.why !== lastWhy) {
+    if (s.why && !QUIET.has(s.why)) log.warn('Trade overlay: ' + s.why);
+    lastWhy = s.why;
+  }
+}
+
+const heat = (f) => (f >= 1 ? 'hot' : f >= 0.8 ? 'warn' : ''); // same as the main panel
+const sideWord = (side) => (side === 'long' ? 'BUY' : 'SELL');
+
+let idleAt = 0;
+function draw() {
+  const m = getModel();
+  const active = enabled && m && m.found && m.market;
+  if (!active && Date.now() - idleAt < 500) return; // nothing to draw: one check every half second is enough
+  idleAt = Date.now();
+  if (!m || !m.found) {
+    hideAll();
+    setState({ visible: false, why: 'chart not found', posId: null });
+    return;
+  }
+  const g = geometry(m.found);
+  if (g.why) {
+    hideAll();
+    setState({ visible: false, why: g.why, posId: null });
+    return;
+  }
+  if (!active) {
+    hideAll();
+    manageRoom(g, false); // overlay off or unknown market: the chart margin goes back to what it was
+    setState({ visible: false, why: enabled ? 'chart market not recognised' : 'overlay off', posId: null });
+    return;
+  }
+  const { market, pos } = m;
+  const { mark, tick, priceDec } = market;
+  const yOf = (p) => G.priceToY(p, g.vr, g.height);
+  // P&L at that price of all accounts holding the trade (same market and side), only when there are at least two
+  const allPos = m.allPos || [];
+  const sumAll = (price) => {
+    if (allPos.length < 2) return '';
+    const v = allPos.reduce((t, p) => t + pnlUsd(p.side, p.qty, p.openPrice, price), 0);
+    return `<span class="sig" title="P&L at this price of all ${allPos.length} accounts holding the position (each one's full size and own entry)">Σ${allPos.length} <b class="${F.cls(v)}">${F.usd(v, true)}</b></span>`;
+  };
+  const inside = (y) => y >= 0 && y <= g.height;
+  lineStyles = m.lineStyles || null;
+  const qs = m.qtyStyle || { c: '#ffb402', s: 11, b: true };
+  if (els.layer.dataset.qs !== qs.c + qs.s + qs.b) {
+    els.layer.dataset.qs = qs.c + qs.s + qs.b;
+    els.layer.style.setProperty('--qc', qs.c);
+    els.layer.style.setProperty('--qs', qs.s + 'px');
+    els.layer.style.setProperty('--qw', qs.b ? 800 : 400);
+  }
+  const SCALE = scaleOf(m.blockPct, 125),
+    CS = scaleOf(m.chipPct, 100);
+  if (els.layer.dataset.sc !== SCALE + '/' + CS) {
+    els.layer.dataset.sc = SCALE + '/' + CS;
+    els.layer.style.setProperty('--bs', SCALE);
+    els.layer.style.setProperty('--cs', CS);
+  }
+  const areaX = g.left + g.width - CARD_RIGHT - CARD_W * SCALE; // card column, fixed on the right
+  // widest label width kept: it grows at once, shrinks only after 30 s or when the market/position changes
+  const key = market.symbol + '|' + (pos ? pos.id : '');
+  if (key !== chipKey) {
+    chipKey = key;
+    chipW = frameChipW;
+    chipShrinkAt = 0;
+  } else if (frameChipW >= chipW) {
+    chipW = frameChipW;
+    chipShrinkAt = 0;
+  } else if (!chipShrinkAt) chipShrinkAt = Date.now() + CHIP_SHRINK_MS;
+  else if (Date.now() > chipShrinkAt) {
+    chipW = frameChipW;
+    chipShrinkAt = 0;
+  }
+  frameChipW = 0;
+  // FIXED right margin: cards + space chosen in the panel, independent of the label width (otherwise the chart jumps
+  // left and right). Labels wider than the space cover the last candles.
+  const room = +m.roomPx >= ROOM_MIN && +m.roomPx <= ROOM_MAX ? +m.roomPx : ROOM_DEF;
+  const needPx = Math.round(CARD_RIGHT + CARD_W * SCALE + room);
+  manageRoom(g, true, needPx);
+
+  const eb = m.eqBar || {};
+  els.acc.textContent = eb.account || '';
+
+  // ── main card
+  show(els.card, true);
+  const sideKey = pos ? pos.side : 'flat';
+  if (els.side.dataset.side !== sideKey) {
+    els.side.dataset.side = sideKey;
+    // small arrow next to LONG/SHORT; the instrument is at the top left
+    els.sideTxt.innerHTML = pos ? pos.side.toUpperCase() + (pos.side === 'long' ? ARROW_UP : ARROW_DOWN) : '';
+  }
+  // clock next to the instrument (local time zone), corrected to Vest's clock once known; rewritten when the second changes
+  const clk = new Date(bars.serverNow()).toLocaleTimeString('it-IT', { hour12: false });
+  if (els.clk.textContent !== clk) els.clk.textContent = clk;
+  // candles of the chart's timeframe: countdown to the close of the current one, last swing high / low
+  let bv = null;
+  try {
+    bv = bars.view(m.found.api.activeChart(), m.hlK, mark, m.atrOn ? { hours: m.atrH, recent: m.atrR } : null);
+  } catch {
+    bv = null;
+  }
+  const cdt = m.cdOn && bv ? bv.left : '';
+  if (els.cd.textContent !== cdt) els.cd.textContent = cdt;
+  // chart timeframe at the top left (the instrument as a fallback)
+  const tfName = (bv && bv.tf) || market.label;
+  if (els.sym.textContent !== tfName) els.sym.textContent = tfName;
+  // points realised today, number only
+  {
+    const P = m.points;
+    const tot = P ? P.closed + P.open : NaN;
+    const t = Math.abs(tot) < 0.005 ? 0 : tot;
+    els.dpt.textContent = Number.isFinite(tot) ? `${t > 0 ? '+' : t < 0 ? '−' : ''}${Math.abs(t).toFixed(2)} pt` : '';
+    els.dpt.className = 'dpt ' + F.cls(t);
+  }
+  const mic = pos ? microOf(pos.qty, market.label, market.symbol) : null;
+  // linear contracts: P&L = size x points, so the size is also the $ value of one point
+  // from $10 per point upwards no cents: the row is narrow
+  const ppt = pos && pos.qty > 0 ? `${pos.qty >= 10 ? '$' + Math.round(pos.qty) : F.usd(pos.qty)}/pt` : '';
+  els.mic.innerHTML = [mic ? `${mic.qty.toFixed(2)} ${mic.name}` : '', ppt ? `<i>${ppt}</i>` : ''].filter(Boolean).join(' ');
+  if (pos) {
+    els.card.className = 'card ' + pos.side;
+    els.qty.textContent = F.qty(pos.qty); // without the symbol
+    const pnl = mark > 0 ? pnlUsd(pos.side, pos.qty, pos.openPrice, mark) : NaN;
+    els.pnl.textContent = F.usd(pnl, true);
+    // narrow right column: very long amounts in a smaller font
+    els.pnl.className = 'pnl ' + F.cls(pnl) + (els.pnl.textContent.length >= 9 ? ' xs' : '');
+    els.entry.textContent = '$' + F.priceG(pos.openPrice, priceDec);
+    // gap in points from the trade's side: positive = in favour (same sign and colour as the P&L)
+    const gap = mark > 0 ? (pos.side === 'long' ? 1 : -1) * (mark - pos.openPrice) : NaN;
+    els.gap.textContent = Number.isFinite(gap) ? (gap > 0 ? '+' : gap < 0 ? '−' : '') + Math.abs(gap).toFixed(priceDec) + ' pt' : '—';
+    els.gap.className = 'gap ' + F.cls(gap);
+  } else {
+    // when flat: market on the left
+    els.card.className = 'card flat';
+    els.pnl.textContent = ''; // the instrument is already at the top left
+    els.pnl.className = 'pnl';
+    els.gap.textContent = ''; // when flat nothing instead of the points
+    els.gap.className = 'gap';
+    els.qty.textContent = 'flat';
+    els.entry.textContent = ''; // when flat no leverage
+  }
+  els.ordc.textContent = m.ordersOn ? 'ON' : 'OFF';
+  els.ordc.classList.toggle('on', !!m.ordersOn);
+  // COPY under ORDERS: only when a master and at least one copy are assigned
+  show(els.cpl, !!m.copy);
+  show(els.cpc, !!m.copy);
+  if (m.copy) {
+    els.cpc.textContent = m.copy.armed ? 'ON' : 'OFF';
+    els.cpc.classList.toggle('on', !!m.copy.armed);
+  }
+  const busy = !!m.busy;
+  els.card.querySelector('[data-a="flat"]').disabled = busy; // FLAT always active: it also cancels pending orders
+  els.card3.querySelector('[data-a="close"]').disabled = busy || !pos || !(m.closePct > 0);
+  if (root.activeElement !== els.cpIn) {
+    const want = m.closePct > 0 ? String(m.closePct) : '';
+    if (els.cpIn.value !== want) els.cpIn.value = want;
+  }
+  els.card3.querySelector('[data-a="closeall"]').disabled = busy || !pos;
+  for (const k of ['tp', 'sl', 'be']) els.card2.querySelector(`[data-a="${k}"]`).disabled = busy || !pos;
+  const beB = els.card2.querySelector('[data-a="be"]'),
+    beT = m.bePlus ? 'BE+' : 'BE';
+  if (beB.textContent !== beT) {
+    beB.textContent = beT;
+  }
+  // ── card block: centred vertically in the chart (does not follow the price)
+  show(els.card2, true);
+  show(els.card3, true);
+  // ── third card: margin (positions only / with pending orders) and risk, as in the main panel
+  const rk = m.risk || {};
+  const bar = (t, f, frac, html) => {
+    const v = Number.isFinite(frac) ? Math.max(0, frac) : 0;
+    els[f].style.width = Math.min(100, v * 100).toFixed(1) + '%';
+    els[f].className = heat(v);
+    els[t].innerHTML = html;
+  };
+  bar('m1t', 'm1f', rk.marginPos, Number.isFinite(rk.marginPos) ? `<b>${Math.round(rk.marginPos * 100)}%</b>` : '—');
+  bar('m2t', 'm2f', rk.marginAll, Number.isFinite(rk.marginAll) ? `<b>${Math.round(rk.marginAll * 100)}%</b> · ${rk.maxQty > 0 ? F.qty(rk.maxQty) + ' ' + F.esc(market.label) + ' left' : 'no free margin'}` : '—');
+  const used = Math.max(0, rk.used || 0),
+    left = rk.left;
+  const rf = left > 0 || used > 0 ? used / (used + Math.max(0, left)) : 0;
+  // drawdown colour bands: in profit green, up to 50% yellow, up to 75% orange, beyond red.
+  // The same class colours bar and figures.
+  const zone = (f, profit) => (profit ? 'zg' : !(f > 0) ? '' : f <= 0.5 ? 'zy' : f <= 0.75 ? 'zo' : 'zr');
+  const zrk = zone(rf, rk.upnl > 0);
+  bar('rkt', 'rkf', rf, Number.isFinite(left) ? `<b class="${zrk}">${F.usd(used)}</b> of <b class="${zrk}">${F.usd(used + Math.max(0, left))}</b>` : '—');
+  els.rkf.className = zrk;
+  // account limits as on Vest's page: used / available
+  const lim = m.limits || {};
+  // DAILY GOAL: today's P&L against the goal set in the panel
+  const dg = m.dailyGoal;
+  bar('dgt', 'dgf', dg > 0 ? lim.dayPl / dg : NaN, Number.isFinite(lim.dayPl) ? `<b class="${F.cls(lim.dayPl)}">${F.usd(lim.dayPl, true)}</b> / ${dg > 0 ? F.usd(dg) : 'goal?'}` : '—');
+  els.dgf.className = 'goal';
+  // one number (what is left) and a bar that grows towards the fail level, with the colour bands
+  const tank = (t, f, l, left, limit, name) => {
+    els[l].textContent = limit > 0 ? `${name} (${F.usd(limit)})` : name;
+    const frac = limit > 0 && Number.isFinite(left) ? 1 - Math.max(0, left) / limit : NaN;
+    const z = zone(frac, left > limit);
+    bar(t, f, frac, Number.isFinite(left) ? `<b class="${z}">${F.usd(left)}</b>` : '—');
+    els[f].className = z;
+  };
+  tank('ddt', 'ddf', 'ddl', lim.dayLeft, lim.dayLimit, 'DAILY LOSS LEFT');
+  tank('dmt', 'dmf', 'dml', lim.maxLeft, lim.maxLimit, 'DRAWDOWN LEFT');
+  bar('tgt', 'tgf', lim.goal > 0 ? lim.pl / lim.goal : NaN, lim.goal > 0 && Number.isFinite(lim.pl) ? `<b class="${F.cls(lim.pl)}">${F.usd(lim.pl, true)}</b> / ${F.usd(lim.goal)}` : 'no target');
+  els.tgf.className = 'goal';
+  // on-screen heights = CSS size x SCALE (offsetHeight ignores the transform)
+  const ch = (els.card.offsetHeight || 106) * SCALE,
+    h2 = (els.card2.offsetHeight || 92) * SCALE,
+    h3 = (els.card3.offsetHeight || 260) * SCALE;
+  // copier accounts card, under the third: only when a master and at least one copy are assigned
+  const cp = m.copy;
+  show(els.card4, !!cp);
+  let h4 = 0;
+  if (cp) {
+    const td = (v) => `<td class="${F.cls(v)}">${F.usd(v, true)}</td>`;
+    const tq = (q, side) => `<td class="q ${side === 'long' ? 'up' : side === 'short' ? 'down' : ''}">${q > 0 ? F.qty(q) : '—'}</td>`;
+    // no Session column: in practice the same as Today
+    const row = (r) => `<tr data-id="${F.esc(r.id)}" class="${r.id === m.selected ? 'sel' : ''}"><td><i class="adot ${r.act || 'unk'}"></i>${F.esc(r.num || r.label)}${r.master ? ' <i>M</i>' : ''}</td>${tq(r.qty, r.side)}${td(r.upnl)}${td(r.dayPnl)}${td(r.totalPnl)}</tr>`;
+    const html =
+      '<colgroup><col class="c0"><col class="c1"><col class="c2"><col class="c3"><col class="c4"></colgroup>' +
+      `<tr class="h"><th><span class="cpt">ACCOUNT</span></th><th>Qty</th><th>Open</th><th>Today</th><th>Total</th></tr>` +
+      cp.rows.map(row).join('') +
+      `<tr class="t"><td>Total</td>${tq(cp.tot.qty, null)}${td(cp.tot.upnl)}${td(cp.tot.dayPnl)}${td(cp.tot.totalPnl)}</tr>`;
+    if (els.cpt.dataset.h !== html) {
+      els.cpt.dataset.h = html;
+      els.cpt.innerHTML = html;
+    }
+    h4 = ((els.card4.offsetHeight || 100) + CARD2_GAP) * SCALE;
+  }
+  // fifth card: points between the last swing high and low, and volatility on 1h ... 1m over the same hours
+  const c5 = !!(m.hlOn || m.atrOn);
+  show(els.card5, c5);
+  let h5 = 0;
+  if (c5) {
+    show(els.swRow, m.hlOn);
+    show(els.atrRow, m.atrOn);
+    show(els.hm, m.atrOn);
+    const hl = bv && bv.hl;
+    const gapPts = hl && Number.isFinite(hl.h) && Number.isFinite(hl.l) ? hl.h - hl.l : NaN;
+    const sw = Number.isFinite(gapPts) ? F.price(gapPts, priceDec) + ' pt' : '—';
+    if (els.swg.textContent !== sw) els.swg.textContent = sw;
+    if (m.atrOn) {
+      const hd = `last ${m.atrR} candles vs last ${m.atrH} h`;
+      if (els.atrHd.textContent !== hd) els.atrHd.textContent = hd;
+      const lvl = (r) => (!Number.isFinite(r) ? '' : r < 0.75 ? 'calm' : r < 1.25 ? 'norm' : r < 1.75 ? 'hot' : 'xhot');
+      const cells = ((bv && bv.mtf) || []).map((c) =>
+        c.ok
+          ? `<div class="hc ${lvl(c.ratio)}"><b>${c.label}</b><span>${c.ratio.toFixed(2)}×</span><i>${F.price(c.atr, priceDec)}${c.full ? '' : '*'}</i></div>`
+          : `<div class="hc na"><b>${c.label}</b><span>—</span><i>&nbsp;</i></div>`,
+      );
+      const hm = cells.length ? cells.join('') : '<div class="hm-na">reading candles…</div>';
+      if (els.hm.dataset.h !== hm) {
+        els.hm.dataset.h = hm;
+        els.hm.innerHTML = hm;
+      }
+    }
+    h5 = ((els.card5.offsetHeight || 80) + CARD2_GAP) * SCALE;
+  }
+  const by = Math.max(0, Math.round((g.height - (2 * CARD2_GAP * SCALE + ch + h2 + h3 + h4 + h5)) / 2));
+  const cy = by,
+    c2y = cy + ch + CARD2_GAP * SCALE,
+    c3y = c2y + h2 + CARD2_GAP * SCALE;
+  els.card.style.left = areaX + 'px';
+  els.card.style.top = g.top + cy + 'px';
+  els.card2.style.left = areaX + 'px';
+  els.card2.style.top = g.top + c2y + 'px';
+  els.card3.style.left = areaX + 'px';
+  els.card3.style.top = g.top + c3y + 'px';
+  els.card4.style.left = areaX + 'px';
+  els.card4.style.top = g.top + c3y + h3 + CARD2_GAP * SCALE + 'px';
+  els.card5.style.left = areaX + 'px';
+  els.card5.style.top = g.top + c3y + h3 + CARD2_GAP * SCALE + h4 + 'px';
+  if (root.activeElement !== els.pctIn) {
+    const want = m.pct > 0 ? String(m.pct) : '';
+    if (els.pctIn.value !== want) els.pctIn.value = want;
+  }
+  const sz = m.size || {};
+  els.sz.textContent = sz.qty > 0 ? F.qty(sz.qty) : sz.why || ''; // no text without an account; .sz: quantity style, without the symbol
+  els.sz.className = 'sz' + (sz.qty > 0 ? '' : ' why');
+  // without "%" and in ascending order
+  [...(m.presets || PRESETS)].sort((a, b) => a - b).forEach((p, i) => {
+    const b = els.card2.querySelector('button.p' + i);
+    if (!b || b.dataset.p === String(p)) return;
+    b.dataset.p = String(p);
+    b.textContent = String(p);
+    b.classList.toggle('sm', String(p).length > 2); // "2.5", "100": smaller font to fit the button
+  });
+  for (const b of els.card2.querySelectorAll('button.pp')) b.classList.toggle('on', +b.dataset.p === +m.pct);
+  els.card2.querySelector('[data-a="lm"]').disabled = busy || !(sz.qty > 0);
+  els.card2.querySelector('[data-a="st"]').disabled = busy || !(sz.qty > 0);
+  // LONG / SHORT: add in the position's direction, CUT in the opposite one (never beyond the position: no reversal)
+  for (const s of ['long', 'short']) {
+    const b = els.card2.querySelector(`[data-a="${s}"]`);
+    const cut = pos && pos.side !== s;
+    b.disabled = busy || !(sz.qty > 0);
+  }
+  const pend = m.pendings || [];
+  const nLm = pend.filter((x) => !x.local).length,
+    nSt = pend.filter((x) => x.local).length;
+  els.card2.querySelector('[data-a="cxmenu"]').disabled = !(nLm + nSt);
+  if (!(nLm + nSt)) cxMenu(false);
+  els.cxLm.disabled = !nLm;
+  els.cxSt.disabled = !nSt;
+  els.cxAll.disabled = !(nLm + nSt);
+  els.cxLm.textContent = `Pending limits (${nLm})`;
+  els.cxSt.textContent = `Local stops (${nSt})`;
+  els.cxAll.textContent = `All orders (${nLm + nSt})`;
+
+  // ── lines with labels: position SL/TP (draggable) and pending orders (with X to cancel)
+  const items = [];
+  // open position: entry line with its label (read-only: closed with FLAT / LONG / SHORT / X)
+  if (pos) items.push({ id: 'pos:' + pos.id, kind: pos.side, price: pos.openPrice, entry: pos });
+  // fail price: where the equity reaches the drawdown limit (read-only)
+  // average entry if all entry limits fill (read-only)
+  if (m.avg && m.avg.avg > 0) items.push({ id: 'avg', kind: 'avg', price: m.avg.avg, avgL: m.avg });
+  // average entry with the open position and only the next limit
+  if (m.avg && m.avg.next && m.avg.next.avg > 0) items.push({ id: 'avg1', kind: 'avg1', price: m.avg.next.avg, avgL: m.avg, one: true });
+  if (m.ko && m.ko.price > 0) items.push({ id: 'ko', kind: 'ko', price: m.ko.price, ko: m.ko });
+  if (m.dd50 && m.dd50.price > 0) items.push({ id: 'dd50', kind: 'dd50', price: m.dd50.price, dd50: m.dd50 });
+  const pv = hoverSide && m.preview && m.preview[hoverSide];
+  // the FAIL NEW label always exists (invisible without hover): the space on the right already holds it and the chart does not
+  // jump the first time LONG / SHORT is hovered
+  const okPv = (p) => (p && p.ko && p.ko.price > 0 ? p : null);
+  const pvRes = okPv(pv) || (m.preview && (okPv(m.preview.long) || okPv(m.preview.short)));
+  if (pvRes) items.push({ id: 'pv:mfp', kind: 'mfp', price: pvRes.ko.price, pv: pvRes, ghost: !okPv(pv) });
+  if (pv && pv.adding) items.push({ id: 'pv:avg', kind: 'avgn', price: pv.avg, pv, pvAvg: true });
+  if (pos) for (const t of pos.triggers) items.push({ id: t.id, kind: t.kind, price: t.price, leg: t });
+  for (const o of m.pendings || []) items.push({ id: 'o:' + o.id, kind: o.kind, price: o.price, order: o });
+  const seen = new Set();
+  items.sort((a, b) => b.price - a.price); // top to bottom: labels stack without overlapping
+  const placed = []; // [top, bottom] of the labels already placed
+  for (const it of items) {
+    seen.add(it.id);
+    let le = legEls.get(it.id);
+    if (!le) {
+      le = { line: document.createElement('div'), chip: document.createElement('div'), html: '' };
+      const ro = it.entry || it.ko || it.dd50 || it.avgL || it.pv; // (also AVG NEXT and the FAIL NEW preview) read-only: no drag, no X
+      le.line.className = ro ? 'hl entry' : 'hl grab';
+      le.chip.className = 'chip ' + it.kind + (ro ? ' pos' : '');
+      const id = it.id;
+      // label and line are grabbed the same way: dragging moves the level, the X cancels/removes
+      const grab = (el) => (e) => {
+        const cur = getModel();
+        if (!cur) return;
+        if (id.startsWith('o:')) {
+          const o = (cur.pendings || []).find((x) => 'o:' + x.id === id);
+          if (!o) return;
+          if (e.target.closest('.x')) {
+            e.preventDefault();
+            e.stopPropagation();
+            return askCancel(o);
+          }
+          if (o.label === 'CLOSE') return say('Closing order: it cannot be moved from here (cancel it and place it again)', 'err');
+          return startDrag(e, el, o.kind, { id: o.id, price: o.price, order: o }, 'order');
+        }
+        const leg = cur.pos && cur.pos.triggers.find((x) => x.id === id);
+        if (!leg) return;
+        if (e.target.closest('.x')) {
+          e.preventDefault();
+          e.stopPropagation();
+          return askRemove(leg);
+        }
+        startDrag(e, el, leg.kind, leg, 'leg');
+      };
+      if (!ro) {
+        le.chip.addEventListener('pointerdown', grab(le.chip));
+        le.line.addEventListener('pointerdown', grab(le.line));
+      } else if (it.entry) {
+        // position X: closes 100% leaving pending orders (two clicks, as for removing the STOP)
+        le.chip.addEventListener('pointerdown', (e) => {
+          if (!e.target.closest('.x')) return;
+          e.preventDefault();
+          e.stopPropagation();
+          askClosePos(id);
+        });
+      }
+      le.lead = document.createElement('div');
+      le.lead.className = 'lead';
+      els.layer.appendChild(le.line);
+      els.layer.appendChild(le.lead);
+      els.layer.appendChild(le.chip);
+      legEls.set(it.id, le);
+    }
+    const goneUntil = removing.get(it.id);
+    if (goneUntil && Date.now() < goneUntil) {
+      show(le.lead, false);
+      show(le.line, false); // removal/cancel sent: hidden at once, comes back if Vest refuses it
+      show(le.chip, false);
+      continue;
+    }
+    let html, price;
+    if (it.pvAvg) {
+      const P = it.pv;
+      price = P.avg;
+      html = `<span class="k">AVG NEW</span><b>${F.price(price, priceDec)}</b><span class="qy">${F.qty(P.qty)}</span>`;
+      le.chip.title = `New average entry if ${P.side === 'long' ? 'LONG' : 'SHORT'} adds ${F.qty(P.add)} at market (about ${F.price(P.entry, priceDec)}): total size ${F.qty(P.qty)}.`;
+    } else if (it.pv) {
+      const P = it.pv,
+        k = P.ko;
+      price = k.price;
+      const d = Math.abs(P.entry - price);
+      html = `<span class="k">FAIL NEW</span><b>${F.price(price, priceDec)}</b><span class="qy">${F.qty(P.qty)}</span><span class="down">−${d.toFixed(priceDec)} pt</span><span class="down">${F.usd(k.loss, true)}</span>`;
+      le.chip.title = `${P.side === 'long' ? 'LONG' : 'SHORT'} preview (no order): ${P.adding ? 'adding ' + F.qty(P.add) + ' to the position, size ' : 'size '}${F.qty(P.qty)} at about ${F.price(P.entry, priceDec)}. ` +
+        `At ${F.price(price, priceDec)} the equity reaches the ${k.floorKind} drawdown limit (${F.usd(k.floor)}): ${d.toFixed(priceDec)} points from the current price. Excludes pending orders, local stops, SL/TP, spread, exit fee and funding.`;
+    } else if (it.one) {
+      const N = it.avgL.next;
+      price = N.avg;
+      html = `<span class="k">AVG NEXT</span><b>${F.price(price, priceDec)}</b><span>${F.qty(N.qty)}</span>`;
+      le.chip.title = `Average entry if ONLY the next limit (${F.price(N.price, priceDec)}) fills, on top of the open position: size ${F.qty(N.qty)}. Excludes the other limits, local stops and fees.`;
+    } else if (it.avgL) {
+      const L = it.avgL;
+      price = L.avg;
+      html = `<span class="k">AVG ALL</span><b>${F.price(price, priceDec)}</b><span>${F.qty(L.qty)}</span>`;
+      le.chip.title = `Average entry if all ${L.n} entry limits fill${pos ? ', on top of the open position' : ''}: total size ${F.qty(L.qty)}. Excludes local stops and fees.`;
+    } else if (it.dd50) {
+      const h = it.dd50;
+      price = h.price;
+      html = `<span class="k">50% DRAWDOWN</span><b>${F.price(price, priceDec)}</b><span>${F.qty(h.qty)}</span><span class="down">${F.usd(h.loss, true)}</span>`;
+      le.chip.title = `Half of the available drawdown: ${F.usd(h.half)} of ${F.usd(h.avail)}` +
+        (Number.isFinite(h.ddInit) ? ` (initial drawdown ${F.usd(h.ddInit)} ${h.pl >= 0 ? '+' : '-'} total profit ${F.usd(Math.abs(h.pl))})` : '') +
+        `. At this price the position loses ${F.usd(-h.loss)} in total, ${F.usd(-h.fromNow)} from now.` +
+        (h.filled ? ` Counts ${h.filled} entry limit(s) that fill before it (size ${F.qty(h.qty)}, average entry ${F.price(h.avg, priceDec)}).` : ' With the current size.') +
+        (h.afterKo ? ' WARNING: the closer (daily) drawdown limit comes FIRST: see the fail price.' : '') +
+        ' Excludes local stops, fees and funding.';
+    } else if (it.ko) {
+      const k = it.ko;
+      price = k.price;
+      html = `<span class="k">FAIL</span><b>${F.price(price, priceDec)}</b><span>${F.qty(k.qty)}</span><span class="down">${F.usd(k.loss, true)}</span>`;
+      le.chip.title = `Account fail price: here the equity reaches the ${k.floorKind} drawdown limit (${F.usd(k.floor)}), losing ${F.usd(-k.loss)} from now.` +
+        (k.filled ? ` Counts ${k.filled} entry limit(s) that fill before it (size ${F.qty(k.qty)}, average entry ${F.price(k.avg, priceDec)}).` : ' With the current size.') +
+        ' Excludes local stops, SL/TP, fees and funding.';
+    } else if (it.entry) {
+      price = pos.openPrice;
+      const usd = mark > 0 ? pnlUsd(pos.side, pos.qty, pos.openPrice, mark) : NaN;
+      const armed = removeArm && removeArm.id === it.id && Date.now() < removeArm.until;
+      const off = !m.ordersOn || !!m.busy;
+      // one row: side, entry, size, points for/against, account P&L, X
+      const gp = mark > 0 ? (pos.side === 'long' ? 1 : -1) * (mark - pos.openPrice) : NaN;
+      html =
+        `<span class="k" title="${pos.side === 'long' ? 'LONG' : 'SHORT'}: average entry price of the position">${pos.side === 'long' ? 'L' + ARROW_UP : 'S' + ARROW_DOWN}</span><b>${F.price(price, priceDec)}</b>` +
+        `<span class="qy">${F.qty(pos.qty)}</span>` +
+        `<span class="pt ${F.cls(gp)}" title="Points from the entry to the current price">${Number.isFinite(gp) ? (gp > 0 ? '+' : gp < 0 ? '−' : '') + Math.abs(gp).toFixed(priceDec) + ' pt' : '—'}</span>` +
+        `<span class="pl ${F.cls(usd)}" title="P&L of the selected account">${F.usd(usd, true)}</span>` +
+        `<span class="x${armed ? ' arm' : ''}${off ? ' off' : ''}" title="${off ? 'Orders off or sending in progress' : 'Closes 100% of the position at market, WITHOUT cancelling pending orders (two clicks)'}">${armed ? 'close?' : '✕'}</span>`;
+    } else if (it.leg) {
+      const t = it.leg;
+      const dragging = drag && drag.existing && drag.existing.id === t.id;
+      const isPending = pending && pending.legId === t.id && Date.now() < pending.until && Math.abs(t.price - pending.price) > tick / 2;
+      price = dragging ? drag.price : isPending ? pending.price : t.price;
+      const usd = pnlUsd(pos.side, t.qty > 0 ? t.qty : pos.qty, pos.openPrice, price);
+      const armed = removeArm && removeArm.id === t.id && Date.now() < removeArm.until;
+      html = `<span class="k">${t.kind.toUpperCase()}</span><b>${F.price(price, priceDec)}</b><span class="${F.cls(usd)}">${F.usd(usd, true)}</span>${t.qty > 0 ? `<span>${F.qty(t.qty)}</span>` : ''}${sumAll(price)}<span class="x${armed ? ' arm' : ''}" title="${t.kind === 'sl' ? 'Remove the stop (two clicks)' : 'Remove the target'}">${armed ? 'remove?' : '✕'}</span>`;
+      le.chip.classList.toggle('pending', !!isPending);
+      le.chip.classList.toggle('drag', !!dragging);
+      le.chip.classList.toggle('bad', !!(dragging && !drag.ok));
+    } else {
+      const o = it.order;
+      const dragging = drag && drag.from === 'order' && drag.existing.id === o.id;
+      const isPending = pending && pending.legId === it.id && Date.now() < pending.until && Math.abs(o.price - pending.price) > tick / 2;
+      price = dragging ? drag.price : isPending ? pending.price : o.price;
+      le.chip.classList.toggle('pending', !!isPending);
+      le.chip.classList.toggle('drag', !!dragging);
+      le.chip.classList.toggle('bad', !!(dragging && !drag.ok));
+      html = `<span class="k" title="${o.label === 'CLOSE' ? 'Closing limit: reduces the position' : o.local ? 'Local entry stop' : 'Entry limit'}">${o.label || NAME[o.kind]}</span><span class="${o.side === 'long' ? 'up' : 'down'}">${sideWord(o.side)}</span><b>${F.price(price, priceDec)}</b><span>${F.qty(o.qty)}</span>${o.local ? '<span class="loc" title="Local stop: lives in this browser tab and triggers at market">local</span>' : ''}<span class="x" title="Cancel">✕</span>`;
+    }
+    const y = yOf(price);
+    // FAIL NEW preview off scale: label on the chart edge with an arrow, no line
+    const pin = !!it.pv && !inside(y);
+    if (pin || it.ghost) html += `<span class="down">${y > 0 ? '▼' : '▲'}</span>`; // the reserved space includes the arrow
+    show(le.line, inside(y) && !it.ghost);
+    show(le.chip, inside(y) || pin || !!it.ghost);
+    le.chip.style.visibility = it.ghost ? 'hidden' : '';
+    le.chip.style.setProperty('--kc', LS(it.kind).c); // label name (S, AVG ALL, TP...) in the colour of its line
+    if (le.html !== html) {
+      le.chip.innerHTML = html; // rewritten only when it changes: the X stays the same element and the click is not lost
+      le.html = html;
+    }
+    const chh = (le.chip.offsetHeight || 20) * CS; // on screen (transform)
+    let top = (pin ? (y > 0 ? g.height - chh / 2 - 4 : chh / 2 + 4) : y) - chh / 2;
+    // never over another label: moves below the one it touches (column sorted by price)
+    for (let i = 0; i < 30; i++) {
+      const hit = placed.find(([t, b]) => top < b + 2 && top + chh > t - 2);
+      if (!hit) break;
+      top = hit[1] + 2;
+    }
+    if (!it.ghost) placed.push([top, top + chh]); // the invisible reserved label does not push the others
+    frameChipW = Math.max(frameChipW, le.chip.offsetWidth || 0);
+    const chipLeft = areaX - CHIP_GAP - (le.chip.offsetWidth || 150) * CS; // column aligned to the right, next to the cards
+    // label shifted to avoid overlap: the line stops earlier and a slanted stroke joins it to the label
+    const mid = top + chh / 2;
+    const bent = Math.abs(mid - y) > 1.5 && inside(y) && !it.ghost;
+    hline(le.line, g, y, LS(it.kind), bent ? chipLeft - LEAD_W : chipLeft); // the line reaches the label
+    show(le.lead, bent);
+    if (bent) {
+      const x0 = chipLeft - LEAD_W - 4,
+        dx = chipLeft - x0,
+        dy = mid - y;
+      le.lead.style.left = x0 + 'px';
+      le.lead.style.top = g.top + y + 'px';
+      le.lead.style.width = Math.hypot(dx, dy) + 'px';
+      le.lead.style.transform = `rotate(${Math.atan2(dy, dx)}rad)`;
+      const ls = LS(it.kind);
+      le.lead.style.borderTop = `${ls.w}px ${ls.s === 'dotted' ? 'dotted' : 'solid'} ${ls.c}`;
+    }
+    le.chip.style.left = chipLeft + 'px';
+    le.chip.style.top = g.top + top + 'px';
+  }
+  for (const [id, le] of legEls)
+    if (!seen.has(id)) {
+      le.line.remove();
+      le.lead.remove();
+      le.chip.remove();
+      legEls.delete(id);
+    }
+
+  // ── trailing: three segments in the space between the candles and the label column
+  //    orange = trailing stop, light blue = start level (gone once the stop is placed), green = next step
+  {
+    const tv = m.trailView;
+    const x1 = areaX - CHIP_GAP - chipW * CS - 6;
+    let x0 = g.left + g.width - needPx + 6;
+    if (x1 - x0 < 20) x0 = x1 - 20;
+    const SEG = { trT: 'beauto', trB: 'beplus', trS: 'tstop', trA: 'tact', trN: 'tnext' }; // kind in the panel (colour, dash, width, length)
+    for (const [k, p] of [['trT', m.beAtPrice], ['trB', m.bePrice], ['trS', tv && tv.stop], ['trA', tv && tv.act], ['trN', tv && tv.next]]) {
+      const y = p != null ? yOf(p) : NaN;
+      const on = p != null && inside(y);
+      show(els[k], on);
+      if (!on) continue;
+      const ls = (lineStyles && lineStyles[SEG[k]]) || null;
+      const w = ls ? ls.w : 3;
+      const sx0 = ls && ls.l > 0 ? x1 - ls.l : x0; // chosen length: the segment always ends next to the labels
+      if (ls) els[k].style.borderTop = `${w}px ${ls.s} ${ls.c}`;
+      els[k].style.left = sx0 + 'px';
+      els[k].style.width = x1 - sx0 + 'px';
+      els[k].style.top = g.top + y - Math.floor(w / 2) + 'px';
+      els[k].title = { trT: 'Auto BE: triggers when the price gets here', trB: 'BE+: the BE button puts the stop here', trS: 'Trailing: stop', trA: 'Trailing: first stop when the price gets here', trN: 'Trailing: the stop moves up when the price gets here' }[k] + ' (' + F.price(p, priceDec) + ')';
+    }
+  }
+
+  // ── last swing high / low: two short lines between the cards and the price axis
+  {
+    const hl = m.hlOn && bv ? bv.hl : null;
+    const x0 = g.left + g.width - CARD_RIGHT + 3,
+      x1 = g.left + g.width - 1;
+    for (const [k, p, kind] of [['hlH', hl && hl.h, 'hhigh'], ['hlL', hl && hl.l, 'hlow']]) {
+      const y = Number.isFinite(p) ? yOf(p) : NaN;
+      const on = Number.isFinite(y) && inside(y);
+      show(els[k], on);
+      if (!on) continue;
+      const ls = (lineStyles && lineStyles[kind]) || { c: kind === 'hhigh' ? '#3ecf8e' : '#ff6b61', s: 'solid', w: 2 };
+      els[k].style.borderTop = `${ls.w}px ${ls.s} ${ls.c}`;
+      els[k].style.left = x0 + 'px';
+      els[k].style.width = x1 - x0 + 'px';
+      els[k].style.top = g.top + y - Math.floor(ls.w / 2) + 'px';
+    }
+  }
+
+  // ── preview while dragging a new level (TP/SL, LIMIT/STOP from the second card)
+  if (drag && !drag.existing && drag.moved) {
+    const y = yOf(drag.price);
+    show(els.dragLine, true);
+    show(els.dragChip, true);
+    let txt;
+    if (drag.kind === 'lm' || drag.kind === 'st') {
+      const side = entrySide(drag.kind, drag.price, mark);
+      txt = `<span class="k">${NAME[drag.kind]}</span>${side ? `<span class="${side === 'long' ? 'up' : 'down'}">${sideWord(side)}</span>` : ''}<b>${F.price(drag.price, priceDec)}</b><span>${sz.qty > 0 ? F.qty(sz.qty) : ''}</span>`;
+    } else {
+      const usd = pos ? pnlUsd(pos.side, pos.qty, pos.openPrice, drag.price) : NaN;
+      txt = `<span class="k">${NAME[drag.kind]}</span><b>${F.price(drag.price, priceDec)}</b><span class="${F.cls(usd)}">${F.usd(usd, true)}</span>${pos ? sumAll(drag.price) : ''}`;
+    }
+    els.dragChip.className = 'chip drag ' + drag.kind + (drag.ok ? '' : ' bad');
+    els.dragChip.innerHTML = txt;
+    els.dragChip.style.setProperty('--kc', LS(drag.kind).c);
+    const dLeft = areaX - CHIP_GAP - (els.dragChip.offsetWidth || 150) * CS;
+    hline(els.dragLine, g, y, LS(drag.kind), dLeft);
+    els.dragChip.style.left = dLeft + 'px';
+    els.dragChip.style.top = g.top + y - ((els.dragChip.offsetHeight || 20) * CS) / 2 + 'px';
+  } else {
+    show(els.dragLine, false);
+    show(els.dragChip, false);
+  }
+  if (drag) drag.g = g;
+  setState({ visible: true, why: null, posId: pos ? pos.id : null, legPrices: pos ? pos.triggers.map((t) => t.price) : [], entry: pos ? pos.openPrice : null });
+}
+
+// ── removing a stop/target. The target goes on the first click; the STOP needs a second click within 3 s
+// (removing the stop increases the risk: hence two clicks).
+let removeArm = null; // { id, until }
+const removing = new Map(); // id -> wait deadline
+function askRemove(leg) {
+  const now = Date.now();
+  if (leg.kind === 'sl' && !(removeArm && removeArm.id === leg.id && now < removeArm.until)) {
+    removeArm = { id: leg.id, until: now + 3000 };
+    say('Click the X again within 3 seconds to remove the STOP', '');
+    return;
+  }
+  removeArm = null;
+  removing.set(leg.id, now + 6000);
+  const p = actions.removeLeg(leg);
+  run(p, `${leg.kind.toUpperCase()} removed`);
+  p.catch(() => removing.delete(leg.id));
+}
+
+/** Position X: the first click arms, a second within 3 s closes 100% (pending orders stay). */
+function askClosePos(id) {
+  const m = getModel();
+  if (!m || !m.pos || 'pos:' + m.pos.id !== id) return;
+  if (!m.ordersOn) return say('Orders are off: switch them on from the card (Orders)', 'err');
+  if (m.busy) return;
+  const now = Date.now();
+  if (!(removeArm && removeArm.id === id && now < removeArm.until)) {
+    removeArm = { id, until: now + 3000 };
+    say('Click the X again within 3 seconds to close the whole position (pending orders stay)', '');
+    return;
+  }
+  removeArm = null;
+  run(actions.closeAll(), 'CLOSE sent: pending orders stay');
+}
+
+/** Cancels a pending order or a local stop (one click: it only reduces risk). */
+function askCancel(o) {
+  const key = 'o:' + o.id;
+  removing.set(key, Date.now() + 6000);
+  const p = actions.cancelPending(o);
+  run(p, `${NAME[o.kind]} cancelled`);
+  p.catch(() => removing.delete(key));
+}
+
+// ── dragging
+function startDrag(e, el, kind, existing, from) {
+  const m = getModel();
+  if (!m || !state.visible || !m.market) return;
+  if ((kind === 'tp' || kind === 'sl') && !m.pos) return;
+  e.preventDefault();
+  e.stopPropagation();
+  try {
+    el.setPointerCapture(e.pointerId);
+  } catch {
+    /* nothing */
+  }
+  const start = existing ? existing.price : m.pos ? m.pos.openPrice : m.market.mark;
+  drag = { el, kind, existing, from, startY: e.clientY, moved: false, price: start, ok: true, g: null };
+  const move = (ev) => {
+    if (!drag) return;
+    if (Math.abs(ev.clientY - drag.startY) > CLICK_PX) drag.moved = true;
+    const cur = getModel();
+    if (!drag.moved || !drag.g || !cur || !cur.market) return;
+    const { tick, mark } = cur.market;
+    drag.price = roundToTick(G.yToPrice(ev.clientY - drag.g.top, drag.g.vr, drag.g.height), tick);
+    if (drag.from === 'order') drag.ok = entrySide(drag.kind, drag.price, mark) === drag.existing.order.side && !tooClose(drag.price, mark, tick);
+    else if (drag.kind === 'lm' || drag.kind === 'st') drag.ok = !!entrySide(drag.kind, drag.price, mark) && !tooClose(drag.price, mark, tick);
+    else drag.ok = !!cur.pos && !checkLeg({ kind: drag.kind, side: cur.pos.side, price: drag.price, mark, tick });
+  };
+  const up = () => {
+    el.removeEventListener('pointermove', move);
+    el.removeEventListener('pointerup', up);
+    el.removeEventListener('pointercancel', up);
+    endDrag(true);
+  };
+  el.addEventListener('pointermove', move);
+  el.addEventListener('pointerup', up);
+  el.addEventListener('pointercancel', up);
+}
+
+function endDrag(commit) {
+  const d = drag;
+  drag = null;
+  if (!d || !commit) return;
+  if (!d.moved) {
+    if (d.from !== 'leg' && d.from !== 'order') say(`Hold ${NAME[d.kind]} and drag it to the level you want`, '');
+    return;
+  }
+  if (d.from === 'order') {
+    // LIMIT / STOP already placed: moved on release, no confirmation (like the rest of the second card)
+    const o = d.existing.order;
+    if (Math.abs(d.price - o.price) < 1e-9) return;
+    if (!d.ok) return say(`${NAME[d.kind]}: invalid level (wrong side or too close to the price)`, 'err');
+    pending = { kind: d.kind, legId: 'o:' + o.id, price: d.price, until: Date.now() + 6000 };
+    const p = actions.movePending(o, d.price);
+    run(p, `${NAME[d.kind]} moved to ${d.price}${o.local ? ' (local)' : ''}`);
+    p.catch(() => (pending = null));
+    return;
+  }
+  if (d.kind === 'lm' || d.kind === 'st') {
+    // order on release, no confirmation: the real checks are in entry.js / stops.js
+    run(actions.placeEntry(d.kind, d.price), d.kind === 'lm' ? `LIMIT sent at ${d.price}` : `STOP armed at ${d.price} (local)`);
+    return;
+  }
+  const p = actions.setLeg(d.kind, d.price, d.existing);
+  if (d.existing) pending = { kind: d.kind, legId: d.existing.id, price: d.price, until: Date.now() + 5000 };
+  run(p, `${NAME[d.kind]} ${d.existing ? 'moved' : 'set'} at ${d.price}`);
+  p.catch(() => (pending = null));
+}
+
+module.exports = {
+  mount,
+  state: () => state,
+  setEnabled: (v) => {
+    enabled = !!v;
+    if (!enabled) hideAll();
+  },
+  enabled: () => enabled,
+};

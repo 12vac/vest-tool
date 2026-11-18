@@ -1,0 +1,10 @@
+// ==UserScript==
+// @name         VestTool
+// @namespace    vest-tool
+// @version      {{VERSION}}
+// @description  Account status and P&L in dollars, trade overlay on the chart (BE, draggable SL/TP, FLAT) for Vest Markets. Unofficial: not made, endorsed or supported by Vest Markets.
+// @match        https://next.vestmarkets.com/*
+// @run-at       document-start
+// @grant        none
+// @noframes
+// ==/UserScript==

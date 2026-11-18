@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VestTool</title>
+<meta name="description" content="Unofficial, free, open-source userscript for Vest Markets: P&L in dollars, drag-and-drop SL/TP on the chart, trailing stop, breakeven and a copier between your accounts.">
+<style>
+  /* everything inline: this page loads nothing from other sites */
+  :root {
+    --bg: #0d1015; --bg2: #12151b; --card: #171b23; --line: #2a2f3a; --text: #d7dbe3; --muted: #8b93a3;
+    --up: #3ecf8e; --down: #ff6b61; --acc: #5ad1e6; --warn: #ffb402; --violet: #c58cff;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  a { color: var(--acc); }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 0 16px; }
+  nav { position: sticky; top: 0; z-index: 5; background: rgba(13,16,21,.92); backdrop-filter: blur(6px); border-bottom: 1px solid var(--line); }
+  nav .wrap { display: flex; align-items: center; gap: 18px; height: 54px; }
+  nav b { font-size: 17px; letter-spacing: .02em; }
+  nav .links { margin-left: auto; display: flex; gap: 16px; flex-wrap: wrap; }
+  nav .links a { color: var(--muted); text-decoration: none; font-size: 14px; }
+  nav .links a:hover { color: var(--text); }
+  header { padding: 64px 0 40px; }
+  .hero { display: grid; grid-template-columns: 1.05fr .95fr; gap: 40px; align-items: center; }
+  h1 { font-size: 44px; line-height: 1.1; margin: 0 0 14px; letter-spacing: -.01em; }
+  h1 em { font-style: normal; color: var(--acc); }
+  .lead { font-size: 18px; color: #b8bfcc; margin: 0 0 22px; }
+  .tag { display: inline-block; font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted);
+    border: 1px solid var(--line); border-radius: 99px; padding: 3px 10px; margin-bottom: 16px; }
+  .btns { display: flex; gap: 10px; flex-wrap: wrap; }
+  .btn { display: inline-block; padding: 10px 18px; border-radius: 8px; font-weight: 600; text-decoration: none; border: 1px solid var(--line); color: var(--text); background: var(--card); }
+  .btn:hover { border-color: #4a5468; }
+  .btn.main { background: #1f6f55; border-color: #2c9d78; color: #fff; }
+  .btn.main:hover { background: #24805f; }
+  section { padding: 48px 0; border-top: 1px solid var(--line); }
+  h2 { font-size: 28px; margin: 0 0 8px; }
+  .sub { color: var(--muted); margin: 0 0 28px; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .f { background: var(--bg2); border: 1px solid var(--line); border-radius: 10px; padding: 18px; }
+  .f h3 { margin: 0 0 6px; font-size: 17px; }
+  .f p { margin: 0; color: #aab2c0; font-size: 15px; }
+  .f .ic { width: 30px; height: 30px; border-radius: 7px; display: grid; place-items: center; margin-bottom: 10px; font-weight: 800; font-size: 14px; }
+  .warnbox { background: #2a1416; border: 1px solid #6b2a2a; border-radius: 10px; padding: 16px 18px; color: #ffd0cc; }
+  .warnbox b { color: #fff; }
+  .safety { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px 28px; margin: 0; padding: 0; list-style: none; }
+  .safety li { padding-left: 26px; position: relative; color: #c3c9d4; }
+  .safety li::before { content: "✓"; position: absolute; left: 0; color: var(--up); font-weight: 800; }
+  ol.steps { counter-reset: s; list-style: none; padding: 0; margin: 0; display: grid; gap: 14px; }
+  ol.steps li { counter-increment: s; background: var(--bg2); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px 14px 58px; position: relative; }
+  ol.steps li::before { content: counter(s); position: absolute; left: 16px; top: 13px; width: 28px; height: 28px; border-radius: 50%;
+    background: #1d2a36; color: var(--acc); display: grid; place-items: center; font-weight: 800; }
+  code { background: #1d222c; border: 1px solid #333a48; border-radius: 4px; padding: 1px 5px; font-size: 14px; }
+  details { background: var(--bg2); border: 1px solid var(--line); border-radius: 10px; padding: 12px 16px; margin-bottom: 10px; }
+  summary { cursor: pointer; font-weight: 600; }
+  details p { color: #b8bfcc; margin: 10px 0 2px; }
+  .support { display: grid; grid-template-columns: 1.2fr .8fr; gap: 28px; align-items: start; }
+  footer { border-top: 1px solid var(--line); padding: 28px 0 40px; color: var(--muted); font-size: 13px; }
+  footer p { margin: 6px 0; }
+  .unoff { background: #2a2210; border-bottom: 1px solid #6b5418; color: #ffe2a0; font-size: 14px; padding: 9px 0; }
+  .unoff b { color: #fff; }
+  /* manifesto */
+  .manifest-head { padding: 88px 0 56px; }
+  h1.big { font-size: 64px; line-height: 1.02; font-weight: 900; text-transform: uppercase; letter-spacing: -.02em; margin: 0 0 22px; }
+  h1.big em { color: var(--down); }
+  h1.big .brand { text-transform: none; color: var(--acc); }
+  .manifest-head .lead { max-width: 720px; font-size: 19px; }
+  .manifest-head .lead b { color: #fff; }
+  .manifesto h2 { font-size: 34px; text-transform: uppercase; letter-spacing: .02em; margin-bottom: 24px; }
+  ol.theses { counter-reset: t; list-style: none; padding: 0; margin: 0; display: grid; gap: 4px; }
+  ol.theses li { counter-increment: t; position: relative; padding: 16px 0 16px 76px; border-bottom: 1px solid var(--line);
+    color: #b8bfcc; font-size: 17px; }
+  ol.theses li::before { content: counter(t, decimal-leading-zero); position: absolute; left: 0; top: 10px;
+    font-size: 40px; font-weight: 900; line-height: 1; color: var(--warn); }
+  ol.theses li b { display: block; color: #fff; font-size: 21px; text-transform: uppercase; letter-spacing: .01em; margin-bottom: 4px; }
+  .sign { margin: 26px 0 0; color: var(--acc); font-weight: 600; }
+  h2.toolh { font-size: 34px; line-height: 1.15; }
+  h2.toolh em { font-style: normal; color: var(--acc); }
+  /* screenshot of the chart cards */
+  .mock { background: var(--bg2); border: 1px solid var(--line); border-radius: 12px; padding: 14px; box-shadow: 0 20px 50px rgba(0,0,0,.45); }
+  .mock { margin: 0; }
+  .mock img { display: block; width: 100%; height: auto; border-radius: 6px; }
+  .media { display: grid; gap: 14px; }
+  .mbox { display: grid; grid-template-columns: 64px 1fr; grid-template-rows: auto auto; column-gap: 16px; align-items: center;
+    background: var(--bg2); border: 1px solid var(--line); border-radius: 12px; padding: 20px; text-decoration: none; color: var(--text); }
+  .mbox[hidden] { display: none; }
+  .mbox:hover { border-color: #4a5468; }
+  .mbox b { font-size: 19px; }
+  .mbox span:not(.play) { grid-column: 2; color: var(--muted); font-size: 14px; }
+  .mbox .play { grid-row: 1 / 3; width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center; font-size: 24px; }
+  .mbox.video .play { background: #3a1416; color: var(--down); }
+  .mbox.tour .play { background: #102a30; color: var(--acc); }
+  .mbox.soon { display: block; }
+  .mbox.soon span { display: block; margin-top: 4px; }
+  @media (max-width: 860px) {
+    .hero, .support { grid-template-columns: 1fr; }
+    .grid { grid-template-columns: 1fr 1fr; }
+    h1 { font-size: 34px; }
+    h1.big { font-size: 42px; }
+    h2.toolh { font-size: 26px; }
+  }
+  @media (max-width: 560px) {
+    h1.big { font-size: 32px; }
+    ol.theses li { padding-left: 52px; }
+    ol.theses li::before { font-size: 28px; }
+    ol.theses li b { font-size: 17px; }
+  }
+  @media (max-width: 560px) {
+    .grid, .safety { grid-template-columns: 1fr; }
+    nav .links { display: none; }
+    header { padding-top: 40px; }
+  }
+</style>
+</head>
+<body>
+<nav><div class="wrap"><b>VestTool</b>
+  <div class="links"><a href="#features">Features</a><a href="#safety">Safety</a><a href="#install">Install</a><a href="#faq">FAQ</a><a href="#support">Support</a></div>
+</div></nav>
+
+<div class="unoff"><div class="wrap"><b>Unofficial.</b> VestTool is an independent community project, <b>not a Vest Markets product</b>: not made, endorsed or supported by Vest Markets. For help, open an issue on GitHub, not a ticket with Vest.</div></div>
+
+<header class="manifest-head"><div class="wrap">
+  <h1 class="big"><span class="brand">VestTool</span></h1>
+  <p class="lead">VestTool is for active traders who manage open trades on the fly: move the stop, cut half, close, flip,
+    while keeping one eye on the account limits and one on volatility to choose size and stop distance.
+    It turns the revenge trade and the oversized position into something you <b>see</b>, at a glance,
+    while it is still a thought.</p>
+</div></header>
+
+<section id="manifesto" class="manifesto"><div class="wrap">
+  <h2>The visible trade</h2>
+  <ol class="theses">
+    <li><b>We reject the blind click.</b> Every order has a price in dollars, and that price belongs on the chart, next to
+      the candle, before the finger moves.</li>
+    <li><b>Speed without sight is gambling.</b> The active trader moves stops, takes partials, flips. The tool must be as fast
+      as the hand, and the limits of the account must never leave the eye.</li>
+    <li><b>Volatility decides size and distance, not mood.</b> The same hours, seen from 1h down to 1m. When 1m burns red,
+      the stop goes wider and the size goes smaller. Not the other way round.</li>
+    <li><b>The revenge trade has a shape.</b> After a loss the next order comes bigger and faster. Here it has a form: the
+      drawdown left shrinks, the fail line walks towards the price, the daily loss left turns red.
+      You see the step longer than the leg while you are taking it.</li>
+    <li><b>Oversize is a number, not a feeling.</b> Every size is a percentage of what the account can bear. The cap refuses
+      what the hand asks for in anger.</li>
+    <li><b>Consistency is structure, not willpower.</b> Daily goal, daily loss left, drawdown left: the same bars every day,
+      the same rules every trade.</li>
+    <li><b>The machine writes the code; the trader brings the method.</b> This tool was written with AI. The ideas, the limits
+      and the judgment are human. What is worth sharing is the method, the imagination behind it, and the people who sharpen it.</li>
+    <li><b>Open, or nothing.</b> Every line readable, nothing phones home, nothing re-arms by itself. Trust is built in public.</li>
+  </ol>
+  <p class="sign">Ideas, criticism and better methods are welcome: this is meant to become a place for traders who think.</p>
+</div></section>
+
+<section id="tool"><div class="wrap hero">
+  <div>
+    <span class="tag">Free · open source · unofficial</span>
+    <h2 class="toolh">The tool: trade on <em>Vest</em> from the chart, with your risk in dollars.</h2>
+    <p class="lead">A userscript for Vest Markets prop accounts: P&amp;L and drawdown room in dollars, drag-and-drop stop loss and
+      take profit, breakeven, trailing stop, a copier between your accounts, swing levels, a candle countdown and a
+      multi-timeframe volatility heatmap on the chart.</p>
+    <div class="btns">
+      <a class="btn main" data-gh="releases" href="#install">Download</a>
+      <a class="btn" data-gh="guide" href="#install">Step-by-step guide</a>
+      <a class="btn" data-gh="repo" href="#">Source code</a>
+    </div>
+  </div>
+  <div class="media">
+    <a class="mbox video" data-video href="#" target="_blank" rel="noopener" hidden>
+      <span class="play">&#9654;</span><b>Watch it in action</b><span>Video on YouTube: a real session, every part of the tool at work.</span></a>
+    <a class="mbox tour" data-tour href="tour.html" hidden>
+      <span class="play">&#9673;</span><b>Explore every section</b><span>An interactive map of the panel and the chart cards, with an explanation next to each part.</span></a>
+    <div class="mbox soon" data-soon><b>Video and interactive tour coming soon.</b><span>Until then, the <a data-gh="guide" href="#install">step-by-step guide</a> explains every part.</span></div>
+  </div>
+</div></section>
+
+<section><div class="wrap">
+  <div class="warnbox"><b>Real money.</b> Vest has no demo accounts: every order this tool sends is a real order. It is free software
+    provided as is, with no warranty: you are responsible for every order it sends. Try each feature at minimum size first.
+    VestTool is an independent project, not made, endorsed or supported by Vest Markets.</div>
+</div></section>
+
+<section id="features"><div class="wrap">
+  <h2>What it does</h2>
+  <p class="sub">Everything runs in your browser, on the Vest page you already use.</p>
+  <div class="grid">
+    <div class="f"><div class="ic" style="background:#10291f;color:#3ecf8e">$</div><h3>Accounts in dollars</h3>
+      <p>Equity, balance, today's P&amp;L from the start of the Vest day, open and total P&amp;L, and the dollars left before each drawdown limit, for every account.</p></div>
+    <div class="f"><div class="ic" style="background:#13264a;color:#9fc2ff">↕</div><h3>Orders from the chart</h3>
+      <p>Drag SL, TP, limit and stop orders to the price you want. Breakeven, BE+, partial close, close and flat with one click.</p></div>
+    <div class="f"><div class="ic" style="background:#2e1517;color:#ff6b61">!</div><h3>Fail price</h3>
+      <p>Lines at the price where the account would reach its drawdown limit, and where half the room is gone, counting your pending entries.</p></div>
+    <div class="f"><div class="ic" style="background:#2f2610;color:#e8b84a">≋</div><h3>Trailing stop and auto BE</h3>
+      <p>Moves Vest's real stop behind the price, in points or dollars, with a start level and a minimum step.</p></div>
+    <div class="f"><div class="ic" style="background:#251a36;color:#c58cff">⇉</div><h3>Copier</h3>
+      <p>Mirrors one account's orders onto your other accounts, 1:1 or scaled to their equity, including orders placed with Vest's own ticket.</p></div>
+    <div class="f"><div class="ic" style="background:#102a30;color:#5ad1e6">◷</div><h3>Chart extras</h3>
+      <p>Countdown to the candle close on Vest's clock, last swing high and low with the range in points, a volatility heatmap
+        from 1h to 1m over the same hours, average entry if your limits fill.</p></div>
+  </div>
+</div></section>
+
+<section id="safety"><div class="wrap">
+  <h2>Built to be safe by default</h2>
+  <p class="sub">The script can touch real money, so its defaults are the cautious ones.</p>
+  <ul class="safety">
+    <li><b>Orders OFF after every reload.</b> While off it can only close and cancel, never open.</li>
+    <li><b>Copier, trailing and auto BE</b> always start switched off; nothing re-arms by itself.</li>
+    <li><b>Talks only to Vest.</b> No analytics, no telemetry, no external libraries, no auto-update.</li>
+    <li><b>Tokens stay in memory.</b> Never saved, never logged, never sent anywhere but Vest.</li>
+    <li><b>Order endpoints only.</b> Withdrawals and account settings are blocked in the code.</li>
+    <li><b>Size cap.</b> No entry order can exceed the % of the maximum size you set.</li>
+    <li><b>Open source.</b> One readable file, no dependencies: read it or build it yourself.</li>
+    <li><b>FLATTEN ALL.</b> One button closes every position on every account, even with orders off.</li>
+  </ul>
+</div></section>
+
+<section id="install"><div class="wrap">
+  <h2>Install in five minutes</h2>
+  <p class="sub">Full instructions, updating and troubleshooting are in the <a data-gh="guide" href="#">step-by-step guide</a>.</p>
+  <ol class="steps">
+    <li>Install the <b>Tampermonkey</b> extension from your browser's extension store (Chrome, Edge, Brave, Firefox).
+      On Chrome and Edge, allow userscripts if Tampermonkey asks (Developer mode or "Allow User Scripts").</li>
+    <li>Download <code>vest-tool.user.js</code> from the <a data-gh="releases" href="#">latest release</a>.</li>
+    <li>Tampermonkey → <b>Create a new script</b>, replace everything with the content of the file, <b>Save</b>.</li>
+    <li>Open <code>next.vestmarkets.com</code>, log in, reload. The panel appears at the top right; the cards on the chart.</li>
+    <li>Click any <b>?</b> in the panel to learn what each part does. Switch <b>Orders</b> on only when you are ready, and start at minimum size.</li>
+  </ol>
+</div></section>
+
+<section id="faq"><div class="wrap">
+  <h2>Questions</h2>
+  <details><summary>Is this allowed by Vest?</summary>
+    <p>The tool sends the same orders you could send by hand on Vest's page. Check Vest's terms for your account type yourself,
+      especially for copying between accounts: the rules are theirs, and they can change.</p></details>
+  <details><summary>Does it need my password or API key?</summary>
+    <p>No. It uses the session you are already logged in with, inside the Vest page, and keeps it in memory only.</p></details>
+  <details><summary>Why is there no automatic update?</summary>
+    <p>So that new code never runs on your account without you choosing it. To update, install the new release over the old one.</p></details>
+  <details><summary>Which browsers?</summary>
+    <p>Desktop browsers with Tampermonkey: Chrome, Edge, Brave, Firefox. Not mobile.</p></details>
+  <details><summary>Something looks wrong. What do I do?</summary>
+    <p>If in doubt press FLATTEN ALL. Then open Settings → Diagnostics, press "Copy diagnostics" and open an issue on GitHub
+      with it. The diagnostics contain no tokens, ids or amounts.</p></details>
+  <details><summary>Can you add feature X?</summary>
+    <p>Open an issue with the idea. This is a one-person project done in spare time: bugs come first, and not every request
+      will be built. Pull requests are welcome.</p></details>
+</div></section>
+
+<section id="support"><div class="wrap support">
+  <div>
+    <h2>Support the project</h2>
+    <p class="sub">VestTool is free and will stay free (GPL-3.0).</p>
+  </div>
+  <div class="f"><h3>Before you open an issue</h3>
+    <p>Add the version (next to the panel title), your browser, what you did, what you expected, and the output of
+      "Copy diagnostics". Never paste screenshots that show your account ids or tokens.</p></div>
+</div></section>
+
+<footer><div class="wrap">
+  <p>VestTool · free software under the GNU General Public License v3.0 · provided as is, without warranty of any kind.</p>
+  <p>Not affiliated with, endorsed or supported by Vest Markets. "Vest" is used only to say which site the tool works with.
+    Trading leveraged products can lose money quickly; nothing here is financial advice.</p>
+  <p>This page loads nothing from other sites and sets no cookies.</p>
+</div></footer>
+
+<script>
+  // repository address, worked out from the GitHub Pages address (user.github.io/repo)
+  const host = location.hostname, path = location.pathname.split('/').filter(Boolean);
+  const user = host.endsWith('.github.io') ? host.split('.')[0] : '';
+  const repoName = user ? path[0] || '' : '';
+  const repo = user && repoName ? `https://github.com/${user}/${repoName}` : '';
+  const target = {
+    repo, releases: repo && repo + '/releases/latest', guide: repo && repo + '/blob/main/GUIDE.md',
+    issues: repo && repo + '/issues',
+  };
+  for (const a of document.querySelectorAll('[data-gh]')) {
+    const url = target[a.dataset.gh];
+    if (url) { a.href = url; a.hidden = false; }
+  }
+
+  // ── fill in when ready
+  const VIDEO = ''; // full YouTube link of the demo video (empty = box hidden). It opens on YouTube: this page embeds nothing.
+  const TOUR = true; // false hides the link to tour.html
+  const vid = document.querySelector('[data-video]');
+  if (/^https:\/\/(www\.)?(youtube\.com|youtu\.be)\//.test(VIDEO)) { vid.href = VIDEO; vid.hidden = false; }
+  if (TOUR) document.querySelector('[data-tour]').hidden = false;
+  if (!vid.hidden || TOUR) document.querySelector('[data-soon]').hidden = true;
+</script>
+</body>
+</html>
