@@ -178,6 +178,12 @@ const HELP = {
     'Candle countdown',
     'Time left before the current candle of the chart\'s timeframe closes, shown on the first card between the instrument and the clock. It follows the timeframe you choose on the chart.',
   ],
+  theme: [
+    'Card style',
+    `<b>Classic</b>: the original design. <b>Sonar</b>: amber on black, square cards with cut corners, segmented bars and a
+    monospaced font. Only colours and fonts change: every button stays in the same place and does the same thing.
+    Green and red keep their meaning (profit / loss, buy / sell). Your line and quantity colours are kept.`,
+  ],
   hilo: [
     'Last swing high / low',
     `Two short lines between the cards and the price axis: the <b>last swing high</b> and the <b>last swing low</b> on the chart's timeframe.

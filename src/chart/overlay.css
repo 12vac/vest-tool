@@ -273,3 +273,86 @@ button[disabled] { opacity: .45; cursor: default; }
 /* account activity dot next to the name (store.activityOf) */
 .adot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 5px; vertical-align: 1px; background: #5b6373; flex: none; }
 .adot.free { background: #3ecf8e; } .adot.busy { background: #ff5a4f; } .adot.ph { background: #e8b84a; }
+
+/* ══ SONAR card style (Chart display → card style). Colours, fonts and decoration only: every position and size above stays.
+   Amber is the base colour; green and red keep their meaning (profit / loss, buy / sell). ══ */
+.root.sonar { --o: #ff8a3d; --od: #7a3b17; --oe: #c4521d; --obg: #0b0605; --ohi: #ffd2a8; --olo: #c4703d; --oup: #8dff6a; --odn: #ff4b3d; color: var(--o); }
+.root.sonar, .root.sonar * { font-family: Consolas, "Cascadia Mono", "Lucida Console", monospace !important; }
+.root.sonar :is(.card, .card2, .card3, .card4, .card5) { color: var(--o); border-radius: 0; border-color: var(--oe);
+  background: radial-gradient(130% 70% at 50% 0, #1a0b07, var(--obg));
+  box-shadow: 0 0 0 1px rgba(0,0,0,.65), 0 0 16px rgba(255,110,40,.13), 0 4px 14px rgba(0,0,0,.6); text-shadow: 0 0 5px rgba(255,120,40,.3); }
+/* cut corners (top left, bottom right) and faint scan lines */
+.root.sonar :is(.card, .card2, .card3, .card4, .card5)::before { content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(135deg, var(--side, var(--oe)) 0 5px, transparent 5px) top left / 9px 9px no-repeat,
+    linear-gradient(315deg, var(--side, var(--oe)) 0 5px, transparent 5px) bottom right / 9px 9px no-repeat,
+    repeating-linear-gradient(0deg, rgba(255,140,60,.04) 0 1px, transparent 1px 3px); }
+.root.sonar .card.long { --side: #3f8a2c; } .root.sonar .card.short { --side: #8a2424; } .root.sonar .card.flat { --side: var(--oe); }
+.root.sonar .up { color: var(--oup) !important; } .root.sonar .down { color: var(--odn) !important; }
+.root.sonar button { border-radius: 0; border-color: var(--od); color: var(--o); background: #140806; }
+/* first card */
+.root.sonar .card .side, .root.sonar .card .side b { color: var(--ohi); }
+.root.sonar .card .side i { color: var(--ohi); } .root.sonar .card .side i.cd { color: #ffb98a; }
+.root.sonar .card .acc { color: var(--o); }
+.root.sonar .card .w, .root.sonar .card .w.e, .root.sonar .card .dpt, .root.sonar .card .pnl.lbl { color: var(--ohi); }
+.root.sonar .card.long .w.vs { color: var(--oup); } .root.sonar .card.short .w.vs { color: var(--odn); }
+.root.sonar .card.flat .w { color: var(--olo); }
+.root.sonar .card .mic, .root.sonar .card .mic i, .root.sonar .card .gap.mk { color: var(--olo); }
+.root.sonar .card .tgl { color: #d96a2c; }
+.root.sonar .card button.ordc, .root.sonar .card button.cpc { color: var(--od); background: transparent; border-color: var(--od); }
+.root.sonar .card button.ordc.on, .root.sonar .card button.cpc.on { color: #170804; background: var(--o); border-color: var(--o); box-shadow: 0 0 8px rgba(255,120,40,.5); text-shadow: none; }
+.root.sonar .card button.flat { color: #170804; background: var(--o); border-color: var(--o); box-shadow: 0 0 12px rgba(255,120,40,.5); text-shadow: none; }
+/* second card */
+.root.sonar .card2 button.pp { color: var(--o); }
+.root.sonar .card2 button.pp.on { color: #170804; background: var(--o); border-color: var(--o); box-shadow: 0 0 8px rgba(255,120,40,.5); text-shadow: none; }
+.root.sonar .pctbox { border-radius: 0; border-color: var(--oe); background: #000; }
+.root.sonar .pctbox input, .root.sonar .pctbox span { color: var(--ohi); }
+.root.sonar .card2 .sz.why { color: var(--olo); }
+.root.sonar .card2 button.cx { color: var(--o); border-color: var(--oe); background: repeating-linear-gradient(-45deg, #2a1206 0 5px, #170904 5px 10px); }
+.root.sonar .card2 button.tp { color: var(--oup); border-color: #3f8a2c; background: #0e1d09; }
+.root.sonar .card2 button.sl { color: var(--odn); border-color: #8a2424; background: #210909; }
+.root.sonar .card2 button.be { color: var(--o); border-color: var(--oe); background: #140806; }
+.root.sonar .card2 button.lm { color: var(--ohi); border-color: var(--oe); background: #1c0c07; }
+.root.sonar .card2 button.st { color: #ffb02e; border-color: #8a5a10; background: #1f1406; }
+.root.sonar .card2 button.long { color: var(--oup); border-color: var(--oup); background: #183a10; box-shadow: 0 0 8px rgba(141,255,106,.25); }
+.root.sonar .card2 button.short { color: var(--odn); border-color: var(--odn); background: #3a1010; box-shadow: 0 0 8px rgba(255,75,61,.25); }
+.root.sonar .card2 .cxm { border-radius: 0; background: var(--obg); border-color: var(--oe); }
+.root.sonar .card2 .cxm button { border-radius: 0; color: var(--o); background: #140806; border-color: var(--od); }
+.root.sonar .card2 .cxm button:hover:not([disabled]) { background: #3a1010; border-color: var(--odn); }
+/* third card: segmented bars */
+.root.sonar .card3 button.close { color: var(--o); border-color: var(--oe); background: #140806; }
+.root.sonar .card3 .bar { border-radius: 0; border-color: rgba(122,59,23,.7); }
+.root.sonar .card3 .bl span:first-child { color: #d96a2c; } .root.sonar .card3 .bl span:last-child { color: var(--ohi); }
+.root.sonar .card3 .track { height: 5px; border-radius: 0; background: repeating-linear-gradient(90deg, rgba(255,138,61,.16) 0 4px, transparent 4px 6px); }
+.root.sonar .card3 .track i { background: var(--o);
+  -webkit-mask: repeating-linear-gradient(90deg, #000 0 4px, transparent 4px 6px); mask: repeating-linear-gradient(90deg, #000 0 4px, transparent 4px 6px); }
+.root.sonar .card3 .track i.goal, .root.sonar .card3 .track i.zg { background: var(--oup); }
+.root.sonar .card3 .track i.warn, .root.sonar .card3 .track i.zy { background: #ffd04a; }
+.root.sonar .card3 .track i.zo { background: #ff6a1a; }
+.root.sonar .card3 .track i.hot, .root.sonar .card3 .track i.ko, .root.sonar .card3 .track i.zr { background: var(--odn); }
+.root.sonar .card3 .bl b.zg { color: var(--oup); } .root.sonar .card3 .bl b.zy { color: #ffd04a; }
+.root.sonar .card3 .bl b.zo { color: #ff6a1a; } .root.sonar .card3 .bl b.zr { color: var(--odn); }
+/* copier card */
+.root.sonar .card4 th, .root.sonar .card4 th i, .root.sonar .card4 .cpt { color: #d96a2c; }
+.root.sonar .card4 td:first-child, .root.sonar .card4 td.q { color: var(--ohi); }
+.root.sonar .card4 tr.sel td:first-child { color: #ffd04a; }
+.root.sonar .card4 tr[data-id]:hover td { background: #1f0d07; }
+.root.sonar .card4 tr.t td { border-top-color: var(--od); }
+.root.sonar .card4 th i.on { color: var(--oup); }
+.root.sonar .card4 b.cpon { border-radius: 0; color: var(--olo); border-color: var(--od); }
+.root.sonar .card4 b.cpon.on { color: #170804; background: var(--o); border-color: var(--o); text-shadow: none; }
+/* swing and volatility card */
+.root.sonar .card5 .c5r b { color: var(--ohi); } .root.sonar .card5 .c5r i { color: var(--olo); }
+.root.sonar .card5 .hc { border-radius: 0; background: #140806; border-color: var(--od); }
+.root.sonar .card5 .hc b, .root.sonar .card5 .hc i { color: var(--olo); } .root.sonar .card5 .hc span { color: var(--ohi); }
+.root.sonar .card5 .hc.calm { background: #0b1520; border-color: #24496b; } .root.sonar .card5 .hc.calm span { color: #6fb7ff; }
+.root.sonar .card5 .hc.hot { background: #22160a; border-color: #8a5a10; } .root.sonar .card5 .hc.hot span { color: #ffb02e; }
+.root.sonar .card5 .hc.xhot { background: #2a0c0a; border-color: #8a2424; } .root.sonar .card5 .hc.xhot span { color: var(--odn); }
+.root.sonar .card5 .hc.na span, .root.sonar .card5 .hm-na { color: var(--od); }
+/* labels on the chart: square, dark, border colours unchanged (they match the lines) */
+.root.sonar .chip { border-radius: 0; background: var(--obg); color: var(--ohi); }
+.root.sonar .chip .x { border-radius: 0; color: var(--olo); } .root.sonar .chip .x:hover { color: var(--ohi); background: #2a1206; }
+.root.sonar .msg { color: #ffb98a; } .root.sonar .msg.err { color: var(--odn); } .root.sonar .msg.ok { color: var(--oup); }
+/* the monospaced font is wider than the classic one: tighter spacing where the rows are full (limits bars, copier table) */
+.root.sonar .card3 .bl { letter-spacing: -.3px; }
+.root.sonar .card4 table { font-size: 10px; letter-spacing: -.4px; }
+.root.sonar .card4 td, .root.sonar .card4 th { padding-left: 4px; }

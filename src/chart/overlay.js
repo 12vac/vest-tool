@@ -493,6 +493,9 @@ function draw() {
     els.layer.style.setProperty('--qs', qs.s + 'px');
     els.layer.style.setProperty('--qw', qs.b ? 800 : 400);
   }
+  // card style from the panel: 'sonar' only changes colours and fonts (overlay.css), never positions
+  const sonar = m.theme === 'sonar';
+  if (els.layer.classList.contains('sonar') !== sonar) els.layer.classList.toggle('sonar', sonar);
   const SCALE = scaleOf(m.blockPct, 125),
     CS = scaleOf(m.chipPct, 100);
   if (els.layer.dataset.sc !== SCALE + '/' + CS) {

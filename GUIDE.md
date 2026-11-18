@@ -82,7 +82,7 @@ Check every step on Vest's own positions page.
 - **Order size and daily goal → size cap**: no entry order can be larger than this % of the maximum size. Default 10%.
 - **Order size and daily goal → presets**: the six % buttons on the second card.
 - **Order size and daily goal → daily goal**: your target for the day, shown on the third card.
-- **Chart display**: card and label size, label space, candle countdown, last swing high/low lines (K = candles on each
+- **Chart display**: card style (Classic or Sonar), card and label size, label space, candle countdown, last swing high/low lines (K = candles on each
   side, 1-50), volatility heatmap (last N candles vs the last H hours). Each has a **?** that explains it.
 - **Line colours**: colour, dash and width of every line.
 

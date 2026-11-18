@@ -58,6 +58,8 @@ Do not run two copies of this script at the same time (for example an old and a 
   of hours (e.g. 14 h = 14 candles of 1h, 840 of 1m). Above 1 = that timeframe is speeding up; a burst usually lights up
   1m first. Blue below 0.75, grey normal, orange from 1.25, red from 1.75. Built from the chart's own candles: timeframes
   shorter than the chart's show "—" (put the chart on 1m to see all five).
+- **Card style**: *Classic* or *Sonar* (amber on black, cut corners, segmented bars, monospaced font) in *Chart display*.
+  Only colours and fonts change; buttons stay where they are.
 - **TP / SL**: press the button on the card and drag to the level; releasing sends the order. Existing labels can be dragged to
   move them. A yellow border means the level is not valid (wrong side of the price or closer than 2 ticks) and nothing is sent.
   Esc cancels the drag.

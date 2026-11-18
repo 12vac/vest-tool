@@ -271,6 +271,7 @@ on that market are closed. Real money on every account. It switches off at every
       chipPct: ui.chipPct,
       roomPx: ui.roomPx,
       cdOn: ui.cdOn !== false,
+      theme: ui.theme === 'sonar' ? 'sonar' : 'classic',
       hlOn: ui.hlOn !== false,
       atrOn: ui.atrOn !== false,
       // out of range -> nearest limit (not the default: a value that silently does nothing is worse); empty -> default
