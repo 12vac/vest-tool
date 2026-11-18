@@ -102,10 +102,9 @@ re-aligned; an order that Vest accepts and then rejects later leaves the copies 
   http://127.0.0.1:5179/test/harness/index.html
   (simulated Vest: fake tokens, API, feed and chart).
 
-## Support
+## Bugs and ideas
 Bugs: open an issue with the output of *Settings → Diagnostics → Copy diagnostics*. Ideas are welcome too; this is a
 one-person spare-time project, so bugs come first and not every request will be built.
-If the tool is useful to you, you can support its development with the **Sponsor** button at the top of this page.
 
 ## Licence
 GNU General Public License v3.0 (see `LICENSE`). Provided as is, without warranty of any kind. Nothing in this project is
