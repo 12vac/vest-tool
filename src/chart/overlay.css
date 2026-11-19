@@ -356,3 +356,330 @@ button[disabled] { opacity: .45; cursor: default; }
 .root.sonar .card3 .bl { letter-spacing: -.3px; }
 .root.sonar .card4 table { font-size: 10px; letter-spacing: -.4px; }
 .root.sonar .card4 td, .root.sonar .card4 th { padding-left: 4px; }
+
+/* ══ CONSOLE card style (default): the same palette as the Console panel, so column, panel and cards look like one thing.
+   Colours and borders only: every position and size above stays. ══ */
+.root.console { --c-bg: #26272c; --c-in: #17181b; --c-bd: #3a3c43; --c-bd2: #45474e; --c-tx: #e2e4e9; --c-lb: #a4a8b1; --c-acc: #f97316;
+  --c-up: #4ade80; --c-dn: #f87171; --c-yl: #f0c03a; }
+.root.console :is(.card, .card2, .card3, .card4, .card5) { background: var(--c-bg); border-color: var(--c-bd); border-radius: 6px;
+  color: var(--c-tx); box-shadow: 0 2px 8px rgba(0,0,0,.35); }
+.root.console .card.long { --side: #2f7a4f; } .root.console .card.short { --side: #8a3434; } .root.console .card.flat { --side: var(--c-bd2); }
+.root.console .card { box-shadow: inset 3px 0 0 var(--c-acc), 0 2px 8px rgba(0,0,0,.35); } /* accent without moving the measured layout */
+.root.console .up { color: var(--c-up) !important; } .root.console .down { color: var(--c-dn) !important; }
+.root.console button { border-radius: 4px; border-color: var(--c-bd2); background: #34363c; color: var(--c-tx); }
+/* first card */
+.root.console .card .side, .root.console .card .side b, .root.console .card .w, .root.console .card .w.e, .root.console .card .dpt { color: var(--c-tx); }
+.root.console .card .side i { color: var(--c-yl); } .root.console .card .side i.cd { color: #93b4f5; }
+.root.console .card .acc, .root.console .card .tgl, .root.console .card .mic, .root.console .card .mic i { color: var(--c-lb); }
+.root.console .card.long .w.vs { color: var(--c-up); } .root.console .card.short .w.vs { color: var(--c-dn); }
+.root.console .card button.ordc, .root.console .card button.cpc { color: #fff; background: #7f1d1d; border-color: #b91c1c; }
+.root.console .card button.ordc.on, .root.console .card button.cpc.on { color: #fff; background: #15803d; border-color: #22c55e; }
+.root.console .card button.flat { color: #17181b; background: #d4a514; border-color: var(--c-yl); }
+/* second card */
+.root.console .card2 button.pp { color: var(--c-tx); background: var(--c-in); }
+.root.console .card2 button.pp.on { color: #fff; background: #c2410c; border-color: var(--c-acc); }
+.root.console .pctbox { border-radius: 4px; border-color: var(--c-bd2); background: var(--c-in); }
+.root.console .card2 button.cx { color: var(--c-lb); background: var(--c-in); }
+.root.console .card2 button.tp { color: var(--c-up); border-color: #2f7a4f; background: #14261b; }
+.root.console .card2 button.sl { color: var(--c-dn); border-color: #8a3434; background: #2a1517; }
+.root.console .card2 button.be { color: var(--c-tx); background: #34363c; }
+.root.console .card2 button.lm { color: #93b4f5; border-color: #2c4a80; background: #172238; }
+.root.console .card2 button.st { color: var(--c-yl); border-color: #6b5214; background: #2a2210; }
+.root.console .card2 button.long { color: #fff; border-color: #22c55e; background: #15803d; }
+.root.console .card2 button.short { color: #fff; border-color: #ef4444; background: #b91c1c; }
+.root.console .card2 .cxm { background: var(--c-bg); border-color: var(--c-bd2); border-radius: 6px; }
+.root.console .card2 .cxm button { background: #34363c; border-color: var(--c-bd2); }
+/* third card */
+.root.console .card3 button.close { color: var(--c-yl); border-color: #6b5214; background: #2a2210; }
+.root.console .card3 .bar { border-color: var(--c-bd); background: var(--c-in); border-radius: 5px; }
+.root.console .card3 .bl span:first-child { color: var(--c-lb); } .root.console .card3 .bl span:last-child { color: var(--c-tx); }
+.root.console .card3 .track { background: #34363c; border-radius: 3px; }
+/* copier card */
+.root.console .card4 th, .root.console .card4 .cpt { color: var(--c-lb); }
+.root.console .card4 td:first-child, .root.console .card4 td.q { color: var(--c-tx); }
+.root.console .card4 tr[data-id]:hover td { background: #303136; }
+.root.console .card4 tr.t td { border-top-color: var(--c-bd2); }
+.root.console .card4 b.cpon { border-color: var(--c-bd2); }
+.root.console .card4 b.cpon.on { background: #15803d; border-color: #22c55e; }
+/* swing and volatility card */
+.root.console .card5 { color: var(--c-lb); } .root.console .card5 .c5r b { color: var(--c-tx); }
+.root.console .card5 .hc { background: var(--c-in); border-color: var(--c-bd); }
+/* labels on the chart */
+.root.console .chip { background: var(--c-bg); border-radius: 5px; color: var(--c-tx); }
+
+/* ── DOCKED COLUMN (.root.col): the same elements as the chart block, moved into fluid sections at the panel's size
+   (no scale). Buttons in the commands panel, at the top of the column or floating. Frame colours from --k-* (card style:
+   Console, Classic or Sonar); the colours inside the cards come from the card style rules above. */
+.root.col { --k-bg: #26272c; --k-hd: #303136; --k-bd: #34363c; --k-bd2: #45474e; --k-acc: #f97316; --k-tx: #e2e4e9; --k-hi: #f1f2f5; --k-lb: #a4a8b1;
+  --k-in: #17181b; --k-rad: 6px; --k-btn: #34363c; }
+.root.col:not(.console):not(.sonar) { --k-bg: #12151b; --k-hd: #1b2029; --k-bd: #2a2f3a; --k-bd2: #3a4150; --k-acc: #7fb2ff; --k-tx: #d7dbe3; --k-hi: #fff;
+  --k-lb: #8b93a3; --k-in: #0d1015; --k-rad: 7px; --k-btn: #1d222c; }
+.root.col.sonar { --k-bg: #0b0605; --k-hd: #1a0b07; --k-bd: #7a3b17; --k-bd2: #c4521d; --k-acc: #ff8a3d; --k-tx: #ffd2a8; --k-hi: #ffd2a8; --k-lb: #d96a2c;
+  --k-in: #000; --k-rad: 0; --k-btn: #140806; }
+.colw { position: fixed; z-index: 4; pointer-events: auto; box-sizing: border-box; padding: 10px; display: flex; flex-direction: column; gap: 10px;
+  overflow-y: auto; overflow-x: hidden; scrollbar-width: thin; font: 13px/1.3 system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--k-tx); }
+.csec, .cmd { flex: none; box-sizing: border-box; border: 1px solid var(--k-bd); border-radius: var(--k-rad); background: var(--k-bg); overflow: hidden;
+  font: 13px/1.3 system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--k-tx); }
+.csh, .cmdh { display: flex; align-items: center; gap: 8px; min-height: 18px; padding: 6px 10px 6px 8px; background: var(--k-hd); border-left: 4px solid var(--k-acc);
+  font-weight: 700; font-size: 13px; color: var(--k-hi); user-select: none; white-space: nowrap; }
+.root.sonar :is(.csh, .cmdh) { text-transform: uppercase; letter-spacing: .5px; font-size: 12px; text-shadow: 0 0 5px rgba(255,120,40,.3); }
+.root.sonar :is(.csec, .cmd) { box-shadow: 0 0 14px rgba(255,110,40,.12); }
+.csh { cursor: pointer; }
+.csh::after { content: "▾"; margin-left: auto; color: var(--k-lb); font-size: 12px; }
+.csec.folded .csh::after { content: "▸"; }
+.csec.folded > :not(.csh) { display: none !important; }
+.cmd { pointer-events: auto; }
+.cmd.float { position: fixed; z-index: 6; min-width: 260px; max-width: 92vw; max-height: 96vh; resize: both; overflow: auto; box-shadow: 0 10px 28px rgba(0,0,0,.55); border-color: var(--k-bd2); }
+.cmd.float .cmdh { cursor: move; }
+.cmdh .ct { margin-right: auto; overflow: hidden; text-overflow: ellipsis; }
+.ctg { display: flex; align-items: flex-start; gap: 5px; } /* tops aligned: the ON/OFF buttons are 1 px shorter than the labels */
+.root.col .ctg .tgl { position: static; display: block; height: 22px; line-height: 20px; padding-bottom: 2px; box-sizing: border-box; font-size: 9.5px; font-weight: 700; letter-spacing: .3px; color: var(--k-lb); }
+/* fixed even line heights (no flex centring, which rounds half pixels differently on each element): label and button text
+   on the same pixel row, 1 px above the middle so capitals look centred */
+.root.col .ctg button { position: static; display: block; width: auto; height: 21px; margin-left: 1px; box-sizing: border-box; line-height: 18px; padding: 0 8px 1px 7px; text-align: center;
+  font-size: 11px; font-weight: 700; border-radius: 4px; color: #fff; background: #7f1d1d; border-color: #b91c1c; }
+.root.col .ctg button.on { background: #15803d; border-color: #22c55e; }
+.root.col.sonar .ctg button { border-radius: 0; color: var(--od); background: transparent; border-color: var(--od); }
+.root.col.sonar .ctg button.on { color: #170804; background: var(--o); border-color: var(--o); box-shadow: 0 0 8px rgba(255,120,40,.5); }
+.cmdh button.cdet { width: 26px; height: 22px; font-size: 14px; border-radius: var(--k-rad); background: var(--k-btn); border-color: var(--k-bd2); color: var(--k-hi); }
+.cmdb { padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+
+/* cards inside the column: static, full width, no frame (the section is the frame) */
+.root.col :is(.card, .card2, .card3, .card4, .card5) { position: relative !important; left: auto !important; top: auto !important; transform: none; width: auto; height: auto; box-sizing: border-box;
+  border: 0; border-radius: 0; box-shadow: none !important; background: transparent; z-index: auto; }
+.root.col :is(.card, .card2, .card3) > * { position: static !important; max-width: none; }
+.root.col .card::after { display: none; }
+
+/* position: timeframe/clock and account, size and P&L, entry and points, micro and points of the day */
+.root.col .card { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 6px 10px; align-items: baseline; padding: 10px 12px; font-size: 13px; white-space: nowrap; }
+.root.col .card > span { line-height: 1.2; height: auto; width: auto; }
+.root.col .card .side { grid-area: 1 / 1 / 2 / 3; font-size: 14px; }
+.root.col .card .side i { font-size: 13px; }
+.root.col .card .acc { grid-area: 1 / 3; text-align: right; font-size: 12px; max-width: none; }
+.root.col .card .w.vs { grid-area: 2 / 1; font-size: 13px; }
+.root.col .card .w.vs svg { width: 7.5px; height: 12px; }
+.root.col .card .w.q { grid-area: 2 / 2; font-size: calc(var(--qs, 11px) + 2px); }
+.root.col .card .pnl, .root.col .card .pnl.xs { grid-area: 2 / 3; text-align: right; font-size: 22px; }
+.root.col .card .w.e { grid-area: 3 / 1 / 4 / 3; font-size: 13px; }
+.root.col .card .gap { grid-area: 3 / 3; text-align: right; font-size: 13px; }
+.root.col .card .mic { grid-area: 4 / 1 / 5 / 3; display: flex; justify-content: flex-start; gap: 10px; font-size: 12px; overflow: hidden; }
+.root.col .card .mic i { margin-left: 0; }
+.root.col .card .dpt { grid-area: 4 / 3; text-align: right; font-size: 12px; }
+
+/* commands: 36-column grid, so rows of 9, 6 and 4 buttons share the same edges */
+.root.col .card2 { display: grid; grid-template-columns: repeat(36, minmax(0, 1fr)); gap: 5px; white-space: nowrap; }
+.root.col .cmd :is(.card2, .cmdx) button { width: auto !important; height: 30px !important; padding: 0 4px; font-size: 12.5px; border-radius: 4px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.root.col .card2 > * { grid-column: span 4; order: 1; }
+.root.col .card2 > button.pf { font-size: 12px; }
+.root.col .card2 > button.pp:not(.pf), .root.col .card2 > .pctbox, .root.col .card2 > .sz { order: 2; }
+.root.col .card2 > .pctbox, .root.col .card2 > .sz { grid-column: span 6; }
+.root.col .card2 > button.pp.sm { font-size: 11px; }
+.root.col .card2 > .sz { display: block; height: 30px; box-sizing: border-box; line-height: 26px; padding: 3px 0 1px; text-align: right; font-size: 13px; }
+.root.col .card2 > span.sz:not(.why) { font-size: 13px; font-weight: 400; } /* same size and weight as the number in the % box */
+.root.col .card2 > button.cx { grid-column: span 12; order: 3; }
+.root.col .card2 > :is(button.tp, button.sl, button.be) { grid-column: span 8; order: 3; }
+.root.col .card2 > .cxm { grid-column: 1 / -1; order: 4; position: static !important; width: auto; flex-direction: row; gap: 5px; padding: 5px; box-shadow: none; }
+.root.col .card2 > .cxm button { flex: 1; height: 28px !important; justify-content: center; font-size: 12px; }
+.root.col .card2 > :is(button.lm, button.st, button.long, button.short) { grid-column: span 9; order: 5; }
+.root.col .card2 > :is(button.lm, button.st, button.long, button.short) { font-size: 13.5px; } /* the four entry buttons: same size */
+.root.col .pctbox { width: auto; height: 30px; padding: 0 6px; border-radius: var(--k-rad); border-color: var(--k-bd2); background: var(--k-in); }
+/* % box text on the same middle line as the button labels next to it */
+.root.col .pctbox { align-items: flex-start; }
+.root.col .pctbox input, .root.col .pctbox span { display: block; height: 28px; line-height: 26px; padding: 0 0 2px; box-sizing: border-box; font-size: 13px; }
+.root.col .pctbox input { line-height: 24px; padding-bottom: 4px; } /* the typed number 1 px higher than the % sign (Gerry, on Vest) */
+/* managing the open position: partial close %, PARTIAL CLOSE, CLOSE, FLAT */
+.root.col .cmdx { display: grid; grid-template-columns: repeat(36, minmax(0, 1fr)); gap: 5px; padding-top: 8px; border-top: 1px solid var(--k-bd); }
+.root.col .cmdx > .pctbox { grid-column: span 5; position: static; width: auto; }
+.root.col .cmdx > button.close { grid-column: span 13; position: static; font-weight: 700; color: #f0c03a; border-color: #6b5214; background: #2a2210; }
+.root.col .cmdx > button.close.all { grid-column: span 9; }
+.root.col .cmdx > button.flat { grid-column: span 9; position: static; font-weight: 800; color: #17181b; background: #d4a514; border-color: #f0c03a; }
+.root.col .cmd .msg { position: static; width: auto; font-size: 12px; color: var(--k-lb); }
+.root.col .cmd .msg:empty { display: none; }
+.root.col .cmd .msg.err { color: #f87171; } .root.col .cmd .msg.ok { color: #4ade80; }
+
+/* account limits: two bars per row only when the column is wide enough for the full labels */
+.root.col .card3 { padding: 10px; }
+.root.col .card3 .bars { margin: 0; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 6px; }
+.root.col .card3 .bl { font-size: 12px; }
+.root.col .card3 .track { height: 6px; }
+/* copier and volatility */
+.root.col .card4 { padding: 8px 10px; font-size: 13px; }
+.root.col .card4 table { font-size: 13px; letter-spacing: 0; }
+.root.col .card4 td, .root.col .card4 th { padding: 4px 0 4px 6px; }
+.root.col .card5 { padding: 8px 10px 10px; font-size: 12px; }
+.root.col .card5 .c5r { height: auto; } .root.col .card5 .c5r b { font-size: 13px; } .root.col .card5 .c5r i { font-size: 11px; }
+.root.col .card5 .hm { gap: 5px; margin-top: 6px; }
+.root.col .card5 .hc b { font-size: 11px; } .root.col .card5 .hc span { font-size: 13px; } .root.col .card5 .hc i { font-size: 10px; }
+/* Classic and Sonar for the buttons moved out of the cards (their chart rules are written for .card / .card3) */
+.root.col:not(.console):not(.sonar) .cmdx > button.close { color: #ffb402; border-color: #8a6a1a; background: #12151b; }
+.root.col:not(.console):not(.sonar) .cmdx > button.flat { color: #ffb402; background: #000; border-color: #ffb402; }
+.root.col.sonar .cmdx > button.close { color: var(--o); border-color: var(--oe); background: #140806; }
+.root.col.sonar .cmdx > button.flat { color: #170804; background: var(--o); border-color: var(--o); box-shadow: 0 0 12px rgba(255,120,40,.5); text-shadow: none; }
+.root.col.sonar .cmd .msg { color: #ffb98a; }
+/* % box of the size row: text 1 px lower and 1 px further left than the partial-close one (Gerry, on Vest) */
+.root.col .card2 > .pctbox { padding: 0 7px 0 5px; }
+.root.col .card2 > .pctbox input { padding: 1px 0 3px; }
+.root.col .card2 > .pctbox span { padding: 1px 0 1px; }
+
+/* Risk & targets section (column): label above the field, 4 per row, readout of the plan */
+.omb { padding: 10px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.omf { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.omf > span:first-child, .ompv > span { font-size: 11.5px; color: var(--k-lb); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.omb input, .omb select { box-sizing: border-box; width: 100%; min-width: 0; height: 30px; padding: 0 6px; font: 12.5px/1 system-ui, -apple-system, "Segoe UI", sans-serif;
+  color: var(--k-hi); background: var(--k-in); border: 1px solid var(--k-bd2); border-radius: var(--k-rad); outline: none; }
+.omb select { padding: 0 2px 0 4px; }
+.omb input:focus, .omb select:focus { border-color: var(--k-acc); }
+.omb input:disabled { opacity: .35; }
+.omb input[type="checkbox"] { width: 14px; height: 14px; padding: 0; margin: 0 5px 0 0; accent-color: var(--k-acc); flex: none; }
+.omcb { display: flex; align-items: center; height: 30px; font-size: 12.5px; color: var(--k-tx); cursor: pointer; white-space: nowrap; }
+.omro { display: flex; align-items: center; height: 30px; padding: 0 8px; box-sizing: border-box; border: 1px dashed var(--k-bd2); border-radius: var(--k-rad); font-size: 13px; color: var(--k-hi); }
+.omt { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; padding: 8px 0; border-top: 1px solid var(--k-bd); border-bottom: 1px solid var(--k-bd); }
+.omtg { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.omtg > label { display: flex; align-items: center; font-size: 11.5px; font-weight: 700; color: var(--k-lb); cursor: pointer; }
+.ompv { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1fr) 90px 90px; gap: 6px; align-items: center; }
+/* .root.col prefix: wins over the theme button rules (Console / Classic / Sonar) */
+.root.col .ompv button { height: 28px; font: 800 11px/1 system-ui, -apple-system, "Segoe UI", sans-serif; letter-spacing: .2px; text-transform: uppercase; border-radius: 4px; background: #000; border: 1px solid #3a3f4a; color: #6f7787; cursor: pointer; }
+.root.col .ompv button.ompl.on { color: #4ade80; border-color: currentColor; box-shadow: 0 0 6px rgba(34,197,94,.45); }
+.root.col .ompv button.omps.on { color: #f87171; border-color: currentColor; box-shadow: 0 0 6px rgba(239,68,68,.55); }
+.omout { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 6px; padding-top: 8px; border-top: 1px solid var(--k-bd); font-size: 12.5px; line-height: 1.4; color: var(--k-tx); }
+.omout b { font-weight: 700; color: var(--k-hi); } .omout b.q { color: var(--qc, #ffb402); }
+.omout i { font-style: normal; font-weight: 700; } .omout .up { color: #4ade80; } .omout .down { color: #f87171; }
+.omout .warn { color: #f0c03a; } .omout .note { font-size: 11.5px; color: var(--k-lb); }
+.root.sonar .omout .up { color: var(--oup); } .root.sonar .omout .down { color: var(--odn); }
+/* plan lines on the chart: read-only, dashed label */
+.chip.plan { border-style: dashed; opacity: .9; }
+/* Trailing & breakeven section (column): same settings as the panel */
+.tbb { padding: 10px; display: grid; grid-template-columns: 1.3fr 1fr 1fr 1fr 1fr; gap: 8px; align-items: end; }
+.tbb input, .tbb select { box-sizing: border-box; width: 100%; min-width: 0; height: 30px; padding: 0 6px; font: 12.5px/1 system-ui, -apple-system, "Segoe UI", sans-serif;
+  color: var(--k-hi); background: var(--k-in); border: 1px solid var(--k-bd2); border-radius: var(--k-rad); outline: none; }
+.tbb select { padding: 0 2px 0 4px; }
+.tbb input:focus, .tbb select:focus { border-color: var(--k-acc); }
+.tbb input[type="checkbox"] { width: 14px; height: 14px; padding: 0; margin: 0 5px 0 0; accent-color: var(--k-acc); flex: none; }
+.tbb .tbon { font-weight: 700; }
+.tbnote { grid-column: 1 / -1; font-size: 11.5px; color: var(--k-lb); line-height: 1.35; }
+.tbnote:empty { display: none; }
+.tbnote.warn { color: #f0c03a; }
+/* Risk & targets mode: Manual % / Preview / Active (Active = real orders with the plan) */
+.ommode { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1fr) repeat(3, 84px); gap: 6px; align-items: center; }
+.ommode > span { font-size: 11.5px; color: var(--k-lb); }
+.root.col .ommode button { height: 28px; font: 800 11px/1 system-ui, -apple-system, "Segoe UI", sans-serif; letter-spacing: .2px; text-transform: uppercase; border-radius: 4px; background: #000; border: 1px solid #3a3f4a; color: #6f7787; cursor: pointer; }
+/* same boxes as the phase next to Trade commands: black, border and text in the phase colour */
+.root.col .ommode button.on { border-color: currentColor; }
+.root.col .ommode button.on[data-v="manual"] { color: var(--m-manual, #cbd5e1); }
+.root.col .ommode button.on[data-v="view"] { color: var(--m-view, #fb923c); box-shadow: 0 0 6px color-mix(in srgb, currentColor 45%, transparent); }
+.root.col .ommode button.on[data-v="live"] { color: var(--m-live, #22e5ff); box-shadow: 0 0 6px color-mix(in srgb, currentColor 55%, transparent); }
+.omout b.warn { color: #ff6b61; }
+/* Active plan: the % size is not used (dimmed); the title says so */
+.cmd.plan .pp, .cmd.plan .pctbox:not(.cp), .cmd.plan .sz { opacity: .35; }
+.cmdh .ct { flex: none; } /* the title is never cut: the phase gives way first */
+.cph { flex: 0 1 auto; min-width: 0; margin-left: 1px; margin-right: auto; height: 21px; box-sizing: border-box; line-height: 18px; padding: 0 6px 1px 5px;
+  font-size: 11px; font-weight: 800; letter-spacing: .2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  background: #000; border: 1px solid currentColor; border-radius: 4px; } /* boxed like ON / OFF, black background */
+.cph:empty { display: none; }
+.cph.manual { color: var(--m-manual, #cbd5e1); } .cph.view { color: var(--m-view, #fb923c); } .cph.live { color: var(--m-live, #22e5ff); box-shadow: 0 0 6px color-mix(in srgb, currentColor 55%, transparent); }
+.cmdh .ct { margin-right: 0; }
+/* SEND on PLAN ENTRY (Active): places the LIMIT with the plan, after CONFIRM */
+.chip .go { margin-left: 6px; padding: 0 7px; border-radius: 3px; background: #c2410c; color: #fff; font-weight: 700; cursor: pointer; }
+.chip .go.arm { background: #b91c1c; }
+/* small up / down arrows inside a number field */
+.omsp { position: relative; display: block; min-width: 0; }
+.omsp input { padding-right: 20px !important; }
+.spb { position: absolute; right: 2px; top: 3px; bottom: 3px; width: 15px; display: flex; flex-direction: column; gap: 1px; }
+.spb button { flex: 1; padding: 0; margin: 0; border: 0; border-radius: 2px; background: transparent; color: var(--k-lb); font-size: 7px; line-height: 1; cursor: pointer; }
+.spb button:hover { color: var(--k-hi); background: var(--k-bd2); }
+.omsp input:disabled + .spb { display: none; }
+/* Chart space section */
+.chb { padding: 10px; display: grid; grid-template-columns: minmax(0, 1fr) 90px; gap: 8px; align-items: center; font-size: 11.5px; color: var(--k-lb); }
+.chb input { box-sizing: border-box; width: 100%; height: 30px; padding: 0 6px; font: 12.5px/1 system-ui, -apple-system, "Segoe UI", sans-serif;
+  color: var(--k-hi); background: var(--k-in); border: 1px solid var(--k-bd2); border-radius: var(--k-rad); outline: none; }
+.chb input:focus { border-color: var(--k-acc); }
+/* phase word on the plan labels: same type and colour as the box next to Trade commands */
+.chip .ph { font-size: 11px; font-weight: 800; letter-spacing: .2px; margin-right: -3px; }
+.chip .ph.view { color: var(--m-view, #fb923c); } .chip .ph.live { color: var(--m-live, #22e5ff); } .chip .ph.act { color: var(--m-act, #c084fc); }
+/* ENTRY button: ACTIVATE (PREVIEW, orange) switches to ACTIVE; START (ACTIVE, red) places the LIMIT */
+.chip .go.live { background: #0e7490; }
+/* ORDERS / COPY in the Trade commands title: small, one above the other */
+.root.col .ctg { display: grid; grid-template-columns: auto auto; column-gap: 3px; row-gap: 1px; align-items: center; }
+.root.col .ctg .tgl { height: 11px; line-height: 11px; padding: 0; font-size: 7.5px; text-align: right; }
+.root.col .ctg button { height: 11px; min-width: 24px; line-height: 9px; padding: 0 3px; margin-left: 0; font-size: 7.5px; border-radius: 2px; }
+.omout b.act { color: #22e5ff; } /* ACTIVE: bright cyan, never green or red */
+/* LIMIT / STOP in the column: brighter when they can be used (dimmed only when disabled) */
+/* colours from Settings → Button and mode colours (doubled classes: above every card style); disabled = dimmed */
+.root.root.col.col .card2 button.lm { color: var(--b-lm-tx, #e0ecff); background: var(--b-lm-bg, #1d4ed8); border-color: color-mix(in srgb, var(--b-lm-bg, #1d4ed8) 60%, #fff); }
+.root.root.col.col .card2 button.st { color: var(--b-st-tx, #1a1405); background: var(--b-st-bg, #eab308); border-color: color-mix(in srgb, var(--b-st-bg, #eab308) 60%, #fff); }
+.root.root.col.col .card2 button.long { color: var(--b-long-tx, #fff); background: var(--b-long-bg, #15803d); border-color: color-mix(in srgb, var(--b-long-bg, #15803d) 60%, #fff); }
+.root.root.col.col .card2 button.short { color: var(--b-short-tx, #fff); background: var(--b-short-bg, #b91c1c); border-color: color-mix(in srgb, var(--b-short-bg, #b91c1c) 60%, #fff); }
+.root.root.col.col .cmdx > button.flat { color: var(--b-flat-tx, #17181b); background: var(--b-flat-bg, #d4a514); border-color: color-mix(in srgb, var(--b-flat-bg, #d4a514) 60%, #fff); box-shadow: none; text-shadow: none; }
+/* Risk & targets title: mode menu and OFF / ACTIVE, boxed like the phase next to Trade commands */
+.csh .omsel, .csh .omst { height: 21px; box-sizing: border-box; border-radius: 4px; background: #000; border: 1px solid currentColor;
+  font: 800 11px/1 system-ui, -apple-system, "Segoe UI", sans-serif; letter-spacing: .2px; text-transform: uppercase; }
+.csh .omsel { margin-left: 4px; padding: 0 2px 0 4px; cursor: pointer; color: var(--m-view, #fb923c); }
+.csh .omsel.manual { color: var(--m-manual, #cbd5e1); } .csh .omsel.live { color: var(--m-live, #22e5ff); box-shadow: 0 0 6px color-mix(in srgb, currentColor 55%, transparent); }
+.csh .omsel option { background: #000; }
+.csh .omsel option[value="manual"] { color: var(--m-manual, #cbd5e1); } .csh .omsel option[value="view"] { color: var(--m-view, #fb923c); } .csh .omsel option[value="live"] { color: var(--m-live, #22e5ff); }
+.csh .omst { display: inline-flex; align-items: center; padding: 0 6px 1px; color: #6f7787; cursor: default; }
+.csh .omst.on { color: var(--m-act, #c084fc); box-shadow: 0 0 6px color-mix(in srgb, currentColor 55%, transparent); }
+/* Trade commands title: phase, then ACTIVE when an order of the plan is there; ORDERS / COPY pushed to the right */
+.cmdh .cph { margin-right: 0; }
+.cmdh .cph.act { margin-left: 4px; color: var(--m-act, #c084fc); box-shadow: 0 0 6px color-mix(in srgb, currentColor 55%, transparent); }
+.cmdh .ctg { margin-left: auto; }
+/* labels of an order of the plan really placed (ACTIVE): black background */
+.chip.plan.act { background: #000; opacity: 1; }
+/* Risk & targets ON / OFF in the section title (like ORDERS / COPY) */
+.csh .omtgl { margin-left: 6px; height: 21px; padding: 0 8px 1px; box-sizing: border-box; border-radius: 4px; font: 800 11px/1 system-ui, -apple-system, "Segoe UI", sans-serif;
+  letter-spacing: .3px; color: #fff; background: #7f1d1d; border: 1px solid #b91c1c; cursor: pointer; }
+.csh .omtgl.on { background: #15803d; border-color: #22c55e; }
+.cph.act { color: var(--m-act, #c084fc); box-shadow: 0 0 6px color-mix(in srgb, currentColor 55%, transparent); }
+/* copier accounts inside the Trade commands block */
+.cmd > .csec { margin: 0; border-width: 1px 0 0; border-radius: 0; } /* full width of the block, nothing cut */
+/* font size of the entry buttons and FLAT (Settings → Button and mode colours; empty = default) */
+.root.root.col.col .card2 button.lm { font-size: var(--b-lm-fs, 12.5px); }
+.root.root.col.col .card2 button.st { font-size: var(--b-st-fs, 12.5px); }
+.root.root.col.col .card2 button.long { font-size: var(--b-long-fs, 12.5px); }
+.root.root.col.col .card2 button.short { font-size: var(--b-short-fs, 12.5px); }
+.root.root.col.col .cmdx > button.flat { font-size: var(--b-flat-fs, 15.5px); }
+/* copier accounts in the column / floating panel: always the whole table, the text shrinks with the width */
+.root.col .csec[data-sec="copy"] { container-type: inline-size; }
+.root.col .card4 { padding: 8px 8px; }
+.root.col .card4 table { table-layout: fixed; width: 100%; font-size: clamp(8.5px, 3.1cqi, 13px); }
+.root.col .card4 td, .root.col .card4 th { padding: 4px 0 4px 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.root.col .card4 col.c0 { width: 20%; } .root.col .card4 col.c1 { width: 14%; } .root.col .card4 col.c2, .root.col .card4 col.c3, .root.col .card4 col.c4 { width: 22%; }
+/* the position data are in the panel header: no Position section in the column */
+.root.col .csec[data-sec="pos"] { display: none; }
+/* v0.10.96 Trade commands from Gerry's UX Sketch drawing: the % rows, a line, then two blocks side by side split by a vertical
+   line (orders: CANCEL over LIMIT / STOP | position: TP SL BE over LONG / SHORT), a line, the closing row with FLAT apart.
+   Explicit grid rows: 1 fractions, 2 presets, 3 line, 4 CANCEL | TP SL BE, 5 LIMIT STOP | LONG SHORT;
+   columns 1-17 | 18-19 (vertical line) | 20-36 */
+.root.root.col.col .cmd .card2 { row-gap: 6px; }
+.root.root.col.col .cmd .card2 > button.pp.pf { grid-row: 1; height: 21px !important; font-size: 11px; }
+.root.root.col.col .cmd .card2 > :is(button.pp:not(.pf), .pctbox, .sz) { grid-row: 2; }
+.root.root.col.col .cmd .card2 > button.pp:not(.pf) { height: 25px !important; font-size: 11px; }
+.root.root.col.col .cmd .card2 > .pctbox { height: 25px; }
+.root.root.col.col .cmd .card2 > .pctbox input, .root.root.col.col .cmd .card2 > .pctbox span { height: 23px; line-height: 21px; }
+.root.root.col.col .cmd .card2 > .sz { height: 25px; line-height: 21px; }
+.root.root.col.col .cmd .card2::after { content: ""; grid-row: 3; grid-column: 1 / -1; height: 1px; margin: 4px 0; background: var(--k-bd, #34363c); }
+.root.root.col.col .cmd .card2::before { content: ""; grid-row: 4 / 6; grid-column: 18 / 20; justify-self: center; width: 1px; background: var(--k-bd, #34363c); }
+.root.root.col.col .cmd .card2 > button:is(.cx, .tp, .sl, .be, .lm, .st, .long, .short) { height: 26px !important; }
+.root.root.col.col .cmd .card2 > button.cx { grid-row: 4; grid-column: 1 / 18; }
+.root.root.col.col .cmd .card2 > button:is(.tp, .sl, .be) { grid-row: 4; grid-column: 20 / 37; width: calc((100% - 16px) / 3) !important; }
+.root.root.col.col .cmd .card2 > button.tp { justify-self: start; }
+.root.root.col.col .cmd .card2 > button.sl { justify-self: center; }
+.root.root.col.col .cmd .card2 > button.be { justify-self: end; }
+.root.root.col.col .cmd .card2 > button:is(.lm, .st, .long, .short) { grid-row: 5; width: calc(50% - 4px) !important; margin-top: 1px; border: 1px solid #fff; }
+.root.root.col.col .cmd .card2 > button:is(.lm, .st) { grid-column: 1 / 18; }
+.root.root.col.col .cmd .card2 > button:is(.long, .short) { grid-column: 20 / 37; }
+.root.root.col.col .cmd .card2 > button:is(.lm, .long) { justify-self: start; }
+.root.root.col.col .cmd .card2 > button:is(.st, .short) { justify-self: end; }
+/* closing row: 100 % | PARTIAL CLOSE | CLOSE, then FLAT on its own under LONG / SHORT, taller */
+.root.root.col.col .cmd .cmdx { margin-top: 2px; }
+.root.root.col.col .cmdx > button.close { grid-column: span 11; }
+.root.root.col.col .cmdx > button.close.all { grid-column: span 8; }
+.root.root.col.col .cmdx > button.flat { grid-column: 28 / span 9; height: 32px !important; margin: -1px 0; border: 1.5px solid #fff; }
+/* mode words: size and weight from Settings → Button and mode colours (box next to Trade commands and chart labels) */
+.root .cmdh .cph { height: auto; min-height: 21px; line-height: max(18px, 1.2em); }
+.root .cmdh .cph.manual { font-size: var(--m-manual-fs, 11px); font-weight: var(--m-manual-fw, 800); }
+.root .cmdh .cph.view { font-size: var(--m-view-fs, 11px); font-weight: var(--m-view-fw, 800); }
+.root .cmdh .cph.act { font-size: var(--m-act-fs, 11px); font-weight: var(--m-act-fw, 800); }
+.root .chip .ph.view { font-size: var(--m-view-lfs, 11px); font-weight: var(--m-view-fw, 800); }
+.root .chip .ph.act { font-size: var(--m-act-lfs, 11px); font-weight: var(--m-act-fw, 800); }

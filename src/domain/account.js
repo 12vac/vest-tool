@@ -80,7 +80,15 @@ function parseRestPositions(res) {
 function parseRestPlaceholders(res) {
   return ((res && res.positions) || [])
     .filter((p) => (p.positionId || p.position_id) && p.symbol && !(num(p.quantity) > 0))
-    .map((p) => ({ id: p.positionId || p.position_id, symbol: p.symbol, side: p.side, qty: 0, leverage: num(p.leverage) || null }));
+    .map((p) => ({
+      id: p.positionId || p.position_id,
+      symbol: p.symbol,
+      side: p.side,
+      qty: 0,
+      leverage: num(p.leverage) || null,
+      // SL / TP that Vest keeps on the pending LIMIT (sent with /open); null = Vest sent no list at all
+      triggers: p.takeProfits || p.stopLosses ? [...(p.takeProfits || []).map(legOf('tp')), ...(p.stopLosses || []).map(legOf('sl'))] : null,
+    }));
 }
 
 /**

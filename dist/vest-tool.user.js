@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         VestTool
 // @namespace    vest-tool
-// @version      0.10.60
+// @version      0.10.98
 // @description  Account status and P&L in dollars, trade overlay on the chart (BE, draggable SL/TP, FLAT) for Vest Markets. Unofficial: not made, endorsed or supported by Vest Markets.
 // @match        https://next.vestmarkets.com/*
 // @run-at       document-start
@@ -174,6 +174,16 @@ function trueRanges(bars) {
 
 const mean = (a) => a.reduce((s, v) => s + v, 0) / a.length;
 
+/** Last CLOSED candle (the last one in the series is still forming): { h, l } or null. */
+const lastClosed = (bars) => (bars && bars.length >= 2 ? { h: bars[bars.length - 2].h, l: bars[bars.length - 2].l } : null);
+
+/** ATR of the chart's timeframe: average true range of the last n closed candles (NaN if fewer). */
+function atrClosed(bars, n) {
+  if (!bars || bars.length < n + 2) return NaN;
+  const tr = trueRanges(bars.slice(0, -1)).slice(-n);
+  return tr.length === n ? mean(tr) : NaN;
+}
+
 /**
  * ATR on 1h, 30m, 15m, 5m and 1m over the same span of hours, built from the chart's candles (baseSec = chart timeframe).
  * For each timeframe: atr = average true range of the candles in the last `hours` (closed candles only), recent = the same
@@ -306,6 +316,7 @@ function mtfCached(baseSec, hours, recent) {
  * For the active chart: { left: countdown text, tf: timeframe name, hl: last swing { h, l } | null,
  * mtf: ATR per timeframe | null }. k = candles on each side of a swing; atr = { hours, recent } or null when off.
  */
+const ATR_N = 14;
 function view(chart, k, mark, atr) {
   const K = Math.max(1, Math.min(50, Math.round(k) || 2));
   R.atrHours = atr ? atr.hours : 0;
@@ -326,10 +337,12 @@ function view(chart, k, mark, atr) {
     tf: res != null ? tfLabel(res) : '',
     hl: swings(R.bars, K, mark),
     mtf: atr && R.bars ? mtfCached(resSec(res), atr.hours, atr.recent) : null,
+    prev: lastClosed(R.bars), // Risk & targets: stop on the last candle low / high
+    atr14: atrClosed(R.bars, ATR_N), // Risk & targets: ATR multiples
   };
 }
 
-module.exports = { resSec, nextClose, fmtLeft, parseExport, swings, tfLabel, aggregate, trueRanges, atrMtf, clockOffset, serverNow, view };
+module.exports = { lastClosed, atrClosed, resSec, nextClose, fmtLeft, parseExport, swings, tfLabel, aggregate, trueRanges, atrMtf, clockOffset, serverNow, view };
 
   },
   "chart/lines.js": function (module, exports, require) {
@@ -435,7 +448,7 @@ module.exports = { render, clear, find: tv.find };
 
   },
   "chart/overlay.css": function (module, exports, require) {
-module.exports = ":host { all: initial; }\n.root { position: fixed; inset: 0; pointer-events: none; z-index: 2147482000; font: 11px/1.25 system-ui, -apple-system, \"Segoe UI\", sans-serif; color: #d7dbe3; }\n.lead { position: absolute; height: 0; border-top: 1px solid; transform-origin: 0 0; pointer-events: none; opacity: .85; }\n.hl { position: absolute; height: 0; border-top: var(--w, 1px) var(--s, dashed) var(--c, #8b93a3); pointer-events: none; } /* style from the panel */\n/* SL/TP/LIMIT/STOP: the line can be grabbed (invisible 9 px band, dashed line in the middle) */\n.hl.grab { pointer-events: auto; cursor: ns-resize; height: 9px; border-top: 0; }\n.hl.grab::before { content: \"\"; position: absolute; left: 0; right: 0; top: 4px; border-top: var(--w, 1px) var(--s, dashed) var(--c); }\n.hl.entry { opacity: .9; }\n.chip { position: absolute; pointer-events: auto; background: #12151b; border: 1px solid #2a2f3a; border-radius: 6px; box-shadow: 0 4px 14px rgba(0,0,0,.45); user-select: none; }\n\n/* ── BLOCK ON THE CHART: measured on a pixel mock-up. Do not change by eye.\n   bar 232x19 · 6 px · card 232x82 · 6 px · second card 232x92 (the two gaps EQUAL). Font: all 11 px except\n   Orders 9, P&L 18, points 14.\n   On screen the block is scaled with a transform (SCALE in overlay.js): here are the drawing's measures.\n   Coordinates from the inner border (1 px border). Columns shared by the two cards:\n     left 6.5 · 41.2 · 76.5 (28.8 wide: Orders covers the first two)   right edge of the middle column 140 (P&L, size, % box)\n     right: edge at 223 (points, entry, FLAT, cancel all, SHORT)   second card rows: top 7.2 · 37.2 · 64.8, 17.5 high */\nbutton { all: unset; box-sizing: border-box; cursor: pointer; font: 400 11px/1 system-ui, -apple-system, \"Segoe UI\", sans-serif;\n  border-radius: 3px; border: 1px solid #3a4150; color: #cfd5df; display: inline-flex; align-items: center; justify-content: center; }\nbutton:hover { filter: brightness(1.2); }\nbutton[disabled] { opacity: .45; cursor: default; }\n.up { color: #3ecf8e; } .down { color: #ff6b61; }\n\n/* scale from the main panel (--bs block, --cs labels): transform, so everything stays in proportion */\n.chip { transform: scale(var(--cs, 1)); transform-origin: 0 0; }\n.card, .card2, .card3, .card4, .card5 { transform: scale(var(--bs, 1.25)); transform-origin: 0 0; }\n/* fifth card: swing range and volatility heatmap (ATR recent / ATR over the same hours on each timeframe) */\n.card5 { position: absolute; pointer-events: auto; width: 232px; box-sizing: border-box; border-radius: 7px; padding: 6px 7px 7px;\n  background: #12151b; border: 1px solid #59647b; box-shadow: 0 4px 14px rgba(0,0,0,.45); user-select: none;\n  font: 700 10.5px/1 system-ui, -apple-system, \"Segoe UI\", sans-serif; font-variant-numeric: tabular-nums; white-space: nowrap; color: #bcbcbc; }\n.card5 .c5r { display: flex; align-items: baseline; justify-content: space-between; height: 15px; }\n.card5 .c5r b { color: #fff; font-size: 12px; } .card5 .c5r i { font-style: normal; font-weight: 400; font-size: 9px; color: #8b93a3; }\n.card5 .c5r + .c5r { margin-top: 4px; }\n.card5 .hm { display: grid; grid-template-columns: repeat(5, 1fr); gap: 3px; margin-top: 3px; }\n.card5 .hc { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 4px 0 4px; border-radius: 4px; background: #1d222c; border: 1px solid #2a2f3a; }\n.card5 .hc b { font-size: 9px; color: #8b93a3; } .card5 .hc span { font-size: 11.5px; color: #e6e9ef; } .card5 .hc i { font-style: normal; font-weight: 400; font-size: 8.5px; color: #8b93a3; }\n.card5 .hc.calm { background: #14263a; border-color: #2c4a6b; } .card5 .hc.norm { background: #1d222c; }\n.card5 .hc.hot { background: #4a3210; border-color: #8a6a1a; } .card5 .hc.hot span { color: #ffd36b; }\n.card5 .hc.xhot { background: #5a1c1f; border-color: #a33; } .card5 .hc.xhot span { color: #ffb3ad; }\n.card5 .hc.na span { color: #59647b; }\n.card5 .hm-na { grid-column: 1 / -1; color: #8b93a3; font-weight: 400; padding: 4px 0; }\n\n.card, .card2, .card3 { position: absolute; pointer-events: auto; width: 232px; height: 82px; box-sizing: border-box; border-radius: 7px;\n  background: #12151b; border: 1px solid #2a2f3a; box-shadow: 0 4px 14px rgba(0,0,0,.45); user-select: none;\n  font-family: system-ui, -apple-system, \"Segoe UI\", sans-serif; font-variant-numeric: tabular-nums; white-space: nowrap; }\n.card { border-color: var(--side); }\n.card.long { --side: #2f6b52; } .card.short { --side: #7a3438; } .card.flat { --side: #3a4150; }\n.card > span, .card2 > span { position: absolute; line-height: 1; }\n/* text: top = measured baseline - 0.914 x font size (Segoe UI with line-height 1) */\n/* instrument top left, Orders in place of the P&L, P&L (80%) in place of the points,\n   points above $/pt with the same font size */\n.card .pnl { right: 7px; top: 41px; font-size: 14.4px; font-weight: 700; }\n.card .gap { right: 7px; top: 58.5px; font-size: 11px; font-weight: 700; }\n/* taller card, LONG/SHORT row lower, large account ID, points under the P&L,\n   in their place the points of the day */\n.card { height: 106px; } /* +12 px */\n.card .w { top: 43px; font-size: 11px; font-weight: 700; color: #e6e9ef; }\n.card .w.e { top: 58.5px; } /* entry under the size */\n.card .dpt { right: 90.5px; top: 23px; max-width: 66px; overflow: hidden; text-align: right; font-size: 11px; font-weight: 700; color: #d7dbe3; }\n.card .w.q, .card .w.e { right: 90.5px; }\n.card .w.vs { left: 11.5px; } .card .w.vs svg { display: inline-block; width: 6.4px; height: 10px; margin-left: 4px; vertical-align: -1px; } .card.long .w.vs { color: #3ecf8e; } .card.short .w.vs { color: #ff6b61; } /* side under the arrow, size row */\n/* bottom row: micro on the left, $ per point on the right, same font as the size */\n.card .mic { left: 11.5px; width: 130px; top: 82px; height: 16px; line-height: 16px; font-size: 11px; font-weight: 700; color: #d7dbe3;\n  white-space: nowrap; overflow: hidden; display: flex; justify-content: space-between; gap: 6px; }\n.card .pnl.xs { font-size: 12px; top: 42.2px; }\n.card .mic i { font-style: normal; color: #ffb402; margin-left: auto; } /* $ per point of the open size */\n.card .w i { font-style: normal; margin-left: 6px; }\n.card.long .w.q, .card.long .w.e { color: #3ecf8e; } .card.short .w.q, .card.short .w.e { color: #ff6b61; } /* size and entry in the side's colour */\n.card .pnl.lbl { color: #d7dbe3; }\n.card .gap.mk { color: #bcbcbc; }\n.card.flat .w { color: #8b93a3; }\n.card > button, .card2 > button, .card2 > .pctbox, .card3 > button, .card3 > .pctbox { position: absolute; height: 17.5px; padding: 0 0 1px; }\n.card .acc { left: 11.5px; top: 23px; font-size: 11px; font-weight: 700; color: #c9d1e0; text-transform: uppercase; max-width: 62px; overflow: hidden; text-overflow: ellipsis; }\n.card button.ordc { left: 169.2px; top: 9.6px; width: 55.8px; height: 13.5px; font-size: 9px; color: #9fb3d9; background: #1d222c; border-color: #333a48; }\n.card button.ordc.on { color: #bcbcbc; background: #8a2a2a; border-color: #c44; } /* ON: red, grey text */\n.card button.flat { right: 6.6px; top: 78px; width: 42.5px; height: 21.8px; font-weight: 700; color: #ffb402; background: #000; border-color: #ffb402; }\n/* side arrow and vertical divider */\n.card .side { left: 11.5px; top: 5px; height: 14.4px; line-height: 14.4px; font-size: 13px; font-weight: 700; color: #e6e9ef; } /* instrument */\n.card .side b { font-weight: 700; }\n.card .side i { font-style: normal; font-weight: 600; font-size: 12.5px; color: #fff; margin-left: 6px; font-variant-numeric: tabular-nums; } /* computer clock */\n.card::after { content: \"\"; position: absolute; left: 149px; top: 3.5px; width: 1px; height: 97.3px; background: var(--side); }\n\n/* third card: CLOSE % in the LIMIT / STOP columns, then margin of positions, margin with orders, risk */\n.card4 { position: absolute; pointer-events: auto; width: 232px; box-sizing: border-box; border-radius: 7px; padding: 4px 6px 5px;\n  background: #12151b; border: 1px solid #59647b; box-shadow: 0 4px 14px rgba(0,0,0,.45); user-select: none;\n  font: 400 10.5px/1 system-ui, -apple-system, \"Segoe UI\", sans-serif; font-variant-numeric: tabular-nums; white-space: nowrap; color: #bcbcbc; }\n.chip .sig { border-left: 1px solid rgba(255,255,255,.18); padding-left: 5px; color: #8b93a3; } /* copier accounts: Σ open, TOT total */\n.chip .sig b { font-weight: 700; color: #d7dbe3; } .chip .sig b.up { color: #3ecf8e; } .chip .sig b.down { color: #ff6b61; }\n.card4 table { width: 100%; border-collapse: collapse; }\n.card4 td, .card4 th { padding: 3px 0 3px 4px; text-align: right; }\n.card4 td:first-child, .card4 th:first-child { text-align: left; padding-left: 0; color: #d7dbe3; }\n.card4 th { font-weight: 400; color: #8b93a3; }\n.card4 th i, .card4 td i { font-style: normal; font-size: 9px; color: #8b93a3; }\n.card4 th i.on { color: #3ecf8e; font-weight: 700; } .card4 td i { color: #ffb402; font-weight: 700; }\n.card4 tr[data-id] { cursor: pointer; } .card4 tr[data-id]:hover td { background: #1b2030; }\n.card4 tr.sel td:first-child { color: #7fb2ff; font-weight: 700; }\n.card4 b.cpon { display: inline-block; margin-left: 4px; padding: 1px 5px; border: 1px solid #3e4555; border-radius: 3px; font-size: 9px;\n  color: #8b93a3; cursor: pointer; } /* clickable ON/OFF */\n.card4 b.cpon:hover { filter: brightness(1.3); }\n.card4 b.cpon.on { color: #fff; background: #1f5a3f; border-color: #3ecf8e; }\n.card4 tr.t td { border-top: 1px solid #2a2f3a; font-weight: 700; padding-top: 4px; }\n.card4 .up { color: #3ecf8e; } .card4 .down { color: #ff6b61; }\n.card3 { display: block; height: auto; padding-bottom: 7px; border-color: #59647b; }\n/* % box like the size one, wide PARTIAL CLOSE; below daily / max drawdown / goal like Vest's page */\n.card3 > .pctbox.cp { position: absolute; left: 6.2px; top: 7.6px; width: 46.4px; height: 17.5px; padding: 0 4px 0 4px; }\n.card3 button.close.all { left: 179px; width: 44.4px; } /* CLOSE: up to the right edge, aligned with SHORT */\n.card3 button.close { left: 60.1px; top: 7.6px; width: 111.4px; height: 17.5px; font-weight: 700; color: #ffb402; background: #12151b; border-color: #8a6a1a; }\n.card3 .bars { margin: 36px 6.6px 0 6.2px; display: grid; gap: 6px; }\n.card3 .bar { border: 1px solid #2a2f3a; border-radius: 4px; padding: 4px 6px 5px; }\n.card3 .bl { display: flex; justify-content: space-between; gap: 6px; font: 400 11px/1.1 system-ui, -apple-system, \"Segoe UI\", sans-serif; color: #8b93a3; }\n.card3 .bl span:last-child { color: #d7dbe3; text-align: right; overflow: hidden; text-overflow: ellipsis; }\n.card3 .track { height: 4px; background: #222733; border-radius: 2px; margin-top: 4px; overflow: hidden; }\n.card3 .track i { display: block; height: 100%; width: 0; background: #3ecf8e; } .card3 .track i.warn { background: #e8b84a; } .card3 .track i.hot { background: #ff5a4f; } .card3 .track i.goal { background: #3ecf8e; } .card3 .track i.ko { background: #ff5a4f; }\n/* drawdown bands: green in profit, yellow up to 50%, orange up to 75%, red beyond (bar and figures) */\n.card3 .track i.zy { background: #e8c24a; } .card3 .track i.zo { background: #ff8c42; } .card3 .track i.zr { background: #ff4d4d; } .card3 .track i.zg { background: #3ecf8e; }\n.card3 .bl b.zy { color: #e8c24a; } .card3 .bl b.zo { color: #ff8c42; } .card3 .bl b.zr { color: #ff4d4d; } .card3 .bl b.zg { color: #3ecf8e; }\n.card3 .bl b.up { color: #3ecf8e; } .card3 .bl b.down { color: #ff6b61; }\n/* second card */\n.card2 { display: block; height: 118px; border-color: #59647b; }\n/* row of the fractions 0.1-0.9 at the top, the rest moves down by 26.5 px */\n.card2 button.pf { top: 7.2px; width: 21.6px; font-size: 10px; }\n.card2 button.f0 { left: 6.2px; } .card2 button.f1 { left: 30.45px; } .card2 button.f2 { left: 54.7px; }\n.card2 button.f3 { left: 78.95px; } .card2 button.f4 { left: 103.2px; } .card2 button.f5 { left: 127.45px; }\n.card2 button.f6 { left: 151.7px; } .card2 button.f7 { left: 175.95px; } .card2 button.f8 { left: 200.2px; }\n.card2 button.pp:not(.pf), .card2 > .pctbox { top: 33.7px; } .card2 > span.sz { top: 35.2px; }\n.card2 button.cx, .card2 button.tp, .card2 button.sl, .card2 button.be { top: 59.8px !important; }\n.card2 button.lm, .card2 button.st, .card2 button.long, .card2 button.short { top: 88.3px !important; }\n.card2 button.pp { top: 7.2px; width: 23.5px; color: #aab1be; }\n/* four presets, % box moved to the right */\n.card2 button.pp:not(.pf) { width: 17.4px; }\n.card2 button.p0 { left: 6.2px; } .card2 button.p1 { left: 25.8px; } .card2 button.p2 { left: 45.4px; }\n.card2 button.p3 { left: 65px; } .card2 button.p4 { left: 84.6px; } .card2 button.p5 { left: 104.2px; } /* 6 presets */\n.card2 button.pp.sm { font-size: 9px; letter-spacing: -.2px; }\n.card2 button.pp.on { color: #fff; border-color: #7fb2ff; background: #16223f; }\n.pctbox { top: 7.2px; left: 93.1px; width: 46.4px; box-sizing: border-box; display: flex; align-items: center; justify-content: space-between;\n  border: 1px solid #b9bcc4; border-radius: 3px; background: #0d1015; }\n.card2 > .pctbox { left: 124.6px; width: 34.6px; padding: 0 3px 0 3px; } /* same spacing as the presets */\n/* % boxes: normal (not bold) number aligned right, next to the % sign */\n.pctbox input { all: unset; flex: 1; min-width: 0; text-align: right; font: 400 11px/1 system-ui, sans-serif; color: #fff; }\n.pctbox span { font: 400 11px/1 system-ui, sans-serif; color: #fff; margin-left: 2px; }\n.card2 .sz { right: 9.5px; top: 8.7px; height: 17.5px; display: flex; align-items: center; font: 700 11px/1 system-ui, sans-serif; color: #e6e9ef;\n  overflow: hidden; text-overflow: ellipsis; max-width: 80px; }\n.card2 .sz.why { font-weight: 400; color: #8b93a3; font-size: 11px; }\n/* rows 33.3 (cancel buttons · TP SL BE) and 61.8 (LIMIT STOP · LONG SHORT), buttons 21.8 high */\n.card2 button.lm, .card2 button.st, .card2 button.cx, .card2 button.tp, .card2 button.sl, .card2 button.be,\n.card2 button.long, .card2 button.short { height: 21.8px; font-weight: 700; }\n.card2 button.lm, .card2 button.st { top: 61.8px; cursor: ns-resize; }\n.card2 button.lm { left: 6.2px; width: 47.8px; color: #7fb2ff; border-color: #2f4a70; background: #0c163f; }\n.card2 button.st { left: 60.1px; width: 43.3px; color: #e8b84a; border-color: #5a4520; background: #2a2114; }\n.card2 button.cx { top: 33.3px; color: #7a80b4; border-color: #3e4555; }\n.card2 button.cxb { left: 6.2px; width: 97.2px; }\n/* CANCEL menu: opens under its button, above the next row and the third card */\n.card2.cxopen { z-index: 10; }\n.card2 .cxm { position: absolute; left: 6.2px; top: 83px; width: 120px; z-index: 5; display: flex; flex-direction: column; gap: 2px;\n  padding: 3px; background: #12151b; border: 1px solid #59647b; border-radius: 5px; box-shadow: 0 6px 18px rgba(0,0,0,.5); }\n.card2 .cxm button { position: static; display: flex; align-items: center; height: 21px; text-align: left; padding: 0 6px; font: 600 10.5px/1 system-ui, -apple-system, \"Segoe UI\", sans-serif;\n  color: #d7dbe3; background: #1d222c; border: 1px solid #333a48; border-radius: 3px; cursor: pointer; }\n.card2 .cxm button:hover:not([disabled]) { background: #3a1c1e; border-color: #a33; }\n.card2 .cxm button[disabled] { opacity: .4; cursor: default; }\n.card2 button.tp, .card2 button.sl, .card2 button.be { top: 33.3px; width: 26.6px; }\n.card2 button.tp { left: 130.3px; color: #3ecf8e; border-color: #2f6b52; background: #0f2a20; cursor: ns-resize; }\n.card2 button.sl { left: 163.7px; color: #ff6b61; border-color: #7a3438; background: #2f1416; cursor: ns-resize; }\n.card2 button.be { right: 6.6px; color: #c0c0c0; border-color: #4f4f4f; background: #252525; }\n.card2 button.long, .card2 button.short { top: 61.8px; }\n.card2 button.long { left: 130.3px; width: 41.3px; color: #3ecf8e; border-color: #2f6b52; background: #0f2a20; }\n.card2 button.short { right: 6.6px; width: 45.2px; color: #ff6b61; border-color: #7a3438; background: #2f1416; }\n.chip.lm { border-color: #2f4a70; } .chip.lm .k { color: #7fb2ff; }\n.chip.st { border-color: #5a4520; } .chip.st .k { color: #e8b84a; }\n.chip.avg, .chip.avg1, .chip.avgn { border-color: #2b6672; } .chip.avg .k, .chip.avg1 .k, .chip.avgn .k { color: #5ad1e6; }\n.chip.mfp { border-color: #8a5520; } .chip.mfp .k { color: #ff9f43; } /* fail price preview */ /* average entry with all limits: light blue, read only */\n.chip.dd50 { border-color: #7a2f58; } .chip.ko { border-color: #5b3f80; } .chip.ko .k { color: #c58cff; } /* account fail price: purple, read only */\n.chip .loc { font-size: 9px; color: #e8b84a; border: 1px solid #5a4520; border-radius: 3px; padding: 0 3px; }\n\n/* messages under the card, outside its fixed size */\n.msg { position: absolute; left: 0; top: calc(100% + 3px); width: 232px; font: 400 10px/1.3 system-ui, sans-serif; color: #aab1be; white-space: normal; }\n.msg.err { color: #ff8a80; } .msg.ok { color: #3ecf8e; }\n\n/* ── SL and TP labels */\n.chip { padding: 2px 6px; display: flex; gap: 6px; align-items: center; cursor: ns-resize; white-space: nowrap; font-variant-numeric: tabular-nums; }\n.chip.tp { border-color: #2f6b52; } .chip.sl { border-color: #7a3438; }\n.chip.long { border-color: #2f6b52; } .chip.long .k { color: #3ecf8e; } .chip.short { border-color: #7a3438; } .chip.short .k { color: #ff6b61; }\n.chip.pos { cursor: default; }\n.chip .k { font-weight: 700; } .chip.tp .k { color: #3ecf8e; } .chip.sl .k { color: #ff6b61; }\n.chip.pending { opacity: .6; } .chip.bad { border-color: #e8b84a; }\n.chip.drag { outline: 1px solid #fff3; }\n.up { color: #3ecf8e; } .down { color: #ff6b61; }\n.chip .x { margin-left: 2px; padding: 0 4px; border-radius: 3px; color: #8b93a3; cursor: pointer; }\n.chip .x:hover { color: #fff; background: #2a303c; }\n.chip .x.off { opacity: .35; cursor: default; }\n.chip .x.arm { color: #fff; background: #8a2a2a; font-weight: 700; }\n/* lines and segments BELOW labels and cards (they got mixed up with the text) */\n.hl, .lead { z-index: 1; }\n.chip { z-index: 2; }\n.chip.drag { z-index: 3; }\n.card, .card2, .card3, .card4 { z-index: 4; }\n/* size in play clearly visible: card and label size in bold yellow, $/pt white */\n/* the three quantities (card, second card, label) with the style chosen in the panel (--qc, --qs, --qw) */\n.card.long .w.q, .card.short .w.q, .card .w.q { color: var(--qc, #ffb402); font-weight: var(--qw, 800); font-size: var(--qs, 11px); }\n.card2 > span.sz:not(.why) { color: var(--qc, #ffb402); font-weight: var(--qw, 800); font-size: var(--qs, 11px); }\n.card .mic i { color: #ffffff; }\n.chip .qy { color: var(--qc, #ffb402); font-weight: var(--qw, 800); font-size: var(--qs, 11px); }\n/* position label on two rows */\n.chip.two { display: grid; grid-template-columns: repeat(5, auto); column-gap: 6px; row-gap: 2px; padding: 3px 6px; }\n.chip.two .mk { color: #7fb2ff; font-weight: 700; } /* current price: bold, LIMIT colour */\n/* entry and current price aligned (col. 2), Σ under the size and TOT under the P&L, on the right */\n.chip.two .qy, .chip.two .pl, .chip.two .sig { justify-self: end; }\n.chip.two .sig { border-left: 0; padding-left: 0; }\n/* COPY: Qty column */\n.card4 td.q { color: #d7dbe3; } .card4 td.q.up { color: #3ecf8e; } .card4 td.q.down { color: #ff6b61; }\n/* small % presets like the fractions, wider % box */\n.card2 button.pp:not(.pf) { width: 15px; font-size: 10px; }\n.card2 button.p0 { left: 6.2px; } .card2 button.p1 { left: 23.6px; } .card2 button.p2 { left: 41px; }\n.card2 button.p3 { left: 58.4px; } .card2 button.p4 { left: 75.8px; } .card2 button.p5 { left: 93.2px; }\n.card2 button.pp.sm:not(.pf) { font-size: 8.5px; }\n.card2 > .pctbox { left: 112px; width: 44px; padding: 0 4px; }\n/* with the Qty column the table must fit in 232 px: tighter font and spacing, account name truncated */\n.card4 table { font-size: 9.5px; table-layout: fixed; }\n.card4 td, .card4 th { padding: 3px 0 3px 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }\n.card4 col.c0 { width: 19%; } .card4 col.c1 { width: 17%; } .card4 col.c2, .card4 col.c3, .card4 col.c4 { width: 21.33%; }\n.card4 .cpt { font-size: 8px; color: #8b93a3; letter-spacing: .3px; } /* small COPY */\n.card4 b.cpon { margin-left: 3px; }\n.card4 th:first-child { overflow: visible; }\n.card2 > span.sz { top: 33.7px; line-height: 17.5px; } /* aligned with the % box */\n/* ORDERS and COPY in the card's right column, label outside and ON/OFF in the button */\n.card .tgl { position: absolute; left: 155px; font-size: 8px; font-weight: 700; letter-spacing: .3px; color: #8b93a3; line-height: 13px; height: 13px; }\n.card .ordl { top: 6px; } .card .cpl { top: 22px; }\n.card button.ordc, .card button.cpc { left: auto; right: 7px; width: 30px; height: 13px; font-size: 8.5px; font-weight: 700; padding: 0; }\n.card button.ordc { top: 6px; } .card button.cpc { top: 22px; color: #8b93a3; background: #1d222c; border-color: #333a48; }\n.card button.cpc.on { color: #fff; background: #1f5a3f; border-color: #3ecf8e; }\n/* ON white on green, OFF white on red (ORDERS and COPY) */\n.card button.ordc, .card button.cpc { color: #fff; background: #8a2a2a; border-color: #c44; }\n.card button.ordc.on, .card button.cpc.on { color: #fff; background: #1f6a45; border-color: #3ecf8e; }\n/* label: account P&L at the size's font size; Σ and TOT not bold */\n.chip.two .pl { font-size: var(--qs, 11px); }\n.chip.two .sig b { font-weight: 400; }\n/* COPY: active account yellow, sizes white */\n.card4 tr.sel td:first-child { color: #ffb402; }\n.card4 td.q, .card4 td.q.up, .card4 td.q.down { color: #fff; }\n/* % box a little further right and wider */\n.card2 > .pctbox { left: 114.5px; width: 50px; }\n/* third card: all bar text at the same size as the DAILY GOAL figures (11 px, labels no longer thin) */\n.card3 .bl, .card3 .bl span, .card3 .bl b { font-size: 11px; }\n.card3 .bl span:first-child { font-weight: 600; color: #aab1be; }\n/* COPY: larger text (10.5 px), columns reworked so nothing is cut */\n.card4 table { font-size: 10.5px; }\n.card4 .cpt { font-size: 9px; }\n.card4 col.c0 { width: 16%; } .card4 col.c1 { width: 18%; } .card4 col.c2, .card4 col.c3, .card4 col.c4 { width: 22%; }\n/* columns sized to their content: no amount truncated (fixed widths removed) */\n.card4 table { table-layout: auto; }\n.card4 col.c0, .card4 col.c1, .card4 col.c2, .card4 col.c3, .card4 col.c4 { width: auto; }\n.card4 td, .card4 th { overflow: visible; text-overflow: clip; padding-left: 3px; }\n/* \"S\"/\"L\" label with the card's arrow; third card at the COPY card's size (10.5 px) */\n.chip .k svg { display: inline-block; width: 6.4px; height: 10px; margin-left: 3px; vertical-align: -1px; }\n.card3 .bl, .card3 .bl span, .card3 .bl b { font-size: 10.5px; }\n/* position label on one row; P&L at the size's font size */\n.chip .pl { font-size: var(--qs, 11px); }\n/* clock on the right, aligned with the size column, yellow like FLAT; MNQ row grey; entry white */\n.card .side { width: 130px; display: flex; }\n.card .side i { margin-left: auto; color: #ffb402; }\n.card .mic, .card .mic i { color: #8b93a3; }\n.card.long .w.e, .card.short .w.e, .card .w.e { color: #fff; }\n/* trailing segments between candles and labels */\n.tseg { position: absolute; height: 0; border-top: 3px solid; pointer-events: none; z-index: 1; border-radius: 2px; }\n.tseg.stop { border-color: #ff9f43; } .tseg.act { border-color: #5ad1e6; } .tseg.next { border-color: #a3e635; }\n.tseg.be { border-color: #e879f9; } /* BE+ */\n.tseg.bet { border-top-style: dashed; border-color: #e879f9; } /* auto BE trigger */\n.tseg.hl { border-radius: 0; } /* last swing high / low, between the cards and the price axis */\n.card .side i.cd { color: #9fb3d9; font-weight: 600; } /* countdown to the candle close */\n\n/* label name in the line colour chosen in the panel (--kc from LS(kind)) */\n.chip .k { color: var(--kc, inherit) !important; }\n\n/* account activity dot next to the name (store.activityOf) */\n.adot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 5px; vertical-align: 1px; background: #5b6373; flex: none; }\n.adot.free { background: #3ecf8e; } .adot.busy { background: #ff5a4f; } .adot.ph { background: #e8b84a; }\n\n/* ══ SONAR card style (Chart display → card style). Colours, fonts and decoration only: every position and size above stays.\n   Amber is the base colour; green and red keep their meaning (profit / loss, buy / sell). ══ */\n.root.sonar { --o: #ff8a3d; --od: #7a3b17; --oe: #c4521d; --obg: #0b0605; --ohi: #ffd2a8; --olo: #c4703d; --oup: #8dff6a; --odn: #ff4b3d; color: var(--o); }\n.root.sonar, .root.sonar * { font-family: Consolas, \"Cascadia Mono\", \"Lucida Console\", monospace !important; }\n.root.sonar :is(.card, .card2, .card3, .card4, .card5) { color: var(--o); border-radius: 0; border-color: var(--oe);\n  background: radial-gradient(130% 70% at 50% 0, #1a0b07, var(--obg));\n  box-shadow: 0 0 0 1px rgba(0,0,0,.65), 0 0 16px rgba(255,110,40,.13), 0 4px 14px rgba(0,0,0,.6); text-shadow: 0 0 5px rgba(255,120,40,.3); }\n/* cut corners (top left, bottom right) and faint scan lines */\n.root.sonar :is(.card, .card2, .card3, .card4, .card5)::before { content: \"\"; position: absolute; inset: 0; pointer-events: none;\n  background: linear-gradient(135deg, var(--side, var(--oe)) 0 5px, transparent 5px) top left / 9px 9px no-repeat,\n    linear-gradient(315deg, var(--side, var(--oe)) 0 5px, transparent 5px) bottom right / 9px 9px no-repeat,\n    repeating-linear-gradient(0deg, rgba(255,140,60,.04) 0 1px, transparent 1px 3px); }\n.root.sonar .card.long { --side: #3f8a2c; } .root.sonar .card.short { --side: #8a2424; } .root.sonar .card.flat { --side: var(--oe); }\n.root.sonar .up { color: var(--oup) !important; } .root.sonar .down { color: var(--odn) !important; }\n.root.sonar button { border-radius: 0; border-color: var(--od); color: var(--o); background: #140806; }\n/* first card */\n.root.sonar .card .side, .root.sonar .card .side b { color: var(--ohi); }\n.root.sonar .card .side i { color: var(--ohi); } .root.sonar .card .side i.cd { color: #ffb98a; }\n.root.sonar .card .acc { color: var(--o); }\n.root.sonar .card .w, .root.sonar .card .w.e, .root.sonar .card .dpt, .root.sonar .card .pnl.lbl { color: var(--ohi); }\n.root.sonar .card.long .w.vs { color: var(--oup); } .root.sonar .card.short .w.vs { color: var(--odn); }\n.root.sonar .card.flat .w { color: var(--olo); }\n.root.sonar .card .mic, .root.sonar .card .mic i, .root.sonar .card .gap.mk { color: var(--olo); }\n.root.sonar .card .tgl { color: #d96a2c; }\n.root.sonar .card button.ordc, .root.sonar .card button.cpc { color: var(--od); background: transparent; border-color: var(--od); }\n.root.sonar .card button.ordc.on, .root.sonar .card button.cpc.on { color: #170804; background: var(--o); border-color: var(--o); box-shadow: 0 0 8px rgba(255,120,40,.5); text-shadow: none; }\n.root.sonar .card button.flat { color: #170804; background: var(--o); border-color: var(--o); box-shadow: 0 0 12px rgba(255,120,40,.5); text-shadow: none; }\n/* second card */\n.root.sonar .card2 button.pp { color: var(--o); }\n.root.sonar .card2 button.pp.on { color: #170804; background: var(--o); border-color: var(--o); box-shadow: 0 0 8px rgba(255,120,40,.5); text-shadow: none; }\n.root.sonar .pctbox { border-radius: 0; border-color: var(--oe); background: #000; }\n.root.sonar .pctbox input, .root.sonar .pctbox span { color: var(--ohi); }\n.root.sonar .card2 .sz.why { color: var(--olo); }\n.root.sonar .card2 button.cx { color: var(--o); border-color: var(--oe); background: repeating-linear-gradient(-45deg, #2a1206 0 5px, #170904 5px 10px); }\n.root.sonar .card2 button.tp { color: var(--oup); border-color: #3f8a2c; background: #0e1d09; }\n.root.sonar .card2 button.sl { color: var(--odn); border-color: #8a2424; background: #210909; }\n.root.sonar .card2 button.be { color: var(--o); border-color: var(--oe); background: #140806; }\n.root.sonar .card2 button.lm { color: var(--ohi); border-color: var(--oe); background: #1c0c07; }\n.root.sonar .card2 button.st { color: #ffb02e; border-color: #8a5a10; background: #1f1406; }\n.root.sonar .card2 button.long { color: var(--oup); border-color: var(--oup); background: #183a10; box-shadow: 0 0 8px rgba(141,255,106,.25); }\n.root.sonar .card2 button.short { color: var(--odn); border-color: var(--odn); background: #3a1010; box-shadow: 0 0 8px rgba(255,75,61,.25); }\n.root.sonar .card2 .cxm { border-radius: 0; background: var(--obg); border-color: var(--oe); }\n.root.sonar .card2 .cxm button { border-radius: 0; color: var(--o); background: #140806; border-color: var(--od); }\n.root.sonar .card2 .cxm button:hover:not([disabled]) { background: #3a1010; border-color: var(--odn); }\n/* third card: segmented bars */\n.root.sonar .card3 button.close { color: var(--o); border-color: var(--oe); background: #140806; }\n.root.sonar .card3 .bar { border-radius: 0; border-color: rgba(122,59,23,.7); }\n.root.sonar .card3 .bl span:first-child { color: #d96a2c; } .root.sonar .card3 .bl span:last-child { color: var(--ohi); }\n.root.sonar .card3 .track { height: 5px; border-radius: 0; background: repeating-linear-gradient(90deg, rgba(255,138,61,.16) 0 4px, transparent 4px 6px); }\n.root.sonar .card3 .track i { background: var(--o);\n  -webkit-mask: repeating-linear-gradient(90deg, #000 0 4px, transparent 4px 6px); mask: repeating-linear-gradient(90deg, #000 0 4px, transparent 4px 6px); }\n.root.sonar .card3 .track i.goal, .root.sonar .card3 .track i.zg { background: var(--oup); }\n.root.sonar .card3 .track i.warn, .root.sonar .card3 .track i.zy { background: #ffd04a; }\n.root.sonar .card3 .track i.zo { background: #ff6a1a; }\n.root.sonar .card3 .track i.hot, .root.sonar .card3 .track i.ko, .root.sonar .card3 .track i.zr { background: var(--odn); }\n.root.sonar .card3 .bl b.zg { color: var(--oup); } .root.sonar .card3 .bl b.zy { color: #ffd04a; }\n.root.sonar .card3 .bl b.zo { color: #ff6a1a; } .root.sonar .card3 .bl b.zr { color: var(--odn); }\n/* copier card */\n.root.sonar .card4 th, .root.sonar .card4 th i, .root.sonar .card4 .cpt { color: #d96a2c; }\n.root.sonar .card4 td:first-child, .root.sonar .card4 td.q { color: var(--ohi); }\n.root.sonar .card4 tr.sel td:first-child { color: #ffd04a; }\n.root.sonar .card4 tr[data-id]:hover td { background: #1f0d07; }\n.root.sonar .card4 tr.t td { border-top-color: var(--od); }\n.root.sonar .card4 th i.on { color: var(--oup); }\n.root.sonar .card4 b.cpon { border-radius: 0; color: var(--olo); border-color: var(--od); }\n.root.sonar .card4 b.cpon.on { color: #170804; background: var(--o); border-color: var(--o); text-shadow: none; }\n/* swing and volatility card */\n.root.sonar .card5 .c5r b { color: var(--ohi); } .root.sonar .card5 .c5r i { color: var(--olo); }\n.root.sonar .card5 .hc { border-radius: 0; background: #140806; border-color: var(--od); }\n.root.sonar .card5 .hc b, .root.sonar .card5 .hc i { color: var(--olo); } .root.sonar .card5 .hc span { color: var(--ohi); }\n.root.sonar .card5 .hc.calm { background: #0b1520; border-color: #24496b; } .root.sonar .card5 .hc.calm span { color: #6fb7ff; }\n.root.sonar .card5 .hc.hot { background: #22160a; border-color: #8a5a10; } .root.sonar .card5 .hc.hot span { color: #ffb02e; }\n.root.sonar .card5 .hc.xhot { background: #2a0c0a; border-color: #8a2424; } .root.sonar .card5 .hc.xhot span { color: var(--odn); }\n.root.sonar .card5 .hc.na span, .root.sonar .card5 .hm-na { color: var(--od); }\n/* labels on the chart: square, dark, border colours unchanged (they match the lines) */\n.root.sonar .chip { border-radius: 0; background: var(--obg); color: var(--ohi); }\n.root.sonar .chip .x { border-radius: 0; color: var(--olo); } .root.sonar .chip .x:hover { color: var(--ohi); background: #2a1206; }\n.root.sonar .msg { color: #ffb98a; } .root.sonar .msg.err { color: var(--odn); } .root.sonar .msg.ok { color: var(--oup); }\n/* the monospaced font is wider than the classic one: tighter spacing where the rows are full (limits bars, copier table) */\n.root.sonar .card3 .bl { letter-spacing: -.3px; }\n.root.sonar .card4 table { font-size: 10px; letter-spacing: -.4px; }\n.root.sonar .card4 td, .root.sonar .card4 th { padding-left: 4px; }\n";
+module.exports = ":host { all: initial; }\n.root { position: fixed; inset: 0; pointer-events: none; z-index: 2147482000; font: 11px/1.25 system-ui, -apple-system, \"Segoe UI\", sans-serif; color: #d7dbe3; }\n.lead { position: absolute; height: 0; border-top: 1px solid; transform-origin: 0 0; pointer-events: none; opacity: .85; }\n.hl { position: absolute; height: 0; border-top: var(--w, 1px) var(--s, dashed) var(--c, #8b93a3); pointer-events: none; } /* style from the panel */\n/* SL/TP/LIMIT/STOP: the line can be grabbed (invisible 9 px band, dashed line in the middle) */\n.hl.grab { pointer-events: auto; cursor: ns-resize; height: 9px; border-top: 0; }\n.hl.grab::before { content: \"\"; position: absolute; left: 0; right: 0; top: 4px; border-top: var(--w, 1px) var(--s, dashed) var(--c); }\n.hl.entry { opacity: .9; }\n.chip { position: absolute; pointer-events: auto; background: #12151b; border: 1px solid #2a2f3a; border-radius: 6px; box-shadow: 0 4px 14px rgba(0,0,0,.45); user-select: none; }\n\n/* ── BLOCK ON THE CHART: measured on a pixel mock-up. Do not change by eye.\n   bar 232x19 · 6 px · card 232x82 · 6 px · second card 232x92 (the two gaps EQUAL). Font: all 11 px except\n   Orders 9, P&L 18, points 14.\n   On screen the block is scaled with a transform (SCALE in overlay.js): here are the drawing's measures.\n   Coordinates from the inner border (1 px border). Columns shared by the two cards:\n     left 6.5 · 41.2 · 76.5 (28.8 wide: Orders covers the first two)   right edge of the middle column 140 (P&L, size, % box)\n     right: edge at 223 (points, entry, FLAT, cancel all, SHORT)   second card rows: top 7.2 · 37.2 · 64.8, 17.5 high */\nbutton { all: unset; box-sizing: border-box; cursor: pointer; font: 400 11px/1 system-ui, -apple-system, \"Segoe UI\", sans-serif;\n  border-radius: 3px; border: 1px solid #3a4150; color: #cfd5df; display: inline-flex; align-items: center; justify-content: center; }\nbutton:hover { filter: brightness(1.2); }\nbutton[disabled] { opacity: .45; cursor: default; }\n.up { color: #3ecf8e; } .down { color: #ff6b61; }\n\n/* scale from the main panel (--bs block, --cs labels): transform, so everything stays in proportion */\n.chip { transform: scale(var(--cs, 1)); transform-origin: 0 0; }\n.card, .card2, .card3, .card4, .card5 { transform: scale(var(--bs, 1.25)); transform-origin: 0 0; }\n/* fifth card: swing range and volatility heatmap (ATR recent / ATR over the same hours on each timeframe) */\n.card5 { position: absolute; pointer-events: auto; width: 232px; box-sizing: border-box; border-radius: 7px; padding: 6px 7px 7px;\n  background: #12151b; border: 1px solid #59647b; box-shadow: 0 4px 14px rgba(0,0,0,.45); user-select: none;\n  font: 700 10.5px/1 system-ui, -apple-system, \"Segoe UI\", sans-serif; font-variant-numeric: tabular-nums; white-space: nowrap; color: #bcbcbc; }\n.card5 .c5r { display: flex; align-items: baseline; justify-content: space-between; height: 15px; }\n.card5 .c5r b { color: #fff; font-size: 12px; } .card5 .c5r i { font-style: normal; font-weight: 400; font-size: 9px; color: #8b93a3; }\n.card5 .c5r + .c5r { margin-top: 4px; }\n.card5 .hm { display: grid; grid-template-columns: repeat(5, 1fr); gap: 3px; margin-top: 3px; }\n.card5 .hc { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 4px 0 4px; border-radius: 4px; background: #1d222c; border: 1px solid #2a2f3a; }\n.card5 .hc b { font-size: 9px; color: #8b93a3; } .card5 .hc span { font-size: 11.5px; color: #e6e9ef; } .card5 .hc i { font-style: normal; font-weight: 400; font-size: 8.5px; color: #8b93a3; }\n.card5 .hc.calm { background: #14263a; border-color: #2c4a6b; } .card5 .hc.norm { background: #1d222c; }\n.card5 .hc.hot { background: #4a3210; border-color: #8a6a1a; } .card5 .hc.hot span { color: #ffd36b; }\n.card5 .hc.xhot { background: #5a1c1f; border-color: #a33; } .card5 .hc.xhot span { color: #ffb3ad; }\n.card5 .hc.na span { color: #59647b; }\n.card5 .hm-na { grid-column: 1 / -1; color: #8b93a3; font-weight: 400; padding: 4px 0; }\n\n.card, .card2, .card3 { position: absolute; pointer-events: auto; width: 232px; height: 82px; box-sizing: border-box; border-radius: 7px;\n  background: #12151b; border: 1px solid #2a2f3a; box-shadow: 0 4px 14px rgba(0,0,0,.45); user-select: none;\n  font-family: system-ui, -apple-system, \"Segoe UI\", sans-serif; font-variant-numeric: tabular-nums; white-space: nowrap; }\n.card { border-color: var(--side); }\n.card.long { --side: #2f6b52; } .card.short { --side: #7a3438; } .card.flat { --side: #3a4150; }\n.card > span, .card2 > span { position: absolute; line-height: 1; }\n/* text: top = measured baseline - 0.914 x font size (Segoe UI with line-height 1) */\n/* instrument top left, Orders in place of the P&L, P&L (80%) in place of the points,\n   points above $/pt with the same font size */\n.card .pnl { right: 7px; top: 41px; font-size: 14.4px; font-weight: 700; }\n.card .gap { right: 7px; top: 58.5px; font-size: 11px; font-weight: 700; }\n/* taller card, LONG/SHORT row lower, large account ID, points under the P&L,\n   in their place the points of the day */\n.card { height: 106px; } /* +12 px */\n.card .w { top: 43px; font-size: 11px; font-weight: 700; color: #e6e9ef; }\n.card .w.e { top: 58.5px; } /* entry under the size */\n.card .dpt { right: 90.5px; top: 23px; max-width: 66px; overflow: hidden; text-align: right; font-size: 11px; font-weight: 700; color: #d7dbe3; }\n.card .w.q, .card .w.e { right: 90.5px; }\n.card .w.vs { left: 11.5px; } .card .w.vs svg { display: inline-block; width: 6.4px; height: 10px; margin-left: 4px; vertical-align: -1px; } .card.long .w.vs { color: #3ecf8e; } .card.short .w.vs { color: #ff6b61; } /* side under the arrow, size row */\n/* bottom row: micro on the left, $ per point on the right, same font as the size */\n.card .mic { left: 11.5px; width: 130px; top: 82px; height: 16px; line-height: 16px; font-size: 11px; font-weight: 700; color: #d7dbe3;\n  white-space: nowrap; overflow: hidden; display: flex; justify-content: space-between; gap: 6px; }\n.card .pnl.xs { font-size: 12px; top: 42.2px; }\n.card .mic i { font-style: normal; color: #ffb402; margin-left: auto; } /* $ per point of the open size */\n.card .w i { font-style: normal; margin-left: 6px; }\n.card.long .w.q, .card.long .w.e { color: #3ecf8e; } .card.short .w.q, .card.short .w.e { color: #ff6b61; } /* size and entry in the side's colour */\n.card .pnl.lbl { color: #d7dbe3; }\n.card .gap.mk { color: #bcbcbc; }\n.card.flat .w { color: #8b93a3; }\n.card > button, .card2 > button, .card2 > .pctbox, .card3 > button, .card3 > .pctbox { position: absolute; height: 17.5px; padding: 0 0 1px; }\n.card .acc { left: 11.5px; top: 23px; font-size: 11px; font-weight: 700; color: #c9d1e0; text-transform: uppercase; max-width: 62px; overflow: hidden; text-overflow: ellipsis; }\n.card button.ordc { left: 169.2px; top: 9.6px; width: 55.8px; height: 13.5px; font-size: 9px; color: #9fb3d9; background: #1d222c; border-color: #333a48; }\n.card button.ordc.on { color: #bcbcbc; background: #8a2a2a; border-color: #c44; } /* ON: red, grey text */\n.card button.flat { right: 6.6px; top: 78px; width: 42.5px; height: 21.8px; font-weight: 700; color: #ffb402; background: #000; border-color: #ffb402; }\n/* side arrow and vertical divider */\n.card .side { left: 11.5px; top: 5px; height: 14.4px; line-height: 14.4px; font-size: 13px; font-weight: 700; color: #e6e9ef; } /* instrument */\n.card .side b { font-weight: 700; }\n.card .side i { font-style: normal; font-weight: 600; font-size: 12.5px; color: #fff; margin-left: 6px; font-variant-numeric: tabular-nums; } /* computer clock */\n.card::after { content: \"\"; position: absolute; left: 149px; top: 3.5px; width: 1px; height: 97.3px; background: var(--side); }\n\n/* third card: CLOSE % in the LIMIT / STOP columns, then margin of positions, margin with orders, risk */\n.card4 { position: absolute; pointer-events: auto; width: 232px; box-sizing: border-box; border-radius: 7px; padding: 4px 6px 5px;\n  background: #12151b; border: 1px solid #59647b; box-shadow: 0 4px 14px rgba(0,0,0,.45); user-select: none;\n  font: 400 10.5px/1 system-ui, -apple-system, \"Segoe UI\", sans-serif; font-variant-numeric: tabular-nums; white-space: nowrap; color: #bcbcbc; }\n.chip .sig { border-left: 1px solid rgba(255,255,255,.18); padding-left: 5px; color: #8b93a3; } /* copier accounts: Σ open, TOT total */\n.chip .sig b { font-weight: 700; color: #d7dbe3; } .chip .sig b.up { color: #3ecf8e; } .chip .sig b.down { color: #ff6b61; }\n.card4 table { width: 100%; border-collapse: collapse; }\n.card4 td, .card4 th { padding: 3px 0 3px 4px; text-align: right; }\n.card4 td:first-child, .card4 th:first-child { text-align: left; padding-left: 0; color: #d7dbe3; }\n.card4 th { font-weight: 400; color: #8b93a3; }\n.card4 th i, .card4 td i { font-style: normal; font-size: 9px; color: #8b93a3; }\n.card4 th i.on { color: #3ecf8e; font-weight: 700; } .card4 td i { color: #ffb402; font-weight: 700; }\n.card4 tr[data-id] { cursor: pointer; } .card4 tr[data-id]:hover td { background: #1b2030; }\n.card4 tr.sel td:first-child { color: #7fb2ff; font-weight: 700; }\n.card4 b.cpon { display: inline-block; margin-left: 4px; padding: 1px 5px; border: 1px solid #3e4555; border-radius: 3px; font-size: 9px;\n  color: #8b93a3; cursor: pointer; } /* clickable ON/OFF */\n.card4 b.cpon:hover { filter: brightness(1.3); }\n.card4 b.cpon.on { color: #fff; background: #1f5a3f; border-color: #3ecf8e; }\n.card4 tr.t td { border-top: 1px solid #2a2f3a; font-weight: 700; padding-top: 4px; }\n.card4 .up { color: #3ecf8e; } .card4 .down { color: #ff6b61; }\n.card3 { display: block; height: auto; padding-bottom: 7px; border-color: #59647b; }\n/* % box like the size one, wide PARTIAL CLOSE; below daily / max drawdown / goal like Vest's page */\n.card3 > .pctbox.cp { position: absolute; left: 6.2px; top: 7.6px; width: 46.4px; height: 17.5px; padding: 0 4px 0 4px; }\n.card3 button.close.all { left: 179px; width: 44.4px; } /* CLOSE: up to the right edge, aligned with SHORT */\n.card3 button.close { left: 60.1px; top: 7.6px; width: 111.4px; height: 17.5px; font-weight: 700; color: #ffb402; background: #12151b; border-color: #8a6a1a; }\n.card3 .bars { margin: 36px 6.6px 0 6.2px; display: grid; gap: 6px; }\n.card3 .bar { border: 1px solid #2a2f3a; border-radius: 4px; padding: 4px 6px 5px; }\n.card3 .bl { display: flex; justify-content: space-between; gap: 6px; font: 400 11px/1.1 system-ui, -apple-system, \"Segoe UI\", sans-serif; color: #8b93a3; }\n.card3 .bl span:last-child { color: #d7dbe3; text-align: right; overflow: hidden; text-overflow: ellipsis; }\n.card3 .track { height: 4px; background: #222733; border-radius: 2px; margin-top: 4px; overflow: hidden; }\n.card3 .track i { display: block; height: 100%; width: 0; background: #3ecf8e; } .card3 .track i.warn { background: #e8b84a; } .card3 .track i.hot { background: #ff5a4f; } .card3 .track i.goal { background: #3ecf8e; } .card3 .track i.ko { background: #ff5a4f; }\n/* drawdown bands: green in profit, yellow up to 50%, orange up to 75%, red beyond (bar and figures) */\n.card3 .track i.zy { background: #e8c24a; } .card3 .track i.zo { background: #ff8c42; } .card3 .track i.zr { background: #ff4d4d; } .card3 .track i.zg { background: #3ecf8e; }\n.card3 .bl b.zy { color: #e8c24a; } .card3 .bl b.zo { color: #ff8c42; } .card3 .bl b.zr { color: #ff4d4d; } .card3 .bl b.zg { color: #3ecf8e; }\n.card3 .bl b.up { color: #3ecf8e; } .card3 .bl b.down { color: #ff6b61; }\n/* second card */\n.card2 { display: block; height: 118px; border-color: #59647b; }\n/* row of the fractions 0.1-0.9 at the top, the rest moves down by 26.5 px */\n.card2 button.pf { top: 7.2px; width: 21.6px; font-size: 10px; }\n.card2 button.f0 { left: 6.2px; } .card2 button.f1 { left: 30.45px; } .card2 button.f2 { left: 54.7px; }\n.card2 button.f3 { left: 78.95px; } .card2 button.f4 { left: 103.2px; } .card2 button.f5 { left: 127.45px; }\n.card2 button.f6 { left: 151.7px; } .card2 button.f7 { left: 175.95px; } .card2 button.f8 { left: 200.2px; }\n.card2 button.pp:not(.pf), .card2 > .pctbox { top: 33.7px; } .card2 > span.sz { top: 35.2px; }\n.card2 button.cx, .card2 button.tp, .card2 button.sl, .card2 button.be { top: 59.8px !important; }\n.card2 button.lm, .card2 button.st, .card2 button.long, .card2 button.short { top: 88.3px !important; }\n.card2 button.pp { top: 7.2px; width: 23.5px; color: #aab1be; }\n/* four presets, % box moved to the right */\n.card2 button.pp:not(.pf) { width: 17.4px; }\n.card2 button.p0 { left: 6.2px; } .card2 button.p1 { left: 25.8px; } .card2 button.p2 { left: 45.4px; }\n.card2 button.p3 { left: 65px; } .card2 button.p4 { left: 84.6px; } .card2 button.p5 { left: 104.2px; } /* 6 presets */\n.card2 button.pp.sm { font-size: 9px; letter-spacing: -.2px; }\n.card2 button.pp.on { color: #fff; border-color: #7fb2ff; background: #16223f; }\n.pctbox { top: 7.2px; left: 93.1px; width: 46.4px; box-sizing: border-box; display: flex; align-items: center; justify-content: space-between;\n  border: 1px solid #b9bcc4; border-radius: 3px; background: #0d1015; }\n.card2 > .pctbox { left: 124.6px; width: 34.6px; padding: 0 3px 0 3px; } /* same spacing as the presets */\n/* % boxes: normal (not bold) number aligned right, next to the % sign */\n.pctbox input { all: unset; flex: 1; min-width: 0; text-align: right; font: 400 11px/1 system-ui, sans-serif; color: #fff; }\n.pctbox span { font: 400 11px/1 system-ui, sans-serif; color: #fff; margin-left: 2px; }\n.card2 .sz { right: 9.5px; top: 8.7px; height: 17.5px; display: flex; align-items: center; font: 700 11px/1 system-ui, sans-serif; color: #e6e9ef;\n  overflow: hidden; text-overflow: ellipsis; max-width: 80px; }\n.card2 .sz.why { font-weight: 400; color: #8b93a3; font-size: 11px; }\n/* rows 33.3 (cancel buttons · TP SL BE) and 61.8 (LIMIT STOP · LONG SHORT), buttons 21.8 high */\n.card2 button.lm, .card2 button.st, .card2 button.cx, .card2 button.tp, .card2 button.sl, .card2 button.be,\n.card2 button.long, .card2 button.short { height: 21.8px; font-weight: 700; }\n.card2 button.lm, .card2 button.st { top: 61.8px; cursor: ns-resize; }\n.card2 button.lm { left: 6.2px; width: 47.8px; color: #7fb2ff; border-color: #2f4a70; background: #0c163f; }\n.card2 button.st { left: 60.1px; width: 43.3px; color: #e8b84a; border-color: #5a4520; background: #2a2114; }\n.card2 button.cx { top: 33.3px; color: #7a80b4; border-color: #3e4555; }\n.card2 button.cxb { left: 6.2px; width: 97.2px; }\n/* CANCEL menu: opens under its button, above the next row and the third card */\n.card2.cxopen { z-index: 10; }\n.card2 .cxm { position: absolute; left: 6.2px; top: 83px; width: 120px; z-index: 5; display: flex; flex-direction: column; gap: 2px;\n  padding: 3px; background: #12151b; border: 1px solid #59647b; border-radius: 5px; box-shadow: 0 6px 18px rgba(0,0,0,.5); }\n.card2 .cxm button { position: static; display: flex; align-items: center; height: 21px; text-align: left; padding: 0 6px; font: 600 10.5px/1 system-ui, -apple-system, \"Segoe UI\", sans-serif;\n  color: #d7dbe3; background: #1d222c; border: 1px solid #333a48; border-radius: 3px; cursor: pointer; }\n.card2 .cxm button:hover:not([disabled]) { background: #3a1c1e; border-color: #a33; }\n.card2 .cxm button[disabled] { opacity: .4; cursor: default; }\n.card2 button.tp, .card2 button.sl, .card2 button.be { top: 33.3px; width: 26.6px; }\n.card2 button.tp { left: 130.3px; color: #3ecf8e; border-color: #2f6b52; background: #0f2a20; cursor: ns-resize; }\n.card2 button.sl { left: 163.7px; color: #ff6b61; border-color: #7a3438; background: #2f1416; cursor: ns-resize; }\n.card2 button.be { right: 6.6px; color: #c0c0c0; border-color: #4f4f4f; background: #252525; }\n.card2 button.long, .card2 button.short { top: 61.8px; }\n.card2 button.long { left: 130.3px; width: 41.3px; color: #3ecf8e; border-color: #2f6b52; background: #0f2a20; }\n.card2 button.short { right: 6.6px; width: 45.2px; color: #ff6b61; border-color: #7a3438; background: #2f1416; }\n.chip.lm { border-color: #2f4a70; } .chip.lm .k { color: #7fb2ff; }\n.chip.st { border-color: #5a4520; } .chip.st .k { color: #e8b84a; }\n.chip.avg, .chip.avg1, .chip.avgn { border-color: #2b6672; } .chip.avg .k, .chip.avg1 .k, .chip.avgn .k { color: #5ad1e6; }\n.chip.mfp { border-color: #8a5520; } .chip.mfp .k { color: #ff9f43; } /* fail price preview */ /* average entry with all limits: light blue, read only */\n.chip.dd50 { border-color: #7a2f58; } .chip.ko { border-color: #5b3f80; } .chip.ko .k { color: #c58cff; } /* account fail price: purple, read only */\n.chip .loc { font-size: 9px; color: #e8b84a; border: 1px solid #5a4520; border-radius: 3px; padding: 0 3px; }\n\n/* messages under the card, outside its fixed size */\n.msg { position: absolute; left: 0; top: calc(100% + 3px); width: 232px; font: 400 10px/1.3 system-ui, sans-serif; color: #aab1be; white-space: normal; }\n.msg.err { color: #ff8a80; } .msg.ok { color: #3ecf8e; }\n\n/* ── SL and TP labels */\n.chip { padding: 2px 6px; display: flex; gap: 6px; align-items: center; cursor: ns-resize; white-space: nowrap; font-variant-numeric: tabular-nums; }\n.chip.tp { border-color: #2f6b52; } .chip.sl { border-color: #7a3438; }\n.chip.long { border-color: #2f6b52; } .chip.long .k { color: #3ecf8e; } .chip.short { border-color: #7a3438; } .chip.short .k { color: #ff6b61; }\n.chip.pos { cursor: default; }\n.chip .k { font-weight: 700; } .chip.tp .k { color: #3ecf8e; } .chip.sl .k { color: #ff6b61; }\n.chip.pending { opacity: .6; } .chip.bad { border-color: #e8b84a; }\n.chip.drag { outline: 1px solid #fff3; }\n.up { color: #3ecf8e; } .down { color: #ff6b61; }\n.chip .x { margin-left: 2px; padding: 0 4px; border-radius: 3px; color: #8b93a3; cursor: pointer; }\n.chip .x:hover { color: #fff; background: #2a303c; }\n.chip .x.off { opacity: .35; cursor: default; }\n.chip .x.arm { color: #fff; background: #8a2a2a; font-weight: 700; }\n/* lines and segments BELOW labels and cards (they got mixed up with the text) */\n.hl, .lead { z-index: 1; }\n.chip { z-index: 2; }\n.chip.drag { z-index: 3; }\n.card, .card2, .card3, .card4 { z-index: 4; }\n/* size in play clearly visible: card and label size in bold yellow, $/pt white */\n/* the three quantities (card, second card, label) with the style chosen in the panel (--qc, --qs, --qw) */\n.card.long .w.q, .card.short .w.q, .card .w.q { color: var(--qc, #ffb402); font-weight: var(--qw, 800); font-size: var(--qs, 11px); }\n.card2 > span.sz:not(.why) { color: var(--qc, #ffb402); font-weight: var(--qw, 800); font-size: var(--qs, 11px); }\n.card .mic i { color: #ffffff; }\n.chip .qy { color: var(--qc, #ffb402); font-weight: var(--qw, 800); font-size: var(--qs, 11px); }\n/* position label on two rows */\n.chip.two { display: grid; grid-template-columns: repeat(5, auto); column-gap: 6px; row-gap: 2px; padding: 3px 6px; }\n.chip.two .mk { color: #7fb2ff; font-weight: 700; } /* current price: bold, LIMIT colour */\n/* entry and current price aligned (col. 2), Σ under the size and TOT under the P&L, on the right */\n.chip.two .qy, .chip.two .pl, .chip.two .sig { justify-self: end; }\n.chip.two .sig { border-left: 0; padding-left: 0; }\n/* COPY: Qty column */\n.card4 td.q { color: #d7dbe3; } .card4 td.q.up { color: #3ecf8e; } .card4 td.q.down { color: #ff6b61; }\n/* small % presets like the fractions, wider % box */\n.card2 button.pp:not(.pf) { width: 15px; font-size: 10px; }\n.card2 button.p0 { left: 6.2px; } .card2 button.p1 { left: 23.6px; } .card2 button.p2 { left: 41px; }\n.card2 button.p3 { left: 58.4px; } .card2 button.p4 { left: 75.8px; } .card2 button.p5 { left: 93.2px; }\n.card2 button.pp.sm:not(.pf) { font-size: 8.5px; }\n.card2 > .pctbox { left: 112px; width: 44px; padding: 0 4px; }\n/* with the Qty column the table must fit in 232 px: tighter font and spacing, account name truncated */\n.card4 table { font-size: 9.5px; table-layout: fixed; }\n.card4 td, .card4 th { padding: 3px 0 3px 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }\n.card4 col.c0 { width: 19%; } .card4 col.c1 { width: 17%; } .card4 col.c2, .card4 col.c3, .card4 col.c4 { width: 21.33%; }\n.card4 .cpt { font-size: 8px; color: #8b93a3; letter-spacing: .3px; } /* small COPY */\n.card4 b.cpon { margin-left: 3px; }\n.card4 th:first-child { overflow: visible; }\n.card2 > span.sz { top: 33.7px; line-height: 17.5px; } /* aligned with the % box */\n/* ORDERS and COPY in the card's right column, label outside and ON/OFF in the button */\n.card .tgl { position: absolute; left: 155px; font-size: 8px; font-weight: 700; letter-spacing: .3px; color: #8b93a3; line-height: 13px; height: 13px; }\n.card .ordl { top: 6px; } .card .cpl { top: 22px; }\n.card button.ordc, .card button.cpc { left: auto; right: 7px; width: 30px; height: 13px; font-size: 8.5px; font-weight: 700; padding: 0; }\n.card button.ordc { top: 6px; } .card button.cpc { top: 22px; color: #8b93a3; background: #1d222c; border-color: #333a48; }\n.card button.cpc.on { color: #fff; background: #1f5a3f; border-color: #3ecf8e; }\n/* ON white on green, OFF white on red (ORDERS and COPY) */\n.card button.ordc, .card button.cpc { color: #fff; background: #8a2a2a; border-color: #c44; }\n.card button.ordc.on, .card button.cpc.on { color: #fff; background: #1f6a45; border-color: #3ecf8e; }\n/* label: account P&L at the size's font size; Σ and TOT not bold */\n.chip.two .pl { font-size: var(--qs, 11px); }\n.chip.two .sig b { font-weight: 400; }\n/* COPY: active account yellow, sizes white */\n.card4 tr.sel td:first-child { color: #ffb402; }\n.card4 td.q, .card4 td.q.up, .card4 td.q.down { color: #fff; }\n/* % box a little further right and wider */\n.card2 > .pctbox { left: 114.5px; width: 50px; }\n/* third card: all bar text at the same size as the DAILY GOAL figures (11 px, labels no longer thin) */\n.card3 .bl, .card3 .bl span, .card3 .bl b { font-size: 11px; }\n.card3 .bl span:first-child { font-weight: 600; color: #aab1be; }\n/* COPY: larger text (10.5 px), columns reworked so nothing is cut */\n.card4 table { font-size: 10.5px; }\n.card4 .cpt { font-size: 9px; }\n.card4 col.c0 { width: 16%; } .card4 col.c1 { width: 18%; } .card4 col.c2, .card4 col.c3, .card4 col.c4 { width: 22%; }\n/* columns sized to their content: no amount truncated (fixed widths removed) */\n.card4 table { table-layout: auto; }\n.card4 col.c0, .card4 col.c1, .card4 col.c2, .card4 col.c3, .card4 col.c4 { width: auto; }\n.card4 td, .card4 th { overflow: visible; text-overflow: clip; padding-left: 3px; }\n/* \"S\"/\"L\" label with the card's arrow; third card at the COPY card's size (10.5 px) */\n.chip .k svg { display: inline-block; width: 6.4px; height: 10px; margin-left: 3px; vertical-align: -1px; }\n.card3 .bl, .card3 .bl span, .card3 .bl b { font-size: 10.5px; }\n/* position label on one row; P&L at the size's font size */\n.chip .pl { font-size: var(--qs, 11px); }\n/* clock on the right, aligned with the size column, yellow like FLAT; MNQ row grey; entry white */\n.card .side { width: 130px; display: flex; }\n.card .side i { margin-left: auto; color: #ffb402; }\n.card .mic, .card .mic i { color: #8b93a3; }\n.card.long .w.e, .card.short .w.e, .card .w.e { color: #fff; }\n/* trailing segments between candles and labels */\n.tseg { position: absolute; height: 0; border-top: 3px solid; pointer-events: none; z-index: 1; border-radius: 2px; }\n.tseg.stop { border-color: #ff9f43; } .tseg.act { border-color: #5ad1e6; } .tseg.next { border-color: #a3e635; }\n.tseg.be { border-color: #e879f9; } /* BE+ */\n.tseg.bet { border-top-style: dashed; border-color: #e879f9; } /* auto BE trigger */\n.tseg.hl { border-radius: 0; } /* last swing high / low, between the cards and the price axis */\n.card .side i.cd { color: #9fb3d9; font-weight: 600; } /* countdown to the candle close */\n\n/* label name in the line colour chosen in the panel (--kc from LS(kind)) */\n.chip .k { color: var(--kc, inherit) !important; }\n\n/* account activity dot next to the name (store.activityOf) */\n.adot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 5px; vertical-align: 1px; background: #5b6373; flex: none; }\n.adot.free { background: #3ecf8e; } .adot.busy { background: #ff5a4f; } .adot.ph { background: #e8b84a; }\n\n/* ══ SONAR card style (Chart display → card style). Colours, fonts and decoration only: every position and size above stays.\n   Amber is the base colour; green and red keep their meaning (profit / loss, buy / sell). ══ */\n.root.sonar { --o: #ff8a3d; --od: #7a3b17; --oe: #c4521d; --obg: #0b0605; --ohi: #ffd2a8; --olo: #c4703d; --oup: #8dff6a; --odn: #ff4b3d; color: var(--o); }\n.root.sonar, .root.sonar * { font-family: Consolas, \"Cascadia Mono\", \"Lucida Console\", monospace !important; }\n.root.sonar :is(.card, .card2, .card3, .card4, .card5) { color: var(--o); border-radius: 0; border-color: var(--oe);\n  background: radial-gradient(130% 70% at 50% 0, #1a0b07, var(--obg));\n  box-shadow: 0 0 0 1px rgba(0,0,0,.65), 0 0 16px rgba(255,110,40,.13), 0 4px 14px rgba(0,0,0,.6); text-shadow: 0 0 5px rgba(255,120,40,.3); }\n/* cut corners (top left, bottom right) and faint scan lines */\n.root.sonar :is(.card, .card2, .card3, .card4, .card5)::before { content: \"\"; position: absolute; inset: 0; pointer-events: none;\n  background: linear-gradient(135deg, var(--side, var(--oe)) 0 5px, transparent 5px) top left / 9px 9px no-repeat,\n    linear-gradient(315deg, var(--side, var(--oe)) 0 5px, transparent 5px) bottom right / 9px 9px no-repeat,\n    repeating-linear-gradient(0deg, rgba(255,140,60,.04) 0 1px, transparent 1px 3px); }\n.root.sonar .card.long { --side: #3f8a2c; } .root.sonar .card.short { --side: #8a2424; } .root.sonar .card.flat { --side: var(--oe); }\n.root.sonar .up { color: var(--oup) !important; } .root.sonar .down { color: var(--odn) !important; }\n.root.sonar button { border-radius: 0; border-color: var(--od); color: var(--o); background: #140806; }\n/* first card */\n.root.sonar .card .side, .root.sonar .card .side b { color: var(--ohi); }\n.root.sonar .card .side i { color: var(--ohi); } .root.sonar .card .side i.cd { color: #ffb98a; }\n.root.sonar .card .acc { color: var(--o); }\n.root.sonar .card .w, .root.sonar .card .w.e, .root.sonar .card .dpt, .root.sonar .card .pnl.lbl { color: var(--ohi); }\n.root.sonar .card.long .w.vs { color: var(--oup); } .root.sonar .card.short .w.vs { color: var(--odn); }\n.root.sonar .card.flat .w { color: var(--olo); }\n.root.sonar .card .mic, .root.sonar .card .mic i, .root.sonar .card .gap.mk { color: var(--olo); }\n.root.sonar .card .tgl { color: #d96a2c; }\n.root.sonar .card button.ordc, .root.sonar .card button.cpc { color: var(--od); background: transparent; border-color: var(--od); }\n.root.sonar .card button.ordc.on, .root.sonar .card button.cpc.on { color: #170804; background: var(--o); border-color: var(--o); box-shadow: 0 0 8px rgba(255,120,40,.5); text-shadow: none; }\n.root.sonar .card button.flat { color: #170804; background: var(--o); border-color: var(--o); box-shadow: 0 0 12px rgba(255,120,40,.5); text-shadow: none; }\n/* second card */\n.root.sonar .card2 button.pp { color: var(--o); }\n.root.sonar .card2 button.pp.on { color: #170804; background: var(--o); border-color: var(--o); box-shadow: 0 0 8px rgba(255,120,40,.5); text-shadow: none; }\n.root.sonar .pctbox { border-radius: 0; border-color: var(--oe); background: #000; }\n.root.sonar .pctbox input, .root.sonar .pctbox span { color: var(--ohi); }\n.root.sonar .card2 .sz.why { color: var(--olo); }\n.root.sonar .card2 button.cx { color: var(--o); border-color: var(--oe); background: repeating-linear-gradient(-45deg, #2a1206 0 5px, #170904 5px 10px); }\n.root.sonar .card2 button.tp { color: var(--oup); border-color: #3f8a2c; background: #0e1d09; }\n.root.sonar .card2 button.sl { color: var(--odn); border-color: #8a2424; background: #210909; }\n.root.sonar .card2 button.be { color: var(--o); border-color: var(--oe); background: #140806; }\n.root.sonar .card2 button.lm { color: var(--ohi); border-color: var(--oe); background: #1c0c07; }\n.root.sonar .card2 button.st { color: #ffb02e; border-color: #8a5a10; background: #1f1406; }\n.root.sonar .card2 button.long { color: var(--oup); border-color: var(--oup); background: #183a10; box-shadow: 0 0 8px rgba(141,255,106,.25); }\n.root.sonar .card2 button.short { color: var(--odn); border-color: var(--odn); background: #3a1010; box-shadow: 0 0 8px rgba(255,75,61,.25); }\n.root.sonar .card2 .cxm { border-radius: 0; background: var(--obg); border-color: var(--oe); }\n.root.sonar .card2 .cxm button { border-radius: 0; color: var(--o); background: #140806; border-color: var(--od); }\n.root.sonar .card2 .cxm button:hover:not([disabled]) { background: #3a1010; border-color: var(--odn); }\n/* third card: segmented bars */\n.root.sonar .card3 button.close { color: var(--o); border-color: var(--oe); background: #140806; }\n.root.sonar .card3 .bar { border-radius: 0; border-color: rgba(122,59,23,.7); }\n.root.sonar .card3 .bl span:first-child { color: #d96a2c; } .root.sonar .card3 .bl span:last-child { color: var(--ohi); }\n.root.sonar .card3 .track { height: 5px; border-radius: 0; background: repeating-linear-gradient(90deg, rgba(255,138,61,.16) 0 4px, transparent 4px 6px); }\n.root.sonar .card3 .track i { background: var(--o);\n  -webkit-mask: repeating-linear-gradient(90deg, #000 0 4px, transparent 4px 6px); mask: repeating-linear-gradient(90deg, #000 0 4px, transparent 4px 6px); }\n.root.sonar .card3 .track i.goal, .root.sonar .card3 .track i.zg { background: var(--oup); }\n.root.sonar .card3 .track i.warn, .root.sonar .card3 .track i.zy { background: #ffd04a; }\n.root.sonar .card3 .track i.zo { background: #ff6a1a; }\n.root.sonar .card3 .track i.hot, .root.sonar .card3 .track i.ko, .root.sonar .card3 .track i.zr { background: var(--odn); }\n.root.sonar .card3 .bl b.zg { color: var(--oup); } .root.sonar .card3 .bl b.zy { color: #ffd04a; }\n.root.sonar .card3 .bl b.zo { color: #ff6a1a; } .root.sonar .card3 .bl b.zr { color: var(--odn); }\n/* copier card */\n.root.sonar .card4 th, .root.sonar .card4 th i, .root.sonar .card4 .cpt { color: #d96a2c; }\n.root.sonar .card4 td:first-child, .root.sonar .card4 td.q { color: var(--ohi); }\n.root.sonar .card4 tr.sel td:first-child { color: #ffd04a; }\n.root.sonar .card4 tr[data-id]:hover td { background: #1f0d07; }\n.root.sonar .card4 tr.t td { border-top-color: var(--od); }\n.root.sonar .card4 th i.on { color: var(--oup); }\n.root.sonar .card4 b.cpon { border-radius: 0; color: var(--olo); border-color: var(--od); }\n.root.sonar .card4 b.cpon.on { color: #170804; background: var(--o); border-color: var(--o); text-shadow: none; }\n/* swing and volatility card */\n.root.sonar .card5 .c5r b { color: var(--ohi); } .root.sonar .card5 .c5r i { color: var(--olo); }\n.root.sonar .card5 .hc { border-radius: 0; background: #140806; border-color: var(--od); }\n.root.sonar .card5 .hc b, .root.sonar .card5 .hc i { color: var(--olo); } .root.sonar .card5 .hc span { color: var(--ohi); }\n.root.sonar .card5 .hc.calm { background: #0b1520; border-color: #24496b; } .root.sonar .card5 .hc.calm span { color: #6fb7ff; }\n.root.sonar .card5 .hc.hot { background: #22160a; border-color: #8a5a10; } .root.sonar .card5 .hc.hot span { color: #ffb02e; }\n.root.sonar .card5 .hc.xhot { background: #2a0c0a; border-color: #8a2424; } .root.sonar .card5 .hc.xhot span { color: var(--odn); }\n.root.sonar .card5 .hc.na span, .root.sonar .card5 .hm-na { color: var(--od); }\n/* labels on the chart: square, dark, border colours unchanged (they match the lines) */\n.root.sonar .chip { border-radius: 0; background: var(--obg); color: var(--ohi); }\n.root.sonar .chip .x { border-radius: 0; color: var(--olo); } .root.sonar .chip .x:hover { color: var(--ohi); background: #2a1206; }\n.root.sonar .msg { color: #ffb98a; } .root.sonar .msg.err { color: var(--odn); } .root.sonar .msg.ok { color: var(--oup); }\n/* the monospaced font is wider than the classic one: tighter spacing where the rows are full (limits bars, copier table) */\n.root.sonar .card3 .bl { letter-spacing: -.3px; }\n.root.sonar .card4 table { font-size: 10px; letter-spacing: -.4px; }\n.root.sonar .card4 td, .root.sonar .card4 th { padding-left: 4px; }\n\n/* ══ CONSOLE card style (default): the same palette as the Console panel, so column, panel and cards look like one thing.\n   Colours and borders only: every position and size above stays. ══ */\n.root.console { --c-bg: #26272c; --c-in: #17181b; --c-bd: #3a3c43; --c-bd2: #45474e; --c-tx: #e2e4e9; --c-lb: #a4a8b1; --c-acc: #f97316;\n  --c-up: #4ade80; --c-dn: #f87171; --c-yl: #f0c03a; }\n.root.console :is(.card, .card2, .card3, .card4, .card5) { background: var(--c-bg); border-color: var(--c-bd); border-radius: 6px;\n  color: var(--c-tx); box-shadow: 0 2px 8px rgba(0,0,0,.35); }\n.root.console .card.long { --side: #2f7a4f; } .root.console .card.short { --side: #8a3434; } .root.console .card.flat { --side: var(--c-bd2); }\n.root.console .card { box-shadow: inset 3px 0 0 var(--c-acc), 0 2px 8px rgba(0,0,0,.35); } /* accent without moving the measured layout */\n.root.console .up { color: var(--c-up) !important; } .root.console .down { color: var(--c-dn) !important; }\n.root.console button { border-radius: 4px; border-color: var(--c-bd2); background: #34363c; color: var(--c-tx); }\n/* first card */\n.root.console .card .side, .root.console .card .side b, .root.console .card .w, .root.console .card .w.e, .root.console .card .dpt { color: var(--c-tx); }\n.root.console .card .side i { color: var(--c-yl); } .root.console .card .side i.cd { color: #93b4f5; }\n.root.console .card .acc, .root.console .card .tgl, .root.console .card .mic, .root.console .card .mic i { color: var(--c-lb); }\n.root.console .card.long .w.vs { color: var(--c-up); } .root.console .card.short .w.vs { color: var(--c-dn); }\n.root.console .card button.ordc, .root.console .card button.cpc { color: #fff; background: #7f1d1d; border-color: #b91c1c; }\n.root.console .card button.ordc.on, .root.console .card button.cpc.on { color: #fff; background: #15803d; border-color: #22c55e; }\n.root.console .card button.flat { color: #17181b; background: #d4a514; border-color: var(--c-yl); }\n/* second card */\n.root.console .card2 button.pp { color: var(--c-tx); background: var(--c-in); }\n.root.console .card2 button.pp.on { color: #fff; background: #c2410c; border-color: var(--c-acc); }\n.root.console .pctbox { border-radius: 4px; border-color: var(--c-bd2); background: var(--c-in); }\n.root.console .card2 button.cx { color: var(--c-lb); background: var(--c-in); }\n.root.console .card2 button.tp { color: var(--c-up); border-color: #2f7a4f; background: #14261b; }\n.root.console .card2 button.sl { color: var(--c-dn); border-color: #8a3434; background: #2a1517; }\n.root.console .card2 button.be { color: var(--c-tx); background: #34363c; }\n.root.console .card2 button.lm { color: #93b4f5; border-color: #2c4a80; background: #172238; }\n.root.console .card2 button.st { color: var(--c-yl); border-color: #6b5214; background: #2a2210; }\n.root.console .card2 button.long { color: #fff; border-color: #22c55e; background: #15803d; }\n.root.console .card2 button.short { color: #fff; border-color: #ef4444; background: #b91c1c; }\n.root.console .card2 .cxm { background: var(--c-bg); border-color: var(--c-bd2); border-radius: 6px; }\n.root.console .card2 .cxm button { background: #34363c; border-color: var(--c-bd2); }\n/* third card */\n.root.console .card3 button.close { color: var(--c-yl); border-color: #6b5214; background: #2a2210; }\n.root.console .card3 .bar { border-color: var(--c-bd); background: var(--c-in); border-radius: 5px; }\n.root.console .card3 .bl span:first-child { color: var(--c-lb); } .root.console .card3 .bl span:last-child { color: var(--c-tx); }\n.root.console .card3 .track { background: #34363c; border-radius: 3px; }\n/* copier card */\n.root.console .card4 th, .root.console .card4 .cpt { color: var(--c-lb); }\n.root.console .card4 td:first-child, .root.console .card4 td.q { color: var(--c-tx); }\n.root.console .card4 tr[data-id]:hover td { background: #303136; }\n.root.console .card4 tr.t td { border-top-color: var(--c-bd2); }\n.root.console .card4 b.cpon { border-color: var(--c-bd2); }\n.root.console .card4 b.cpon.on { background: #15803d; border-color: #22c55e; }\n/* swing and volatility card */\n.root.console .card5 { color: var(--c-lb); } .root.console .card5 .c5r b { color: var(--c-tx); }\n.root.console .card5 .hc { background: var(--c-in); border-color: var(--c-bd); }\n/* labels on the chart */\n.root.console .chip { background: var(--c-bg); border-radius: 5px; color: var(--c-tx); }\n\n/* ── DOCKED COLUMN (.root.col): the same elements as the chart block, moved into fluid sections at the panel's size\n   (no scale). Buttons in the commands panel, at the top of the column or floating. Frame colours from --k-* (card style:\n   Console, Classic or Sonar); the colours inside the cards come from the card style rules above. */\n.root.col { --k-bg: #26272c; --k-hd: #303136; --k-bd: #34363c; --k-bd2: #45474e; --k-acc: #f97316; --k-tx: #e2e4e9; --k-hi: #f1f2f5; --k-lb: #a4a8b1;\n  --k-in: #17181b; --k-rad: 6px; --k-btn: #34363c; }\n.root.col:not(.console):not(.sonar) { --k-bg: #12151b; --k-hd: #1b2029; --k-bd: #2a2f3a; --k-bd2: #3a4150; --k-acc: #7fb2ff; --k-tx: #d7dbe3; --k-hi: #fff;\n  --k-lb: #8b93a3; --k-in: #0d1015; --k-rad: 7px; --k-btn: #1d222c; }\n.root.col.sonar { --k-bg: #0b0605; --k-hd: #1a0b07; --k-bd: #7a3b17; --k-bd2: #c4521d; --k-acc: #ff8a3d; --k-tx: #ffd2a8; --k-hi: #ffd2a8; --k-lb: #d96a2c;\n  --k-in: #000; --k-rad: 0; --k-btn: #140806; }\n.colw { position: fixed; z-index: 4; pointer-events: auto; box-sizing: border-box; padding: 10px; display: flex; flex-direction: column; gap: 10px;\n  overflow-y: auto; overflow-x: hidden; scrollbar-width: thin; font: 13px/1.3 system-ui, -apple-system, \"Segoe UI\", sans-serif; color: var(--k-tx); }\n.csec, .cmd { flex: none; box-sizing: border-box; border: 1px solid var(--k-bd); border-radius: var(--k-rad); background: var(--k-bg); overflow: hidden;\n  font: 13px/1.3 system-ui, -apple-system, \"Segoe UI\", sans-serif; color: var(--k-tx); }\n.csh, .cmdh { display: flex; align-items: center; gap: 8px; min-height: 18px; padding: 6px 10px 6px 8px; background: var(--k-hd); border-left: 4px solid var(--k-acc);\n  font-weight: 700; font-size: 13px; color: var(--k-hi); user-select: none; white-space: nowrap; }\n.root.sonar :is(.csh, .cmdh) { text-transform: uppercase; letter-spacing: .5px; font-size: 12px; text-shadow: 0 0 5px rgba(255,120,40,.3); }\n.root.sonar :is(.csec, .cmd) { box-shadow: 0 0 14px rgba(255,110,40,.12); }\n.csh { cursor: pointer; }\n.csh::after { content: \"▾\"; margin-left: auto; color: var(--k-lb); font-size: 12px; }\n.csec.folded .csh::after { content: \"▸\"; }\n.csec.folded > :not(.csh) { display: none !important; }\n.cmd { pointer-events: auto; }\n.cmd.float { position: fixed; z-index: 6; min-width: 260px; max-width: 92vw; max-height: 96vh; resize: both; overflow: auto; box-shadow: 0 10px 28px rgba(0,0,0,.55); border-color: var(--k-bd2); }\n.cmd.float .cmdh { cursor: move; }\n.cmdh .ct { margin-right: auto; overflow: hidden; text-overflow: ellipsis; }\n.ctg { display: flex; align-items: flex-start; gap: 5px; } /* tops aligned: the ON/OFF buttons are 1 px shorter than the labels */\n.root.col .ctg .tgl { position: static; display: block; height: 22px; line-height: 20px; padding-bottom: 2px; box-sizing: border-box; font-size: 9.5px; font-weight: 700; letter-spacing: .3px; color: var(--k-lb); }\n/* fixed even line heights (no flex centring, which rounds half pixels differently on each element): label and button text\n   on the same pixel row, 1 px above the middle so capitals look centred */\n.root.col .ctg button { position: static; display: block; width: auto; height: 21px; margin-left: 1px; box-sizing: border-box; line-height: 18px; padding: 0 8px 1px 7px; text-align: center;\n  font-size: 11px; font-weight: 700; border-radius: 4px; color: #fff; background: #7f1d1d; border-color: #b91c1c; }\n.root.col .ctg button.on { background: #15803d; border-color: #22c55e; }\n.root.col.sonar .ctg button { border-radius: 0; color: var(--od); background: transparent; border-color: var(--od); }\n.root.col.sonar .ctg button.on { color: #170804; background: var(--o); border-color: var(--o); box-shadow: 0 0 8px rgba(255,120,40,.5); }\n.cmdh button.cdet { width: 26px; height: 22px; font-size: 14px; border-radius: var(--k-rad); background: var(--k-btn); border-color: var(--k-bd2); color: var(--k-hi); }\n.cmdb { padding: 10px; display: flex; flex-direction: column; gap: 8px; }\n\n/* cards inside the column: static, full width, no frame (the section is the frame) */\n.root.col :is(.card, .card2, .card3, .card4, .card5) { position: relative !important; left: auto !important; top: auto !important; transform: none; width: auto; height: auto; box-sizing: border-box;\n  border: 0; border-radius: 0; box-shadow: none !important; background: transparent; z-index: auto; }\n.root.col :is(.card, .card2, .card3) > * { position: static !important; max-width: none; }\n.root.col .card::after { display: none; }\n\n/* position: timeframe/clock and account, size and P&L, entry and points, micro and points of the day */\n.root.col .card { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 6px 10px; align-items: baseline; padding: 10px 12px; font-size: 13px; white-space: nowrap; }\n.root.col .card > span { line-height: 1.2; height: auto; width: auto; }\n.root.col .card .side { grid-area: 1 / 1 / 2 / 3; font-size: 14px; }\n.root.col .card .side i { font-size: 13px; }\n.root.col .card .acc { grid-area: 1 / 3; text-align: right; font-size: 12px; max-width: none; }\n.root.col .card .w.vs { grid-area: 2 / 1; font-size: 13px; }\n.root.col .card .w.vs svg { width: 7.5px; height: 12px; }\n.root.col .card .w.q { grid-area: 2 / 2; font-size: calc(var(--qs, 11px) + 2px); }\n.root.col .card .pnl, .root.col .card .pnl.xs { grid-area: 2 / 3; text-align: right; font-size: 22px; }\n.root.col .card .w.e { grid-area: 3 / 1 / 4 / 3; font-size: 13px; }\n.root.col .card .gap { grid-area: 3 / 3; text-align: right; font-size: 13px; }\n.root.col .card .mic { grid-area: 4 / 1 / 5 / 3; display: flex; justify-content: flex-start; gap: 10px; font-size: 12px; overflow: hidden; }\n.root.col .card .mic i { margin-left: 0; }\n.root.col .card .dpt { grid-area: 4 / 3; text-align: right; font-size: 12px; }\n\n/* commands: 36-column grid, so rows of 9, 6 and 4 buttons share the same edges */\n.root.col .card2 { display: grid; grid-template-columns: repeat(36, minmax(0, 1fr)); gap: 5px; white-space: nowrap; }\n.root.col .cmd :is(.card2, .cmdx) button { width: auto !important; height: 30px !important; padding: 0 4px; font-size: 12.5px; border-radius: 4px;\n  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }\n.root.col .card2 > * { grid-column: span 4; order: 1; }\n.root.col .card2 > button.pf { font-size: 12px; }\n.root.col .card2 > button.pp:not(.pf), .root.col .card2 > .pctbox, .root.col .card2 > .sz { order: 2; }\n.root.col .card2 > .pctbox, .root.col .card2 > .sz { grid-column: span 6; }\n.root.col .card2 > button.pp.sm { font-size: 11px; }\n.root.col .card2 > .sz { display: block; height: 30px; box-sizing: border-box; line-height: 26px; padding: 3px 0 1px; text-align: right; font-size: 13px; }\n.root.col .card2 > span.sz:not(.why) { font-size: 13px; font-weight: 400; } /* same size and weight as the number in the % box */\n.root.col .card2 > button.cx { grid-column: span 12; order: 3; }\n.root.col .card2 > :is(button.tp, button.sl, button.be) { grid-column: span 8; order: 3; }\n.root.col .card2 > .cxm { grid-column: 1 / -1; order: 4; position: static !important; width: auto; flex-direction: row; gap: 5px; padding: 5px; box-shadow: none; }\n.root.col .card2 > .cxm button { flex: 1; height: 28px !important; justify-content: center; font-size: 12px; }\n.root.col .card2 > :is(button.lm, button.st, button.long, button.short) { grid-column: span 9; order: 5; }\n.root.col .card2 > :is(button.lm, button.st, button.long, button.short) { font-size: 13.5px; } /* the four entry buttons: same size */\n.root.col .pctbox { width: auto; height: 30px; padding: 0 6px; border-radius: var(--k-rad); border-color: var(--k-bd2); background: var(--k-in); }\n/* % box text on the same middle line as the button labels next to it */\n.root.col .pctbox { align-items: flex-start; }\n.root.col .pctbox input, .root.col .pctbox span { display: block; height: 28px; line-height: 26px; padding: 0 0 2px; box-sizing: border-box; font-size: 13px; }\n.root.col .pctbox input { line-height: 24px; padding-bottom: 4px; } /* the typed number 1 px higher than the % sign (Gerry, on Vest) */\n/* managing the open position: partial close %, PARTIAL CLOSE, CLOSE, FLAT */\n.root.col .cmdx { display: grid; grid-template-columns: repeat(36, minmax(0, 1fr)); gap: 5px; padding-top: 8px; border-top: 1px solid var(--k-bd); }\n.root.col .cmdx > .pctbox { grid-column: span 5; position: static; width: auto; }\n.root.col .cmdx > button.close { grid-column: span 13; position: static; font-weight: 700; color: #f0c03a; border-color: #6b5214; background: #2a2210; }\n.root.col .cmdx > button.close.all { grid-column: span 9; }\n.root.col .cmdx > button.flat { grid-column: span 9; position: static; font-weight: 800; color: #17181b; background: #d4a514; border-color: #f0c03a; }\n.root.col .cmd .msg { position: static; width: auto; font-size: 12px; color: var(--k-lb); }\n.root.col .cmd .msg:empty { display: none; }\n.root.col .cmd .msg.err { color: #f87171; } .root.col .cmd .msg.ok { color: #4ade80; }\n\n/* account limits: two bars per row only when the column is wide enough for the full labels */\n.root.col .card3 { padding: 10px; }\n.root.col .card3 .bars { margin: 0; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 6px; }\n.root.col .card3 .bl { font-size: 12px; }\n.root.col .card3 .track { height: 6px; }\n/* copier and volatility */\n.root.col .card4 { padding: 8px 10px; font-size: 13px; }\n.root.col .card4 table { font-size: 13px; letter-spacing: 0; }\n.root.col .card4 td, .root.col .card4 th { padding: 4px 0 4px 6px; }\n.root.col .card5 { padding: 8px 10px 10px; font-size: 12px; }\n.root.col .card5 .c5r { height: auto; } .root.col .card5 .c5r b { font-size: 13px; } .root.col .card5 .c5r i { font-size: 11px; }\n.root.col .card5 .hm { gap: 5px; margin-top: 6px; }\n.root.col .card5 .hc b { font-size: 11px; } .root.col .card5 .hc span { font-size: 13px; } .root.col .card5 .hc i { font-size: 10px; }\n/* Classic and Sonar for the buttons moved out of the cards (their chart rules are written for .card / .card3) */\n.root.col:not(.console):not(.sonar) .cmdx > button.close { color: #ffb402; border-color: #8a6a1a; background: #12151b; }\n.root.col:not(.console):not(.sonar) .cmdx > button.flat { color: #ffb402; background: #000; border-color: #ffb402; }\n.root.col.sonar .cmdx > button.close { color: var(--o); border-color: var(--oe); background: #140806; }\n.root.col.sonar .cmdx > button.flat { color: #170804; background: var(--o); border-color: var(--o); box-shadow: 0 0 12px rgba(255,120,40,.5); text-shadow: none; }\n.root.col.sonar .cmd .msg { color: #ffb98a; }\n/* % box of the size row: text 1 px lower and 1 px further left than the partial-close one (Gerry, on Vest) */\n.root.col .card2 > .pctbox { padding: 0 7px 0 5px; }\n.root.col .card2 > .pctbox input { padding: 1px 0 3px; }\n.root.col .card2 > .pctbox span { padding: 1px 0 1px; }\n\n/* Risk & targets section (column): label above the field, 4 per row, readout of the plan */\n.omb { padding: 10px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }\n.omf { display: flex; flex-direction: column; gap: 4px; min-width: 0; }\n.omf > span:first-child, .ompv > span { font-size: 11.5px; color: var(--k-lb); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }\n.omb input, .omb select { box-sizing: border-box; width: 100%; min-width: 0; height: 30px; padding: 0 6px; font: 12.5px/1 system-ui, -apple-system, \"Segoe UI\", sans-serif;\n  color: var(--k-hi); background: var(--k-in); border: 1px solid var(--k-bd2); border-radius: var(--k-rad); outline: none; }\n.omb select { padding: 0 2px 0 4px; }\n.omb input:focus, .omb select:focus { border-color: var(--k-acc); }\n.omb input:disabled { opacity: .35; }\n.omb input[type=\"checkbox\"] { width: 14px; height: 14px; padding: 0; margin: 0 5px 0 0; accent-color: var(--k-acc); flex: none; }\n.omcb { display: flex; align-items: center; height: 30px; font-size: 12.5px; color: var(--k-tx); cursor: pointer; white-space: nowrap; }\n.omro { display: flex; align-items: center; height: 30px; padding: 0 8px; box-sizing: border-box; border: 1px dashed var(--k-bd2); border-radius: var(--k-rad); font-size: 13px; color: var(--k-hi); }\n.omt { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; padding: 8px 0; border-top: 1px solid var(--k-bd); border-bottom: 1px solid var(--k-bd); }\n.omtg { display: flex; flex-direction: column; gap: 4px; min-width: 0; }\n.omtg > label { display: flex; align-items: center; font-size: 11.5px; font-weight: 700; color: var(--k-lb); cursor: pointer; }\n.ompv { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1fr) 90px 90px; gap: 6px; align-items: center; }\n/* .root.col prefix: wins over the theme button rules (Console / Classic / Sonar) */\n.root.col .ompv button { height: 28px; font: 800 11px/1 system-ui, -apple-system, \"Segoe UI\", sans-serif; letter-spacing: .2px; text-transform: uppercase; border-radius: 4px; background: #000; border: 1px solid #3a3f4a; color: #6f7787; cursor: pointer; }\n.root.col .ompv button.ompl.on { color: #4ade80; border-color: currentColor; box-shadow: 0 0 6px rgba(34,197,94,.45); }\n.root.col .ompv button.omps.on { color: #f87171; border-color: currentColor; box-shadow: 0 0 6px rgba(239,68,68,.55); }\n.omout { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 6px; padding-top: 8px; border-top: 1px solid var(--k-bd); font-size: 12.5px; line-height: 1.4; color: var(--k-tx); }\n.omout b { font-weight: 700; color: var(--k-hi); } .omout b.q { color: var(--qc, #ffb402); }\n.omout i { font-style: normal; font-weight: 700; } .omout .up { color: #4ade80; } .omout .down { color: #f87171; }\n.omout .warn { color: #f0c03a; } .omout .note { font-size: 11.5px; color: var(--k-lb); }\n.root.sonar .omout .up { color: var(--oup); } .root.sonar .omout .down { color: var(--odn); }\n/* plan lines on the chart: read-only, dashed label */\n.chip.plan { border-style: dashed; opacity: .9; }\n/* Trailing & breakeven section (column): same settings as the panel */\n.tbb { padding: 10px; display: grid; grid-template-columns: 1.3fr 1fr 1fr 1fr 1fr; gap: 8px; align-items: end; }\n.tbb input, .tbb select { box-sizing: border-box; width: 100%; min-width: 0; height: 30px; padding: 0 6px; font: 12.5px/1 system-ui, -apple-system, \"Segoe UI\", sans-serif;\n  color: var(--k-hi); background: var(--k-in); border: 1px solid var(--k-bd2); border-radius: var(--k-rad); outline: none; }\n.tbb select { padding: 0 2px 0 4px; }\n.tbb input:focus, .tbb select:focus { border-color: var(--k-acc); }\n.tbb input[type=\"checkbox\"] { width: 14px; height: 14px; padding: 0; margin: 0 5px 0 0; accent-color: var(--k-acc); flex: none; }\n.tbb .tbon { font-weight: 700; }\n.tbnote { grid-column: 1 / -1; font-size: 11.5px; color: var(--k-lb); line-height: 1.35; }\n.tbnote:empty { display: none; }\n.tbnote.warn { color: #f0c03a; }\n/* Risk & targets mode: Manual % / Preview / Active (Active = real orders with the plan) */\n.ommode { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1fr) repeat(3, 84px); gap: 6px; align-items: center; }\n.ommode > span { font-size: 11.5px; color: var(--k-lb); }\n.root.col .ommode button { height: 28px; font: 800 11px/1 system-ui, -apple-system, \"Segoe UI\", sans-serif; letter-spacing: .2px; text-transform: uppercase; border-radius: 4px; background: #000; border: 1px solid #3a3f4a; color: #6f7787; cursor: pointer; }\n/* same boxes as the phase next to Trade commands: black, border and text in the phase colour */\n.root.col .ommode button.on { border-color: currentColor; }\n.root.col .ommode button.on[data-v=\"manual\"] { color: var(--m-manual, #cbd5e1); }\n.root.col .ommode button.on[data-v=\"view\"] { color: var(--m-view, #fb923c); box-shadow: 0 0 6px color-mix(in srgb, currentColor 45%, transparent); }\n.root.col .ommode button.on[data-v=\"live\"] { color: var(--m-live, #22e5ff); box-shadow: 0 0 6px color-mix(in srgb, currentColor 55%, transparent); }\n.omout b.warn { color: #ff6b61; }\n/* Active plan: the % size is not used (dimmed); the title says so */\n.cmd.plan .pp, .cmd.plan .pctbox:not(.cp), .cmd.plan .sz { opacity: .35; }\n.cmdh .ct { flex: none; } /* the title is never cut: the phase gives way first */\n.cph { flex: 0 1 auto; min-width: 0; margin-left: 1px; margin-right: auto; height: 21px; box-sizing: border-box; line-height: 18px; padding: 0 6px 1px 5px;\n  font-size: 11px; font-weight: 800; letter-spacing: .2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;\n  background: #000; border: 1px solid currentColor; border-radius: 4px; } /* boxed like ON / OFF, black background */\n.cph:empty { display: none; }\n.cph.manual { color: var(--m-manual, #cbd5e1); } .cph.view { color: var(--m-view, #fb923c); } .cph.live { color: var(--m-live, #22e5ff); box-shadow: 0 0 6px color-mix(in srgb, currentColor 55%, transparent); }\n.cmdh .ct { margin-right: 0; }\n/* SEND on PLAN ENTRY (Active): places the LIMIT with the plan, after CONFIRM */\n.chip .go { margin-left: 6px; padding: 0 7px; border-radius: 3px; background: #c2410c; color: #fff; font-weight: 700; cursor: pointer; }\n.chip .go.arm { background: #b91c1c; }\n/* small up / down arrows inside a number field */\n.omsp { position: relative; display: block; min-width: 0; }\n.omsp input { padding-right: 20px !important; }\n.spb { position: absolute; right: 2px; top: 3px; bottom: 3px; width: 15px; display: flex; flex-direction: column; gap: 1px; }\n.spb button { flex: 1; padding: 0; margin: 0; border: 0; border-radius: 2px; background: transparent; color: var(--k-lb); font-size: 7px; line-height: 1; cursor: pointer; }\n.spb button:hover { color: var(--k-hi); background: var(--k-bd2); }\n.omsp input:disabled + .spb { display: none; }\n/* Chart space section */\n.chb { padding: 10px; display: grid; grid-template-columns: minmax(0, 1fr) 90px; gap: 8px; align-items: center; font-size: 11.5px; color: var(--k-lb); }\n.chb input { box-sizing: border-box; width: 100%; height: 30px; padding: 0 6px; font: 12.5px/1 system-ui, -apple-system, \"Segoe UI\", sans-serif;\n  color: var(--k-hi); background: var(--k-in); border: 1px solid var(--k-bd2); border-radius: var(--k-rad); outline: none; }\n.chb input:focus { border-color: var(--k-acc); }\n/* phase word on the plan labels: same type and colour as the box next to Trade commands */\n.chip .ph { font-size: 11px; font-weight: 800; letter-spacing: .2px; margin-right: -3px; }\n.chip .ph.view { color: var(--m-view, #fb923c); } .chip .ph.live { color: var(--m-live, #22e5ff); } .chip .ph.act { color: var(--m-act, #c084fc); }\n/* ENTRY button: ACTIVATE (PREVIEW, orange) switches to ACTIVE; START (ACTIVE, red) places the LIMIT */\n.chip .go.live { background: #0e7490; }\n/* ORDERS / COPY in the Trade commands title: small, one above the other */\n.root.col .ctg { display: grid; grid-template-columns: auto auto; column-gap: 3px; row-gap: 1px; align-items: center; }\n.root.col .ctg .tgl { height: 11px; line-height: 11px; padding: 0; font-size: 7.5px; text-align: right; }\n.root.col .ctg button { height: 11px; min-width: 24px; line-height: 9px; padding: 0 3px; margin-left: 0; font-size: 7.5px; border-radius: 2px; }\n.omout b.act { color: #22e5ff; } /* ACTIVE: bright cyan, never green or red */\n/* LIMIT / STOP in the column: brighter when they can be used (dimmed only when disabled) */\n/* colours from Settings → Button and mode colours (doubled classes: above every card style); disabled = dimmed */\n.root.root.col.col .card2 button.lm { color: var(--b-lm-tx, #e0ecff); background: var(--b-lm-bg, #1d4ed8); border-color: color-mix(in srgb, var(--b-lm-bg, #1d4ed8) 60%, #fff); }\n.root.root.col.col .card2 button.st { color: var(--b-st-tx, #1a1405); background: var(--b-st-bg, #eab308); border-color: color-mix(in srgb, var(--b-st-bg, #eab308) 60%, #fff); }\n.root.root.col.col .card2 button.long { color: var(--b-long-tx, #fff); background: var(--b-long-bg, #15803d); border-color: color-mix(in srgb, var(--b-long-bg, #15803d) 60%, #fff); }\n.root.root.col.col .card2 button.short { color: var(--b-short-tx, #fff); background: var(--b-short-bg, #b91c1c); border-color: color-mix(in srgb, var(--b-short-bg, #b91c1c) 60%, #fff); }\n.root.root.col.col .cmdx > button.flat { color: var(--b-flat-tx, #17181b); background: var(--b-flat-bg, #d4a514); border-color: color-mix(in srgb, var(--b-flat-bg, #d4a514) 60%, #fff); box-shadow: none; text-shadow: none; }\n/* Risk & targets title: mode menu and OFF / ACTIVE, boxed like the phase next to Trade commands */\n.csh .omsel, .csh .omst { height: 21px; box-sizing: border-box; border-radius: 4px; background: #000; border: 1px solid currentColor;\n  font: 800 11px/1 system-ui, -apple-system, \"Segoe UI\", sans-serif; letter-spacing: .2px; text-transform: uppercase; }\n.csh .omsel { margin-left: 4px; padding: 0 2px 0 4px; cursor: pointer; color: var(--m-view, #fb923c); }\n.csh .omsel.manual { color: var(--m-manual, #cbd5e1); } .csh .omsel.live { color: var(--m-live, #22e5ff); box-shadow: 0 0 6px color-mix(in srgb, currentColor 55%, transparent); }\n.csh .omsel option { background: #000; }\n.csh .omsel option[value=\"manual\"] { color: var(--m-manual, #cbd5e1); } .csh .omsel option[value=\"view\"] { color: var(--m-view, #fb923c); } .csh .omsel option[value=\"live\"] { color: var(--m-live, #22e5ff); }\n.csh .omst { display: inline-flex; align-items: center; padding: 0 6px 1px; color: #6f7787; cursor: default; }\n.csh .omst.on { color: var(--m-act, #c084fc); box-shadow: 0 0 6px color-mix(in srgb, currentColor 55%, transparent); }\n/* Trade commands title: phase, then ACTIVE when an order of the plan is there; ORDERS / COPY pushed to the right */\n.cmdh .cph { margin-right: 0; }\n.cmdh .cph.act { margin-left: 4px; color: var(--m-act, #c084fc); box-shadow: 0 0 6px color-mix(in srgb, currentColor 55%, transparent); }\n.cmdh .ctg { margin-left: auto; }\n/* labels of an order of the plan really placed (ACTIVE): black background */\n.chip.plan.act { background: #000; opacity: 1; }\n/* Risk & targets ON / OFF in the section title (like ORDERS / COPY) */\n.csh .omtgl { margin-left: 6px; height: 21px; padding: 0 8px 1px; box-sizing: border-box; border-radius: 4px; font: 800 11px/1 system-ui, -apple-system, \"Segoe UI\", sans-serif;\n  letter-spacing: .3px; color: #fff; background: #7f1d1d; border: 1px solid #b91c1c; cursor: pointer; }\n.csh .omtgl.on { background: #15803d; border-color: #22c55e; }\n.cph.act { color: var(--m-act, #c084fc); box-shadow: 0 0 6px color-mix(in srgb, currentColor 55%, transparent); }\n/* copier accounts inside the Trade commands block */\n.cmd > .csec { margin: 0; border-width: 1px 0 0; border-radius: 0; } /* full width of the block, nothing cut */\n/* font size of the entry buttons and FLAT (Settings → Button and mode colours; empty = default) */\n.root.root.col.col .card2 button.lm { font-size: var(--b-lm-fs, 12.5px); }\n.root.root.col.col .card2 button.st { font-size: var(--b-st-fs, 12.5px); }\n.root.root.col.col .card2 button.long { font-size: var(--b-long-fs, 12.5px); }\n.root.root.col.col .card2 button.short { font-size: var(--b-short-fs, 12.5px); }\n.root.root.col.col .cmdx > button.flat { font-size: var(--b-flat-fs, 15.5px); }\n/* copier accounts in the column / floating panel: always the whole table, the text shrinks with the width */\n.root.col .csec[data-sec=\"copy\"] { container-type: inline-size; }\n.root.col .card4 { padding: 8px 8px; }\n.root.col .card4 table { table-layout: fixed; width: 100%; font-size: clamp(8.5px, 3.1cqi, 13px); }\n.root.col .card4 td, .root.col .card4 th { padding: 4px 0 4px 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }\n.root.col .card4 col.c0 { width: 20%; } .root.col .card4 col.c1 { width: 14%; } .root.col .card4 col.c2, .root.col .card4 col.c3, .root.col .card4 col.c4 { width: 22%; }\n/* the position data are in the panel header: no Position section in the column */\n.root.col .csec[data-sec=\"pos\"] { display: none; }\n/* v0.10.96 Trade commands from Gerry's UX Sketch drawing: the % rows, a line, then two blocks side by side split by a vertical\n   line (orders: CANCEL over LIMIT / STOP | position: TP SL BE over LONG / SHORT), a line, the closing row with FLAT apart.\n   Explicit grid rows: 1 fractions, 2 presets, 3 line, 4 CANCEL | TP SL BE, 5 LIMIT STOP | LONG SHORT;\n   columns 1-17 | 18-19 (vertical line) | 20-36 */\n.root.root.col.col .cmd .card2 { row-gap: 6px; }\n.root.root.col.col .cmd .card2 > button.pp.pf { grid-row: 1; height: 21px !important; font-size: 11px; }\n.root.root.col.col .cmd .card2 > :is(button.pp:not(.pf), .pctbox, .sz) { grid-row: 2; }\n.root.root.col.col .cmd .card2 > button.pp:not(.pf) { height: 25px !important; font-size: 11px; }\n.root.root.col.col .cmd .card2 > .pctbox { height: 25px; }\n.root.root.col.col .cmd .card2 > .pctbox input, .root.root.col.col .cmd .card2 > .pctbox span { height: 23px; line-height: 21px; }\n.root.root.col.col .cmd .card2 > .sz { height: 25px; line-height: 21px; }\n.root.root.col.col .cmd .card2::after { content: \"\"; grid-row: 3; grid-column: 1 / -1; height: 1px; margin: 4px 0; background: var(--k-bd, #34363c); }\n.root.root.col.col .cmd .card2::before { content: \"\"; grid-row: 4 / 6; grid-column: 18 / 20; justify-self: center; width: 1px; background: var(--k-bd, #34363c); }\n.root.root.col.col .cmd .card2 > button:is(.cx, .tp, .sl, .be, .lm, .st, .long, .short) { height: 26px !important; }\n.root.root.col.col .cmd .card2 > button.cx { grid-row: 4; grid-column: 1 / 18; }\n.root.root.col.col .cmd .card2 > button:is(.tp, .sl, .be) { grid-row: 4; grid-column: 20 / 37; width: calc((100% - 16px) / 3) !important; }\n.root.root.col.col .cmd .card2 > button.tp { justify-self: start; }\n.root.root.col.col .cmd .card2 > button.sl { justify-self: center; }\n.root.root.col.col .cmd .card2 > button.be { justify-self: end; }\n.root.root.col.col .cmd .card2 > button:is(.lm, .st, .long, .short) { grid-row: 5; width: calc(50% - 4px) !important; margin-top: 1px; border: 1px solid #fff; }\n.root.root.col.col .cmd .card2 > button:is(.lm, .st) { grid-column: 1 / 18; }\n.root.root.col.col .cmd .card2 > button:is(.long, .short) { grid-column: 20 / 37; }\n.root.root.col.col .cmd .card2 > button:is(.lm, .long) { justify-self: start; }\n.root.root.col.col .cmd .card2 > button:is(.st, .short) { justify-self: end; }\n/* closing row: 100 % | PARTIAL CLOSE | CLOSE, then FLAT on its own under LONG / SHORT, taller */\n.root.root.col.col .cmd .cmdx { margin-top: 2px; }\n.root.root.col.col .cmdx > button.close { grid-column: span 11; }\n.root.root.col.col .cmdx > button.close.all { grid-column: span 8; }\n.root.root.col.col .cmdx > button.flat { grid-column: 28 / span 9; height: 32px !important; margin: -1px 0; border: 1.5px solid #fff; }\n/* mode words: size and weight from Settings → Button and mode colours (box next to Trade commands and chart labels) */\n.root .cmdh .cph { height: auto; min-height: 21px; line-height: max(18px, 1.2em); }\n.root .cmdh .cph.manual { font-size: var(--m-manual-fs, 11px); font-weight: var(--m-manual-fw, 800); }\n.root .cmdh .cph.view { font-size: var(--m-view-fs, 11px); font-weight: var(--m-view-fw, 800); }\n.root .cmdh .cph.act { font-size: var(--m-act-fs, 11px); font-weight: var(--m-act-fw, 800); }\n.root .chip .ph.view { font-size: var(--m-view-lfs, 11px); font-weight: var(--m-view-fw, 800); }\n.root .chip .ph.act { font-size: var(--m-act-lfs, 11px); font-weight: var(--m-act-fw, 800); }\n";
   },
   "chart/overlay.js": function (module, exports, require) {
 // Trade overlay on the chart: HTML on top of the TradingView iframe, in the free area right of the last candle.
@@ -457,6 +470,7 @@ const Fmt = require('../ui/format');
 const F = { ...Fmt, usd: Fmt.usdUS }; // same US dollar format as the panel
 const log = require('../diag/log');
 const bars = require('./bars');
+const OM = require('../domain/plan');
 
 // RESERVED AREA on the right. Distances from the right edge of the chart (start of the price axis):
 //   cards 232 px wide, 20 px from the axis; labels right next to the cards.
@@ -474,7 +488,7 @@ const scaleOf = (v, def) => {
   return (n >= SCALE_MIN && n <= SCALE_MAX ? n : def) / 100;
 };
 const CARD_RIGHT = 20; // cards from the price axis
-const ROOM_MIN = 150, ROOM_MAX = 900, ROOM_DEF = 360; // space between the last candle and the cards (px)
+const ROOM_MIN = 50, ROOM_MAX = 900, ROOM_DEF = 360; // space between the last candle and the cards (px)
 const LEAD_W = 24; // slanted stroke between the line end and a shifted label
 const CHIP_GAP = 19; // SL/TP/LIMIT/STOP labels aligned to the RIGHT, this far from the cards
 const CANDLE_RIGHT = 535; // centre of the last candle, from the price axis (candles and indicators stop there)
@@ -530,14 +544,14 @@ function mount(opts) {
       <span class="w e" data-el="entry"></span>
       <span class="acc" data-el="acc"></span>
       <span class="dpt" data-el="dpt"></span>
-      <span class="tgl ordl">ORDERS</span><button class="ordc" data-a="orders" data-el="ordc">OFF</button>
+      <span class="tgl ordl" data-el="ordl">ORDERS</span><button class="ordc" data-a="orders" data-el="ordc">OFF</button>
       <span class="tgl cpl" data-el="cpl">COPY</span><button class="cpc" data-a="copy" data-el="cpc">OFF</button>
       <span class="mic" data-el="mic"></span>
-      <button class="flat" data-a="flat">FLAT</button>
+      <button class="flat" data-a="flat" data-el="flatB">FLAT</button>
     </div>
     <div class="card2" data-el="card2">
-      ${FRACS.map((p, i) => `<button class="pp pf f${i}" data-p="${p}">${p}</button>`).join('')}
-      ${PRESETS.map((p, i) => `<button class="pp p${i}" data-p="${p}">${p}</button>`).join('')}
+      ${FRACS.map((p, i) => `<button class="pp pf f${i}" data-p="${p}">${p}%</button>`).join('')}
+      ${PRESETS.map((p, i) => `<button class="pp p${i}" data-p="${p}">${p}%</button>`).join('')}
       <label class="pctbox"><input data-el="pctIn" inputmode="decimal" autocomplete="off"><span>%</span></label>
       <span class="sz" data-el="sz"></span>
       <button class="lm" data-a="lm">LIMIT</button>
@@ -555,9 +569,9 @@ function mount(opts) {
       <button class="short" data-a="short">SHORT</button>
     </div>
     <div class="card3" data-el="card3">
-      <label class="pctbox cp"><input data-el="cpIn" inputmode="decimal" autocomplete="off"><span>%</span></label>
-      <button class="close" data-a="close">PARTIAL CLOSE</button>
-      <button class="close all" data-a="closeall">CLOSE</button>
+      <label class="pctbox cp" data-el="cpBox"><input data-el="cpIn" inputmode="decimal" autocomplete="off"><span>%</span></label>
+      <button class="close" data-a="close" data-el="closeB">PARTIAL CLOSE</button>
+      <button class="close all" data-a="closeall" data-el="closeAllB">CLOSE</button>
       <div class="bars">
         <div class="bar"><div class="bl"><span>MARGIN USED</span><span data-el="m1t"></span></div><div class="track"><i data-el="m1f"></i></div></div>
         <div class="bar"><div class="bl"><span>MARGIN + ORDERS</span><span data-el="m2t"></span></div><div class="track"><i data-el="m2f"></i></div></div>
@@ -574,6 +588,54 @@ function mount(opts) {
       <div class="c5r" data-el="swRow"><span>SWING RANGE</span><b data-el="swg"></b></div>
       <div class="c5r" data-el="atrRow"><span>VOLATILITY</span><i data-el="atrHd"></i></div>
       <div class="hm" data-el="hm"></div>
+    </div>
+    <div class="colw" data-el="colw" style="display:none">
+      <div class="csec om" data-el="sOm" data-sec="om"><div class="csh">Risk &amp; targets<button class="omtgl" data-a="omtoggle" data-el="omTgl">OFF</button></div>
+        <div class="omb">
+          <label class="omf"><span>Size by</span><select data-om="sizeBy"><option value="risk">Risk $</option><option value="pct">% of max</option><option value="qty">Quantity</option></select></label>
+          <label class="omf"><span data-el="omSzL">Risk ($)</span><input data-om="sizeVal" inputmode="decimal" autocomplete="off"></label>
+          <label class="omf omck"><span>Fees</span><span class="omcb"><input type="checkbox" data-om="fees"> count fees</span></label>
+          <div class="omf"><span>Leverage (Vest)</span><b class="omro" data-el="omLev">—</b></div>
+          <div class="omt">
+            <div class="omtg"><label><input type="checkbox" data-om="on0"> T1</label><select data-om="by0"><option value="r">× risk</option><option value="ticks">Ticks</option><option value="dist">Points</option><option value="atr">× ATR</option><option value="trail">Trailing</option></select><span class="omsp"><input data-om="val0" inputmode="decimal" autocomplete="off"><span class="spb"><button type="button" tabindex="-1" data-sp="1">▲</button><button type="button" tabindex="-1" data-sp="-1">▼</button></span></span></div>
+            <div class="omtg"><label><input type="checkbox" data-om="on1"> T2</label><select data-om="by1"><option value="r">× risk</option><option value="ticks">Ticks</option><option value="dist">Points</option><option value="atr">× ATR</option><option value="trail">Trailing</option></select><span class="omsp"><input data-om="val1" inputmode="decimal" autocomplete="off"><span class="spb"><button type="button" tabindex="-1" data-sp="1">▲</button><button type="button" tabindex="-1" data-sp="-1">▼</button></span></span></div>
+            <div class="omtg"><label><input type="checkbox" data-om="on2"> T3</label><select data-om="by2"><option value="r">× risk</option><option value="ticks">Ticks</option><option value="dist">Points</option><option value="atr">× ATR</option><option value="trail">Trailing</option></select><span class="omsp"><input data-om="val2" inputmode="decimal" autocomplete="off"><span class="spb"><button type="button" tabindex="-1" data-sp="1">▲</button><button type="button" tabindex="-1" data-sp="-1">▼</button></span></span></div>
+            <div class="omtg"><label><input type="checkbox" data-om="on3"> T4</label><select data-om="by3"><option value="r">× risk</option><option value="ticks">Ticks</option><option value="dist">Points</option><option value="atr">× ATR</option><option value="trail">Trailing</option></select><span class="omsp"><input data-om="val3" inputmode="decimal" autocomplete="off"><span class="spb"><button type="button" tabindex="-1" data-sp="1">▲</button><button type="button" tabindex="-1" data-sp="-1">▼</button></span></span></div>
+          </div>
+          <label class="omf"><span>Stop by</span><select data-om="stopBy"><option value="dist">Points</option><option value="ticks">Ticks</option><option value="bar">Prev. candle</option><option value="atr">ATR ×</option></select></label>
+          <label class="omf"><span data-el="omStL">Distance</span><input data-om="stopVal" inputmode="decimal" autocomplete="off"></label>
+          <label class="omf"><span>Stops</span><select data-om="stops"><option value="one">One stop</option><option value="each">Per target</option></select></label>
+          <label class="omf"><span>Split</span><select data-om="split"><option value="even">Equal</option><option value="front">T1 most</option><option value="back">Last most</option></select></label>
+          <div class="ompv"><span>Side on the chart</span><button class="ompl" data-a="omside" data-v="long" data-el="omL">LONG SIDE</button><button class="omps" data-a="omside" data-v="short" data-el="omS">SHORT SIDE</button></div>
+          <div class="omout" data-el="omOut"></div>
+        </div>
+      </div>
+      <div class="csec" data-el="sPos" data-sec="pos"><div class="csh">Position</div></div>
+      <div class="csec tb" data-el="sTb" data-sec="tb"><div class="csh">Trailing &amp; breakeven</div>
+        <div class="tbb">
+          <label class="omcb tbon"><input type="checkbox" data-tb="trOn"> Trailing stop</label>
+          <label class="omf"><span>Unit</span><select data-tb="trUnit"><option value="pt">pt</option><option value="$">$</option></select></label>
+          <label class="omf"><span>Starts after</span><input data-tb="trAct" inputmode="decimal" autocomplete="off" placeholder="empty"></label>
+          <label class="omf"><span>Pullback</span><input data-tb="trDist" inputmode="decimal" autocomplete="off" placeholder="empty"></label>
+          <label class="omf"><span>Step</span><input data-tb="trStep" inputmode="decimal" autocomplete="off" placeholder="empty"></label>
+          <label class="omcb tbon"><input type="checkbox" data-tb="beOn"> BE+</label>
+          <label class="omf"><span>Unit</span><select data-tb="beUnit"><option value="pt">pt</option><option value="$">$</option></select></label>
+          <label class="omf"><span>Profit</span><input data-tb="beOff" inputmode="decimal" autocomplete="off" placeholder="empty"></label>
+          <label class="omcb tbauto"><input type="checkbox" data-tb="beAuto"> auto BE</label>
+          <label class="omf"><span>after</span><input data-tb="beAt" inputmode="decimal" autocomplete="off" placeholder="empty"></label>
+          <div class="tbnote" data-el="tbNote"></div>
+        </div>
+      </div>
+      <div class="csec" data-el="sLim" data-sec="lim"><div class="csh">Account limits</div></div>
+      <div class="csec" data-el="sCopy" data-sec="copy"><div class="csh">Copier accounts</div></div>
+      <div class="csec" data-el="sVol" data-sec="vol"><div class="csh">Swing range and volatility</div></div>
+      <div class="csec" data-el="sChart" data-sec="chart"><div class="csh">Chart space</div>
+        <div class="chb"><span>Space between the last candle and the price axis (px)</span><span class="omsp"><input data-el="roomIn" data-step="10" inputmode="numeric" autocomplete="off" placeholder="360"><span class="spb"><button type="button" tabindex="-1" data-sp="1">▲</button><button type="button" tabindex="-1" data-sp="-1">▼</button></span></span></div>
+      </div>
+    </div>
+    <div class="cmd" data-el="cmd" style="display:none">
+      <div class="cmdh" data-el="cmdh"><span class="ct">Trade commands</span><span class="cph" data-el="cmdPh"></span><span class="ctg" data-el="cmdTg"></span><button class="cdet" data-a="cmdfloat" data-el="cmdDet"></button></div>
+      <div class="cmdb" data-el="cmdb"><div class="cmdx" data-el="cmdx"></div></div>
     </div>
   </div>`;
   document.documentElement.appendChild(host);
@@ -600,18 +662,10 @@ function mount(opts) {
     tipObs.observe(els[k], { subtree: true, childList: true, attributes: true, attributeFilter: ['title'] });
   }
 
-  els.card.addEventListener('click', (e) => {
-    const b = e.target.closest('button[data-a]');
-    if (!b || b.disabled) return;
-    const a = b.dataset.a;
-    if (a === 'flat') run(actions.flat(), 'FLAT sent');
-    else if (a === 'orders') actions.toggleOrders();
-    else if (a === 'copy' && actions.copyToggle) actions.copyToggle();
-  });
   // preview while hovering LONG / SHORT (no orders: lines only)
   for (const side of ['long', 'short']) {
     const b = els.card2.querySelector(`button[data-a="${side}"]`);
-    b.addEventListener('pointerenter', () => (hoverSide = side));
+    b.addEventListener('pointerenter', () => !b.disabled && (hoverSide = side)); // disabled (Risk ON): no AVG / FAIL NEW preview
     b.addEventListener('pointerleave', () => hoverSide === side && (hoverSide = null));
   }
   // TP / SL from the card: they are dragged (a plain click explains how)
@@ -634,37 +688,66 @@ function mount(opts) {
       startDrag(e, b, kind, null, 'card2');
     });
   }
-  els.card2.addEventListener('click', (e) => {
-    const pp = e.target.closest('button[data-p]');
+  // every button of the cards, wherever it sits (on the chart, in the column or in the floating commands panel)
+  root.addEventListener('click', (e) => {
+    const t = e.target;
+    if (!t || !t.closest) return;
+    const pp = t.closest('button[data-p]');
     if (pp) {
       actions.setPct(+pp.dataset.p);
       els.pctIn.value = pp.dataset.p;
       return;
     }
-    const cx = e.target.closest('button[data-cx]');
+    const cx = t.closest('button[data-cx]');
     if (cx) {
       cxMenu(false);
       if (cx.disabled) return;
       const kind = cx.dataset.cx;
       return run(actions.cancelOrders(kind), kind === 'lm' ? 'pending limits cancelled' : kind === 'st' ? 'local stops cancelled' : 'all orders cancelled');
     }
-    const b = e.target.closest('button[data-a]');
+    const sh = t.closest('.csh');
+    if (sh && !t.closest('.omtgl')) return foldSec(sh.parentNode);
+    const b = t.closest('button[data-a]');
     if (!b || b.disabled) return;
-    if (b.dataset.a === 'cxmenu') return cxMenu(els.cxm.style.display === 'none');
-    if (b.dataset.a === 'be') run(actions.breakeven(), 'BE sent');
-    else if (b.dataset.a === 'long' || b.dataset.a === 'short') run(actions.market(b.dataset.a), b.dataset.a.toUpperCase() + ' sent');
+    const a = b.dataset.a;
+    if (a === 'flat') run(actions.flat(), 'FLAT sent');
+    else if (a === 'orders') actions.toggleOrders();
+    else if (a === 'copy' && actions.copyToggle) actions.copyToggle();
+    else if (a === 'cxmenu') cxMenu(els.cxm.style.display === 'none');
+    else if (a === 'be') run(actions.breakeven(), 'BE sent');
+    else if ((a === 'long' || a === 'short') && omLive()) {
+      // Active plan: market entry with the plan size, SL and TP
+      const m = getModel();
+      if (!m || !m.market) return;
+      omSide = a;
+      omAnchor = null;
+      omSave();
+      const pl = omOrderPlan(m, a, m.market.mark);
+      if (pl instanceof Error) return say(pl.message, 'err');
+      run(actions.planEntry('market', a, null, pl), `PLAN ${a.toUpperCase()} sent: ${pl.qty} with SL ${pl.sl}`);
+    } else if (a === 'long' || a === 'short') run(actions.market(a), a.toUpperCase() + ' sent');
+    else if (a === 'closeall') run(actions.closeAll(), 'CLOSE sent: pending orders stay');
+    else if (a === 'close') run(actions.closePct(), 'PARTIAL CLOSE sent');
+    else if (a === 'cmdfloat') setFloat(!cmdSt.float);
+    else if (a === 'omtoggle') {
+      // Risk & targets ON: the plan drives Trade commands (the % size is off); OFF = manual
+      omMode = omMode === 'manual' ? 'live' : 'manual';
+      omAnchor = null;
+      omSave();
+    } else if (a === 'omside' || a === 'ommode') {
+      if (a === 'omside' && omSide !== b.dataset.v) omAnchor = null; // the other side starts from the market price (or its LIMIT)
+      if (a === 'omside') omSide = b.dataset.v;
+      else omMode = b.dataset.v;
+      if (omMode === 'manual') omAnchor = null;
+      omSave();
+    }
   });
+  colSetup();
   // COPIER: click on a row = account shown by the tool (on press: the table is redrawn)
   els.card4.addEventListener('pointerdown', (e) => {
     if (e.target.closest('[data-a="copy"]')) return actions.copyToggle && actions.copyToggle();
     const tr = e.target.closest('tr[data-id]');
     if (tr && actions.select) actions.select(tr.dataset.id);
-  });
-  els.card3.addEventListener('click', (e) => {
-    const b = e.target.closest('button[data-a="close"], button[data-a="closeall"]');
-    if (!b || b.disabled) return;
-    if (b.dataset.a === 'closeall') run(actions.closeAll(), 'CLOSE sent: pending orders stay');
-    else run(actions.closePct(), 'PARTIAL CLOSE sent');
   });
   els.cpIn.addEventListener('input', () => {
     const v = parseFloat(els.cpIn.value.replace(',', '.'));
@@ -688,6 +771,362 @@ function mount(opts) {
   requestAnimationFrame(frame);
 }
 
+// ── docked column (cards in the panel's column) and trade commands panel
+// In the column the cards are not scaled copies of the chart block: the same elements are moved into sections that
+// follow the column's width (CSS .root.col), and every button goes into the commands panel. That panel sits at the top of
+// the column or floats anywhere on the screen (position kept in localStorage 'vt1:cmd'). Back on the chart, every element
+// returns to its place (comment placeholders), so the chart layout is the measured one as before.
+const CMD_KEY = 'vt1:cmd',
+  SEC_KEY = 'vt1:colsec';
+const CMD_W_DEF = 360,
+  CMD_W_MIN = 260;
+let cmdSt = { float: false, x: null, y: null, w: CMD_W_DEF, h: null };
+let secFold = {};
+let colOn = false;
+// Order management (column section): inputs kept in localStorage 'vt1:om'; the chart preview is never kept (off after a reload)
+const OM_KEY = 'vt1:om';
+let omSt = { sizeBy: 'risk', sizeVal: '', fees: false, stopBy: 'dist', stopVal: '', stops: 'one', split: 'even',
+  t: [{ on: true, by: 'r', val: '1' }, { on: false, by: 'r', val: '2' }, { on: false, by: 'r', val: '3' }, { on: false, by: 'trail', val: '' }] };
+let omPv = null; // side whose plan is on the chart ('long' | 'short'), null in Manual mode (set at every frame)
+// Risk & targets OFF = 'manual' (Trade commands use the % size, nothing on the chart); ON = 'live' (LONG / SHORT / LIMIT / STOP
+// go with the plan size and its SL / TP). ('view' is no longer offered.) ON is never kept: after a reload it is OFF.
+let omMode = 'manual';
+let omSide = 'long';
+let omBv = null; // bars of the last frame (previous candle, ATR) for the plan sent by LONG / SHORT
+// Plan entry on the chart: price where ENTRY was dropped (null = follows the market price, or the pending LIMIT of that side)
+let omAnchor = null; // { side, symbol, price, type: 'lm' | 'st' }
+let omFill = () => {}; // writes omSt back into the section fields (set in omSetup)
+let moves = []; // [element, placeholder]
+const readJson = (k, def) => {
+  try {
+    const v = JSON.parse(localStorage.getItem(k) || 'null');
+    return v && typeof v === 'object' ? v : def;
+  } catch {
+    return def;
+  }
+};
+const writeJson = (k, v) => {
+  try {
+    localStorage.setItem(k, JSON.stringify(v));
+  } catch {
+    /* storage blocked: kept for this page only */
+  }
+};
+
+function colSetup() {
+  const c = readJson(CMD_KEY, {});
+  cmdSt = {
+    float: c.float === true,
+    x: Number.isFinite(c.x) ? c.x : null,
+    y: Number.isFinite(c.y) ? c.y : null,
+    w: Number.isFinite(c.w) ? Math.max(CMD_W_MIN, c.w) : CMD_W_DEF,
+    h: Number.isFinite(c.h) && c.h >= 120 ? c.h : null, // null = as tall as its content
+  };
+  secFold = readJson(SEC_KEY, {});
+  omSetup();
+  // small arrows next to a number: target values ±0.25 (ticks ±1), chart space ±10 px
+  els.colw.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-sp]');
+    if (!b) return;
+    const inp = b.closest('.omsp').querySelector('input');
+    if (!inp || inp.disabled) return;
+    const m = /^val(\d)$/.exec(inp.dataset.om || '');
+    const by = m && els.sOm.querySelector(`[data-om="by${m[1]}"]`);
+    const step = +inp.dataset.step || (by && by.value === 'ticks' ? 1 : 0.25);
+    const cur = parseFloat(String(inp.value).replace(',', '.'));
+    const lo = inp === els.roomIn ? 50 : step,
+      hi = inp === els.roomIn ? 900 : Infinity;
+    const base = Number.isFinite(cur) ? cur : inp === els.roomIn ? 360 : 0;
+    const v = Math.min(hi, Math.max(lo, Math.round((base + +b.dataset.sp * step) / step) * step));
+    inp.value = String(+v.toFixed(2));
+    inp.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  // chart space: the same setting as "label space" in the panel (Chart display)
+  els.roomIn.addEventListener('input', () => {
+    const v = parseInt(els.roomIn.value, 10);
+    if (v >= 50 && v <= 900 && actions.setSetting) actions.setSetting('roomPx', v);
+  });
+  // Trailing & breakeven: the panel keeps the settings (same keys); here they are only shown and changed
+  const tbSet = (e) => {
+    const k = e.target.dataset && e.target.dataset.tb;
+    if (!k || !actions.setSetting) return;
+    actions.setSetting(k, e.target.type === 'checkbox' ? e.target.checked : e.target.value.trim().replace(',', '.'));
+  };
+  els.sTb.addEventListener('input', (e) => e.target.type !== 'checkbox' && e.target.tagName !== 'SELECT' && tbSet(e));
+  els.sTb.addEventListener('change', (e) => (e.target.type === 'checkbox' || e.target.tagName === 'SELECT') && tbSet(e));
+  for (const sec of els.colw.querySelectorAll('.csec')) sec.classList.toggle('folded', !!secFold[sec.dataset.sec]);
+  // where each moved element lives on the chart
+  const list = [els.ordl, els.ordc, els.cpl, els.cpc, els.flatB, els.cpBox, els.closeB, els.closeAllB, els.msg, els.card, els.card2, els.card3, els.card4, els.card5];
+  moves = list.map((el) => {
+    const ph = document.createComment('vt');
+    el.before(ph);
+    return [el, ph];
+  });
+  // floating panel: dragged by its title bar
+  els.cmdh.addEventListener('pointerdown', (e) => {
+    if (!cmdSt.float || e.button !== 0 || e.target.closest('button')) return;
+    e.preventDefault();
+    const r = els.cmd.getBoundingClientRect();
+    const dx = e.clientX - r.left,
+      dy = e.clientY - r.top;
+    try {
+      els.cmdh.setPointerCapture(e.pointerId);
+    } catch {
+      /* nothing */
+    }
+    const move = (ev) => {
+      cmdSt.x = ev.clientX - dx;
+      cmdSt.y = ev.clientY - dy;
+      placeCmd();
+    };
+    const up = () => {
+      els.cmdh.removeEventListener('pointermove', move);
+      els.cmdh.removeEventListener('pointerup', up);
+      els.cmdh.removeEventListener('pointercancel', up);
+      writeJson(CMD_KEY, cmdSt);
+    };
+    els.cmdh.addEventListener('pointermove', move);
+    els.cmdh.addEventListener('pointerup', up);
+    els.cmdh.addEventListener('pointercancel', up);
+  });
+  // width of the floating panel (CSS resize handle): kept when the drag of the corner ends
+  if (typeof ResizeObserver === 'function') {
+    let t = null;
+    new ResizeObserver(() => {
+      if (!cmdSt.float || !colOn) return;
+      const w = Math.round(els.cmd.offsetWidth);
+      // height only once dragged from the corner (the browser then sets it inline); otherwise it follows the content
+      const h = els.cmd.style.height ? Math.round(els.cmd.offsetHeight) : null;
+      if (!(w >= CMD_W_MIN) || (w === cmdSt.w && h === cmdSt.h)) return;
+      cmdSt.w = w;
+      cmdSt.h = h;
+      clearTimeout(t);
+      t = setTimeout(() => writeJson(CMD_KEY, cmdSt), 400);
+    }).observe(els.cmd);
+  }
+  syncFloat();
+}
+
+const OM_SZ_LABEL = { risk: 'Risk ($)', pct: 'Size (%)', qty: 'Quantity' };
+const OM_ST_LABEL = { dist: 'Points', ticks: 'Ticks', bar: 'Beyond it (ticks)', atr: 'ATR multiple' };
+function omSetup() {
+  const o = readJson(OM_KEY, {});
+  const str = (v, d) => (typeof v === 'string' || typeof v === 'number' ? String(v) : d);
+  const pick = (v, list, d) => (list.includes(v) ? v : d);
+  omSt.sizeBy = pick(o.sizeBy, OM.SIZE_BY, 'risk');
+  omSt.sizeVal = str(o.sizeVal ?? o.risk, ''); // o.risk / o.dist / t[].rr: v0.10.70
+  omSt.fees = o.fees === true;
+  omSt.stopBy = pick(o.stopBy, OM.STOP_BY, 'dist');
+  omSt.stopVal = str(o.stopVal ?? o.dist, '');
+  omSt.stops = pick(o.stops, ['one', 'each'], 'one');
+  omSt.split = pick(o.split, OM.SPLITS, 'even');
+  omMode = 'manual'; // Risk & targets ON is never restored after a reload (it drives real orders)
+  omSide = pick(o.side, ['long', 'short'], 'long');
+  if (Array.isArray(o.t))
+    omSt.t = omSt.t.map((d, i) => {
+      const x = o.t[i];
+      return x ? { on: !!x.on, by: pick(x.by, OM.TGT_BY, 'r'), val: str(x.val ?? x.rr, d.val) } : d;
+    });
+  const f = (k) => els.sOm.querySelector(`[data-om="${k}"]`);
+  const labels = () => {
+    els.omSzL.textContent = OM_SZ_LABEL[omSt.sizeBy];
+    els.omStL.textContent = OM_ST_LABEL[omSt.stopBy];
+    omSt.t.forEach((t, i) => (f('val' + i).disabled = t.by === 'trail'));
+  };
+  omFill = () => {
+    for (const k of ['sizeBy', 'sizeVal', 'stopBy', 'stopVal', 'stops', 'split']) f(k).value = omSt[k];
+    f('fees').checked = omSt.fees;
+    omSt.t.forEach((t, i) => {
+      f('on' + i).checked = t.on;
+      f('by' + i).value = t.by;
+      f('val' + i).value = t.val;
+    });
+    labels();
+  };
+  omFill();
+  const read = (e) => {
+    const k = e.target.dataset && e.target.dataset.om;
+    if (!k) return;
+    const v = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
+    const m = /^(on|by|val)(\d)$/.exec(k);
+    if (m) omSt.t[+m[2]][m[1]] = v;
+    else omSt[k] = v;
+    labels();
+    omSave();
+  };
+  els.sOm.addEventListener('input', read);
+  els.sOm.addEventListener('change', read);
+}
+
+const omNum = (v) => parseFloat(String(v).replace(',', '.'));
+const omSave = () => writeJson(OM_KEY, { ...omSt, mode: omMode === 'live' ? 'view' : omMode, side: omSide });
+
+/** Plan to send for a side and entry (Active mode), or an Error with the reason. */
+function omOrderPlan(m, side, entry) {
+  const x = omPlan(m, side, omBv, entry);
+  if (!(x.qty > 0)) return new Error('Risk plan: ' + (x.why || 'no size'));
+  if (x.targets.some((t) => t.by !== 'trail' && !Number.isFinite(t.price))) return new Error('Risk plan: ' + (x.why || 'a target has no price'));
+  if (x.targets.some((t) => !(t.qty > 0))) return new Error('Risk plan: size too small to split among the targets');
+  return { qty: x.qty, sl: x.sl, targets: x.targets.map((t) => ({ price: t.price, qty: t.qty })), each: omSt.stops === 'each' };
+}
+const omLive = () => colOn && omMode === 'live'; // LONG / SHORT at market with the plan
+const omLim = () => colOn && omMode !== 'manual'; // LIMIT placed / moved with the plan (PLAN and READY)
+// LIMIT being placed again with the plan: no plan lines until it is on the chart (otherwise they jump to the market price)
+let omBusy = null; // { side, price, done, until }
+function omRun(p, okText, side, price) {
+  const b = { side, price, done: false, until: Infinity };
+  omBusy = b;
+  run(p, okText);
+  p.then(
+    () => {
+      b.done = true;
+      b.until = Date.now() + 4000;
+    },
+    () => omBusy === b && (omBusy = null),
+  );
+}
+// mode words (internal values kept: 'view' = PLAN, 'live' = READY); ACTIVE is the word of labels of an order really placed
+const OM_PHASE = { manual: 'MANUAL', view: 'RISK PLAN', live: 'RISK PLAN' }; // next to Trade commands and on the plan labels (RISK ACTIVE: order really there)
+let omActNow = false; // the plan lines shown belong to a pending LIMIT / armed STOP (labels say ACTIVE)
+let btnColKey = '';
+/** Pending entry LIMIT of that side on this market (the closest to the price), or null. */
+function omLimit(m, side) {
+  const mark = m.market.mark;
+  let best = null;
+  for (const o of m.pendings || [])
+    if (o.kind === 'lm' && o.label !== 'CLOSE' && !o.local && o.side === side && o.price > 0)
+      if (!best || Math.abs(o.price - mark) < Math.abs(best.price - mark)) best = o;
+  return best;
+}
+
+/** Entry of the plan: ENTRY being dragged > where it was dropped > pending LIMIT of that side > market price. */
+/** Side of a NEW LIMIT being dragged from Trade commands (the plan follows it while it moves), or null. */
+function omNewLimitSide(m) {
+  if (!(drag && !drag.existing && (drag.kind === 'lm' || drag.kind === 'st') && drag.moved && colOn && omMode !== 'manual' && m && m.market)) return null;
+  return entrySide(drag.kind, drag.price, m.market.mark) || null;
+}
+/** Local STOP armed with the plan on the chart's market for that side (one at most). */
+function omStop(m, side) {
+  return (m.pendings || []).find((o) => o.kind === 'st' && o.local && o.plan && o.side === side) || null;
+}
+/** Type of the plan entry being shown: 'st' for a STOP (new one dragged, ENTRY set from STOP, armed plan STOP), else 'lm'. */
+function omType(e) {
+  if (!e) return 'lm';
+  if (e.src === 'stop') return 'st';
+  if (e.src === 'newlm') return drag && drag.kind === 'st' ? 'st' : 'lm';
+  if (e.src === 'set') return omAnchor && omAnchor.type === 'st' ? 'st' : 'lm';
+  return 'lm';
+}
+
+function omEntry(m, side) {
+  if (drag && drag.from === 'plan' && drag.kind === 'lm' && drag.moved && omPv === side) return { price: drag.price, src: 'drag' };
+  if (omNewLimitSide(m) === side) return { price: drag.price, src: 'newlm' }; // its own label is the LIMIT being dragged
+  if (omAnchor && omAnchor.side === side && omAnchor.symbol === m.market.symbol) return { price: omAnchor.price, src: 'set' };
+  const lm = omLimit(m, side);
+  if (lm) return { price: drag && drag.from === 'order' && drag.moved && drag.existing.order.id === lm.id ? drag.price : lm.price, src: 'limit', order: lm }; // the plan follows the LIMIT while it is dragged
+  const sp = omStop(m, side);
+  if (sp) return { price: drag && drag.from === 'order' && drag.moved && drag.existing.order.id === sp.id ? drag.price : sp.price, src: 'stop', order: sp };
+  return { price: m.market.mark, src: 'mark' };
+}
+
+/** While plan SL is dragged: the size stays, the stop becomes that distance (the risk follows). */
+function omSlDrag(side) {
+  if (!(drag && drag.from === 'plan' && drag.kind === 'sl' && drag.moved && drag.ok && omPv === side)) return null; // wrong side: plan as before, label marked
+  return { stopBy: 'dist', stopVal: Math.abs(drag.existing.entry - drag.price) }; // same risk: the size follows
+}
+
+function omPlan(m, side, bv, entry, over) {
+  const mk = m.market;
+  const o = over || {};
+  return OM.plan({
+    side,
+    entry: entry > 0 ? entry : mk.mark,
+    step: mk.step,
+    tick: mk.tick,
+    maxQty: m.size && m.size.max,
+    capPct: o.noCap ? 0 : m.capPct,
+    fee: mk.fee,
+    sizeBy: o.sizeBy || omSt.sizeBy,
+    sizeVal: o.sizeVal ?? omNum(omSt.sizeVal),
+    fees: omSt.fees,
+    stopBy: o.stopBy || omSt.stopBy,
+    stopVal: o.stopVal ?? omNum(omSt.stopVal),
+    bar: bv && bv.prev,
+    atr: bv && bv.atr14,
+    targets: omSt.t.map((t) => ({ on: t.on, by: t.by, val: omNum(t.val) })),
+    split: omSt.split,
+  });
+}
+
+function foldSec(sec) {
+  if (!sec || !sec.dataset.sec) return;
+  const k = sec.dataset.sec;
+  secFold[k] = !secFold[k];
+  sec.classList.toggle('folded', secFold[k]);
+  writeJson(SEC_KEY, secFold);
+}
+
+// moves the elements into the column (on) or back to their places on the chart (off)
+function setCol(on) {
+  if (on === colOn) return;
+  colOn = on;
+  els.layer.classList.toggle('col', on);
+  if (on) {
+    els.cmdTg.append(els.ordl, els.ordc, els.cpl, els.cpc);
+    els.cmdb.prepend(els.card2);
+    els.cmdx.append(els.cpBox, els.closeB, els.closeAllB, els.flatB);
+    show(els.msg, false); // messages go to the panel header
+    els.sPos.append(els.card);
+    els.sLim.append(els.card3);
+    els.sCopy.append(els.card4);
+    els.cmd.append(els.sCopy); // copier accounts under Trade commands (they float with it)
+    els.sVol.append(els.card5);
+    syncFloat();
+  } else {
+    for (const [el, ph] of moves) ph.after(el);
+    show(els.msg, true);
+    show(els.colw, false);
+    show(els.cmd, false);
+  }
+}
+
+function syncFloat() {
+  els.cmd.classList.toggle('float', cmdSt.float);
+  els.cmdDet.textContent = cmdSt.float ? '⇥' : '⇱';
+  els.cmdDet.setAttribute('aria-label', cmdSt.float ? 'Put back in the column' : 'Detach and float');
+  if (cmdSt.float) {
+    els.layer.append(els.cmd);
+    els.cmd.style.width = cmdSt.w + 'px';
+    els.cmd.style.height = cmdSt.h ? cmdSt.h + 'px' : '';
+    placeCmd();
+  } else {
+    els.colw.prepend(els.cmd);
+    els.cmd.style.width = els.cmd.style.height = els.cmd.style.left = els.cmd.style.top = '';
+  }
+}
+
+function setFloat(on) {
+  cmdSt.float = !!on;
+  if (on && cmdSt.x == null) {
+    // first time: next to the column, at the top of the chart
+    const r = els.cmd.getBoundingClientRect();
+    cmdSt.x = Math.max(0, r.left - cmdSt.w - 16);
+    cmdSt.y = Math.max(0, r.top);
+  }
+  syncFloat();
+  writeJson(CMD_KEY, cmdSt);
+}
+
+// floating panel inside the window (also after a resize of the browser)
+function placeCmd() {
+  if (!cmdSt.float) return;
+  const w = els.cmd.offsetWidth || cmdSt.w;
+  const x = Math.round(Math.min(Math.max(0, cmdSt.x || 0), Math.max(0, window.innerWidth - w)));
+  const y = Math.round(Math.min(Math.max(0, cmdSt.y || 0), Math.max(0, window.innerHeight - 40)));
+  els.cmd.style.left = x + 'px';
+  els.cmd.style.top = y + 'px';
+}
+
 // CANCEL menu of the second card: closes on a choice, on Esc and on a click elsewhere
 function cxMenu(open) {
   if (!els.cxm) return;
@@ -696,6 +1135,7 @@ function cxMenu(open) {
 }
 
 function say(text, kind) {
+  if (colOn && actions.say) return actions.say(text, kind); // docked: in the panel header, nothing moves below
   if (!els.msg) return;
   els.msg.textContent = text;
   els.msg.className = 'msg ' + (kind || '');
@@ -805,7 +1245,7 @@ let chipW = 0,
   chipKey = '',
   chipShrinkAt = 0;
 const CHIP_SHRINK_MS = 30000;
-function manageRoom(g, show, needPx) {
+function manageRoom(g, show, needPx, minPx = CANDLE_RIGHT) {
   if (!g || !g.ts) return;
   const { ts, bs, ro } = g.ts;
   const idle = !drag && Date.now() - lastTouch > ROOM_IDLE_MS;
@@ -813,7 +1253,7 @@ function manageRoom(g, show, needPx) {
     if (show) {
       // margin (in bars) that puts the last candle exactly at the wanted distance: set in BOTH directions
       // (even if it had been left wider), only while the chart is still and the last candle is on screen
-      const px = Math.max(CANDLE_RIGHT, needPx || 0);
+      const px = Math.max(minPx, needPx || 0);
       const want = Math.max(0, (px / (g.ts.k || 1) - 1) / bs - 0.5);
       if (!idle || ro < 0 || Math.abs(ro - want) < 0.3) return;
       if (!room) room = { orig: ro, set: want };
@@ -871,6 +1311,8 @@ function hideAll() {
   show(els.card3, false);
   show(els.card4, false);
   show(els.card5, false);
+  if (els.colw) show(els.colw, false);
+  if (els.cmd) show(els.cmd, false);
   show(els.dragLine, false);
   show(els.dragChip, false);
   for (const k of ['trS', 'trA', 'trN', 'trB', 'trT', 'hlH', 'hlL']) show(els[k], false);
@@ -889,6 +1331,9 @@ function setState(s) {
 }
 
 const heat = (f) => (f >= 1 ? 'hot' : f >= 0.8 ? 'warn' : ''); // same as the main panel
+// why no size, in the few characters next to the % box (the full reason is in the panel's Trade section)
+const shortWhy = (why) =>
+  !why ? '' : /minimum/.test(why) ? 'too low' : /margin/.test(why) ? 'no margin' : /leverage/.test(why) ? 'no leverage' : /not read/.test(why) ? 'reading…' : 'n/a';
 const sideWord = (side) => (side === 'long' ? 'BUY' : 'SELL');
 
 let idleAt = 0;
@@ -926,6 +1371,13 @@ function draw() {
   };
   const inside = (y) => y >= 0 && y <= g.height;
   lineStyles = m.lineStyles || null;
+  if (m.btnColors) {
+    const k = JSON.stringify(m.btnColors);
+    if (k !== btnColKey) {
+      btnColKey = k;
+      for (const [n, v] of Object.entries(m.btnColors)) els.layer.style.setProperty(n, v);
+    }
+  }
   const qs = m.qtyStyle || { c: '#ffb402', s: 11, b: true };
   if (els.layer.dataset.qs !== qs.c + qs.s + qs.b) {
     els.layer.dataset.qs = qs.c + qs.s + qs.b;
@@ -933,17 +1385,34 @@ function draw() {
     els.layer.style.setProperty('--qs', qs.s + 'px');
     els.layer.style.setProperty('--qw', qs.b ? 800 : 400);
   }
-  // card style from the panel: 'sonar' only changes colours and fonts (overlay.css), never positions
-  const sonar = m.theme === 'sonar';
-  if (els.layer.classList.contains('sonar') !== sonar) els.layer.classList.toggle('sonar', sonar);
-  const SCALE = scaleOf(m.blockPct, 125),
-    CS = scaleOf(m.chipPct, 100);
+  // cards in the docked column (m.cardsCol = part of the column under the folded panel; hidden while the panel is open):
+  // fluid sections at the panel's size, no scale. Otherwise next to the price axis at the panel's scale.
+  const col = m.cardsCol && m.cardsCol.width > 0 ? m.cardsCol : null;
+  setCol(!!col);
+  // card style from the panel: 'sonar' / 'console' only change colours and fonts (overlay.css), never positions;
+  // in the column they also colour the section frames
+  for (const t of ['sonar', 'console']) if (els.layer.classList.contains(t) !== (m.theme === t)) els.layer.classList.toggle(t, m.theme === t);
+  const SCALE = col ? 1 : scaleOf(m.blockPct, 125);
+  if (col) {
+    const cw = els.colw.style;
+    if (cw.left !== col.left + 'px') cw.left = col.left + 'px';
+    if (cw.top !== col.top + 'px') cw.top = col.top + 'px';
+    if (cw.width !== col.width + 'px') cw.width = col.width + 'px';
+    if (cw.height !== col.height + 'px') cw.height = col.height + 'px';
+    show(els.colw, !col.hidden);
+    show(els.cmd, cmdSt.float || !col.hidden); // floating: stays on the screen while the panel is open
+    if (cmdSt.float) placeCmd();
+  }
+  const CS = scaleOf(m.chipPct, 100);
   if (els.layer.dataset.sc !== SCALE + '/' + CS) {
     els.layer.dataset.sc = SCALE + '/' + CS;
     els.layer.style.setProperty('--bs', SCALE);
     els.layer.style.setProperty('--cs', CS);
   }
-  const areaX = g.left + g.width - CARD_RIGHT - CARD_W * SCALE; // card column, fixed on the right
+  // cardX: left edge of the cards. areaX: right edge of the labels' column (the cards' left edge, or the chart's edge
+  // minus the swing-line gap when the cards are in the docked column)
+  const cardX = col ? 0 : g.left + g.width - CARD_RIGHT - CARD_W * SCALE;
+  const areaX = col ? g.left + g.width - CARD_RIGHT : cardX;
   // widest label width kept: it grows at once, shrinks only after 30 s or when the market/position changes
   const key = market.symbol + '|' + (pos ? pos.id : '');
   if (key !== chipKey) {
@@ -962,8 +1431,8 @@ function draw() {
   // FIXED right margin: cards + space chosen in the panel, independent of the label width (otherwise the chart jumps
   // left and right). Labels wider than the space cover the last candles.
   const room = +m.roomPx >= ROOM_MIN && +m.roomPx <= ROOM_MAX ? +m.roomPx : ROOM_DEF;
-  const needPx = Math.round(CARD_RIGHT + CARD_W * SCALE + room);
-  manageRoom(g, true, needPx);
+  const needPx = Math.round(CARD_RIGHT + (col ? 0 : CARD_W * SCALE) + room);
+  manageRoom(g, true, needPx, col ? 0 : CANDLE_RIGHT); // in the column no cards on the chart: only the chosen space
 
   const eb = m.eqBar || {};
   els.acc.textContent = eb.account || '';
@@ -1026,6 +1495,29 @@ function draw() {
     els.qty.textContent = 'flat';
     els.entry.textContent = ''; // when flat no leverage
   }
+  // docked column: the position data go to the panel header (Position section no longer shown)
+  if (actions.head) {
+    actions.head(
+      col
+        ? {
+            tf: els.sym.textContent,
+            cd: els.cd.textContent,
+            clk: els.clk.textContent,
+            acc: els.acc.textContent,
+            side: pos ? pos.side : 'flat',
+            qty: pos ? els.qty.textContent : '',
+            entry: els.entry.textContent,
+            gap: els.gap.textContent,
+            gapC: els.gap.className.replace('gap', '').trim(),
+            pnl: els.pnl.textContent,
+            pnlC: els.pnl.className.replace(/\b(pnl|xs)\b/g, '').trim(),
+            mic: els.mic.textContent,
+            dpt: els.dpt.textContent,
+            dptC: els.dpt.className.replace('dpt', '').trim(),
+          }
+        : null,
+    );
+  }
   els.ordc.textContent = m.ordersOn ? 'ON' : 'OFF';
   els.ordc.classList.toggle('on', !!m.ordersOn);
   // COPY under ORDERS: only when a master and at least one copy are assigned
@@ -1036,13 +1528,13 @@ function draw() {
     els.cpc.classList.toggle('on', !!m.copy.armed);
   }
   const busy = !!m.busy;
-  els.card.querySelector('[data-a="flat"]').disabled = busy; // FLAT always active: it also cancels pending orders
-  els.card3.querySelector('[data-a="close"]').disabled = busy || !pos || !(m.closePct > 0);
+  els.flatB.disabled = busy; // FLAT always active: it also cancels pending orders
+  els.closeB.disabled = busy || !pos || !(m.closePct > 0);
   if (root.activeElement !== els.cpIn) {
     const want = m.closePct > 0 ? String(m.closePct) : '';
     if (els.cpIn.value !== want) els.cpIn.value = want;
   }
-  els.card3.querySelector('[data-a="closeall"]').disabled = busy || !pos;
+  els.closeAllB.disabled = busy || !pos;
   for (const k of ['tp', 'sl', 'be']) els.card2.querySelector(`[data-a="${k}"]`).disabled = busy || !pos;
   const beB = els.card2.querySelector('[data-a="be"]'),
     beT = m.bePlus ? 'BE+' : 'BE';
@@ -1142,43 +1634,55 @@ function draw() {
     }
     h5 = ((els.card5.offsetHeight || 80) + CARD2_GAP) * SCALE;
   }
-  const by = Math.max(0, Math.round((g.height - (2 * CARD2_GAP * SCALE + ch + h2 + h3 + h4 + h5)) / 2));
+  // on the chart: centred on the pane; in the column: from its top (y relative to g.top like the rest)
+  const by = col ? 0 : Math.max(0, Math.round((g.height - (2 * CARD2_GAP * SCALE + ch + h2 + h3 + h4 + h5)) / 2));
   const cy = by,
     c2y = cy + ch + CARD2_GAP * SCALE,
     c3y = c2y + h2 + CARD2_GAP * SCALE;
-  els.card.style.left = areaX + 'px';
+  els.card.style.left = cardX + 'px';
   els.card.style.top = g.top + cy + 'px';
-  els.card2.style.left = areaX + 'px';
+  els.card2.style.left = cardX + 'px';
   els.card2.style.top = g.top + c2y + 'px';
-  els.card3.style.left = areaX + 'px';
+  els.card3.style.left = cardX + 'px';
   els.card3.style.top = g.top + c3y + 'px';
-  els.card4.style.left = areaX + 'px';
+  els.card4.style.left = cardX + 'px';
   els.card4.style.top = g.top + c3y + h3 + CARD2_GAP * SCALE + 'px';
-  els.card5.style.left = areaX + 'px';
+  els.card5.style.left = cardX + 'px';
   els.card5.style.top = g.top + c3y + h3 + CARD2_GAP * SCALE + h4 + 'px';
+  if (col) {
+    // column sections follow their cards (copier and volatility only when on)
+    show(els.sCopy, !!cp);
+    show(els.sVol, c5);
+  }
   if (root.activeElement !== els.pctIn) {
     const want = m.pct > 0 ? String(m.pct) : '';
     if (els.pctIn.value !== want) els.pctIn.value = want;
   }
   const sz = m.size || {};
-  els.sz.textContent = sz.qty > 0 ? F.qty(sz.qty) : sz.why || ''; // no text without an account; .sz: quantity style, without the symbol
+  els.sz.textContent = sz.qty > 0 ? F.qty(sz.qty) : shortWhy(sz.why); // no text without an account; .sz: quantity style, without the symbol
   els.sz.className = 'sz' + (sz.qty > 0 ? '' : ' why');
-  // without "%" and in ascending order
+  // with "%" and in ascending order
   [...(m.presets || PRESETS)].sort((a, b) => a - b).forEach((p, i) => {
     const b = els.card2.querySelector('button.p' + i);
     if (!b || b.dataset.p === String(p)) return;
     b.dataset.p = String(p);
-    b.textContent = String(p);
+    b.textContent = p + '%';
     b.classList.toggle('sm', String(p).length > 2); // "2.5", "100": smaller font to fit the button
   });
   for (const b of els.card2.querySelectorAll('button.pp')) b.classList.toggle('on', +b.dataset.p === +m.pct);
-  els.card2.querySelector('[data-a="lm"]').disabled = busy || !(sz.qty > 0);
-  els.card2.querySelector('[data-a="st"]').disabled = busy || !(sz.qty > 0);
+  // Risk & targets PLAN / READY: the % size is not used; LIMIT / STOP set the plan ENTRY,
+  // LONG / SHORT at market only in ACTIVE (with the plan)
+  const omOn = !!col && omMode !== 'manual';
+  for (const b of els.card2.querySelectorAll('button.pp')) b.disabled = omOn;
+  els.pctIn.disabled = omOn;
+  els.card2.querySelector('[data-a="lm"]').disabled = busy || (!omOn && !(sz.qty > 0));
+  els.card2.querySelector('[data-a="st"]').disabled = busy || (!omOn && !(sz.qty > 0));
   // LONG / SHORT: add in the position's direction, CUT in the opposite one (never beyond the position: no reversal)
   for (const s of ['long', 'short']) {
     const b = els.card2.querySelector(`[data-a="${s}"]`);
     const cut = pos && pos.side !== s;
-    b.disabled = busy || !(sz.qty > 0);
+    b.disabled = busy || omOn || !(sz.qty > 0); // Risk ON: market entries only from START on the MARKET label
+    if (b.disabled && hoverSide === s) hoverSide = null;
   }
   const pend = m.pendings || [];
   const nLm = pend.filter((x) => !x.local).length,
@@ -1211,8 +1715,126 @@ function draw() {
   if (pvRes) items.push({ id: 'pv:mfp', kind: 'mfp', price: pvRes.ko.price, pv: pvRes, ghost: !okPv(pv) });
   if (pv && pv.adding) items.push({ id: 'pv:avg', kind: 'avgn', price: pv.avg, pv, pvAvg: true });
   if (pos) for (const t of pos.triggers) items.push({ id: t.id, kind: t.kind, price: t.price, leg: t });
+  if (col && root.activeElement !== els.roomIn) {
+    const rv = String(m.roomPx ?? '');
+    if (els.roomIn.value !== rv) els.roomIn.value = rv;
+  }
+  // Trailing & breakeven: fields follow the panel's settings (not while typing in them)
+  if (col && m.tb) {
+    for (const el of els.sTb.querySelectorAll('[data-tb]')) {
+      if (root.activeElement === el) continue;
+      const v = m.tb[el.dataset.tb];
+      if (el.type === 'checkbox') {
+        if (el.checked !== !!v) el.checked = !!v;
+      } else if (el.value !== String(v ?? '')) el.value = String(v ?? '');
+    }
+    const n = m.tb.note || {};
+    if (els.tbNote.textContent !== (n.text || '')) els.tbNote.textContent = n.text || '';
+    els.tbNote.classList.toggle('warn', !!n.warn);
+  }
+  // Risk & targets: plan for both sides in the column section, lines only for the side being shown (no orders)
+  if (col) {
+    omBv = bv;
+    omPv = omMode === 'manual' ? null : omNewLimitSide(m) || omSide;
+    const tg = omMode === 'manual' ? 'OFF' : 'ON';
+    if (els.omTgl.textContent !== tg) {
+      els.omTgl.textContent = tg;
+      els.omTgl.classList.toggle('on', tg === 'ON');
+    }
+    els.cmd.classList.toggle('plan', omMode !== 'manual');
+    const en = { long: omEntry(m, 'long'), short: omEntry(m, 'short') };
+    // ACTIVE: an order of the plan is really there (pending LIMIT / armed local STOP) or the position is open
+    const evNow = omPv && en[omPv];
+    const actNow = omMode !== 'manual' && (!!pos || !!(evNow && (evNow.src === 'limit' || evNow.src === 'stop')));
+    // next to Trade commands: MANUAL, RISK PLAN (plan drives the orders, nothing placed yet) or RISK ACTIVE
+    const ph = omMode === 'manual' ? 'MANUAL' : actNow ? 'RISK ACTIVE' : 'RISK PLAN';
+    if (els.cmdPh.textContent !== ph) {
+      els.cmdPh.textContent = ph;
+      els.cmdPh.className = 'cph ' + (omMode === 'manual' ? 'manual' : actNow ? 'act' : 'view');
+    }
+    const pl = { long: omPlan(m, 'long', bv, en.long.price, omSlDrag('long')), short: omPlan(m, 'short', bv, en.short.price, omSlDrag('short')) };
+    const fp = (v) => F.price(v, priceDec);
+    const tgTxt = (t) => (t.by === 'trail' ? `T${t.n} trailing ×${F.qty(t.qty)}` : Number.isFinite(t.price) ? `T${t.n} <b>${fp(t.price)}</b> ×${F.qty(t.qty)}` : `T${t.n} —`);
+    const sideTxt = (s) => {
+      const x = pl[s];
+      if (!(x.qty > 0)) return `<div><i class="${s === 'long' ? 'up' : 'down'}">${s.toUpperCase()}</i> <span class="warn">${F.esc(x.why || '')}</span></div>`;
+      const t = x.targets.map(tgTxt).join(' · ');
+      const e = en[s];
+      const from = e.src === 'limit' ? `LIMIT <b>${fp(e.price)}</b>` : e.src === 'stop' ? `local STOP <b>${fp(e.price)}</b>` : e.src === 'mark' ? 'market' : `${omType(e) === 'st' ? 'STOP ' : ''}entry <b>${fp(e.price)}</b>`;
+      return `<div><i class="${s === 'long' ? 'up' : 'down'}">${s.toUpperCase()}</i> ${from} · size <b class="q">${F.qty(x.qty)}</b> · SL <b>${fp(x.sl)}</b> · risk <b class="down">${F.usd(x.riskUsd)}</b>${t ? '<br>' + t : ''}</div>`;
+    };
+    const L = pl.long, S2 = pl.short;
+    const notes = [];
+    if (L.capped || S2.capped) notes.push(`<div class="warn">size cut to the size cap (${m.capPct}%)</div>`);
+    const w = (L.qty > 0 && L.why) || (S2.qty > 0 && S2.why);
+    if (w) notes.push(`<div class="warn">${F.esc(w)}</div>`);
+    const nT = L.targets.length || S2.targets.length;
+    if (omSt.stops === 'each' && nT > 1) notes.push(`<div class="note">Stops: one per target (${nT}), each with its target's size.</div>`);
+    const ev = omPv && en[omPv];
+    const mk = m.market.mark;
+    const evSt = omType(ev) === 'st';
+    if (ev && ev.src !== 'mark' && mk > 0 && !evSt && (omPv === 'long' ? ev.price > mk : ev.price < mk))
+      notes.push(`<div class="warn">${omPv.toUpperCase()} entry ${omPv === 'long' ? 'above' : 'below'} the price: a LIMIT there fills at once (it would be a STOP entry)</div>`);
+    if (ev && ev.src !== 'mark' && mk > 0 && evSt && (omPv === 'long' ? ev.price < mk : ev.price > mk))
+      notes.push(`<div class="warn">${omPv.toUpperCase()} STOP entry ${omPv === 'long' ? 'below' : 'above'} the price: it would trigger at once (it would be a LIMIT entry)</div>`);
+    if (ev && ev.src === 'stop')
+      notes.push('<div class="note">Plan STOP is LOCAL: it lives in this browser tab. When the price touches it, it sends a market order with the plan size, SL and TP. Reload, tab closed or Orders off = gone.</div>');
+    const pq = omPv && pl[omPv].qty;
+    if (ev && ev.src === 'limit' && pq > 0 && Math.abs(ev.order.qty - pq) > 1e-9)
+      notes.push(`<div class="warn">The LIMIT on the chart has size ${F.qty(ev.order.qty)}, the plan ${F.qty(pq)}: move the LIMIT or plan SL and it is placed again with the plan.</div>`);
+    else if (ev && ev.src === 'limit' && pq > 0) notes.push('<div class="note">The LIMIT on the chart has the plan size.</div>');
+    if (ev && ev.src === 'limit') {
+      // SL / TP read from Vest (size-0 position Vest keeps for the pending LIMIT), not the plan lines
+      const lg = m.phLegs;
+      const one = (l) => `${l.kind.toUpperCase()} <b>${fp(l.price)}</b>${l.qty > 0 ? ' ×' + F.qty(l.qty) : ''}`;
+      if (lg && lg.length)
+        notes.push(`<div class="note">On Vest this LIMIT holds: ${lg.filter((l) => l.kind === 'sl').map(one).join(', ') || '<b class="warn">no SL</b>'} · ${lg.filter((l) => l.kind === 'tp').map(one).join(', ') || 'no TP'}</div>`);
+      else if (lg) notes.push('<div class="warn">The data Vest sends shows no SL / TP for this LIMIT (they may appear only when it fills): check the order on Vest. The plan lines are drawn here.</div>');
+      else notes.push('<div class="note">Vest does not say which SL / TP this LIMIT holds: the plan lines are drawn here from the plan.</div>');
+    }
+    if (omBusy) notes.push('<div class="note">Placing the LIMIT with the new plan…</div>');
+    if (ev && ev.src === 'set') {
+      const what = evSt ? 'arm the local STOP' : 'place the LIMIT';
+      notes.push(`<div class="note">Press START on its label to ${what} with this plan.</div>`);
+    }
+    const modeTxt =
+      omMode === 'manual'
+        ? 'Manual: Trade commands use the % size, nothing on the chart.'
+        : omMode === 'view'
+          ? 'PLAN: a LIMIT or STOP dragged from Trade commands only sets the plan ENTRY (nothing is sent): READY on its label, then START, places it with the plan size, SL and TP; its lines then say ACTIVE. A pending LIMIT moved (or its plan SL) is placed again with the plan. LONG / SHORT at market still use the % size.'
+          : '<b class="act">RISK ON</b>: the % size and the LONG / SHORT buttons are off. START on the MARKET label sends the plan size WITH its SL and TP at market (real order, Orders ON); a dragged LIMIT or STOP moves the entry there, START on its label places it (the STOP is local, in this tab). Only on a market with no position and no pending order.';
+    const html = (omMode === 'manual' ? '' : sideTxt('long') + sideTxt('short') + notes.join('')) + `<div class="note">${modeTxt}</div>`;
+    if (els.omOut.dataset.h !== html) {
+      els.omOut.dataset.h = html;
+      els.omOut.innerHTML = html;
+    }
+    const lev = m.size && m.size.lev > 0 ? m.size.lev + '×' : '—';
+    if (els.omLev.textContent !== lev) els.omLev.textContent = lev;
+    els.omL.classList.toggle('on', omSide === 'long');
+    els.omS.classList.toggle('on', omSide === 'short');
+    if (omBusy && omBusy.done) {
+      const lmNow = omLimit(m, omBusy.side);
+      if ((lmNow && Math.abs(lmNow.price - omBusy.price) < tick / 2) || pos || Date.now() > omBusy.until) omBusy = null;
+    }
+    const hideLines = !!pos || !!omBusy; // after the entry the real SL / TP are on the chart; while the LIMIT is placed again, nothing
+    const x = !hideLines && omPv && pl[omPv];
+    const e = !hideLines && omPv && en[omPv];
+    omActNow = !!(e && (e.src === 'limit' || e.src === 'stop'));
+    // ENTRY: only when the entry is not already a LIMIT on the chart (then the LIMIT line is the entry)
+    if (e && e.src !== 'limit' && e.src !== 'stop' && e.src !== 'newlm' && e.price > 0)
+      items.push({ id: 'om:entry', kind: 'lm', price: e.price, om: { k: `${e.src === 'mark' ? 'MARKET' : omType(e) === 'st' ? 'STOP' : 'LIMIT'} ${omPv === 'long' ? 'LONG' : 'SHORT'}`, qty: x && x.qty > 0 ? x.qty : NaN, usd: NaN, drag: true, entry: true, go: e.src === 'set' || e.src === 'mark', back: e.src === 'set' } });
+    if (x && x.qty > 0) {
+      items.push({ id: 'om:sl', kind: 'sl', price: drag && drag.from === 'plan' && drag.kind === 'sl' && drag.moved ? drag.price : x.sl, om: { k: `${omPv === 'long' ? 'LONG' : 'SHORT'} SL`, qty: x.qty, usd: -x.riskUsd, drag: true, entry: e.price } });
+      for (const t of x.targets)
+        if (Number.isFinite(t.price)) {
+          const name = t.by === 'r' ? `${t.val}R` : t.by === 'atr' ? `${t.val}×ATR` : t.by === 'ticks' ? `${t.val}t` : '';
+          items.push({ id: 'om:t' + t.n, kind: 'tp', price: t.price, om: { k: `T${t.n}${name ? ' ' + name : ''}`, qty: t.qty, usd: t.reward } });
+        }
+    }
+  }
   for (const o of m.pendings || []) items.push({ id: 'o:' + o.id, kind: o.kind, price: o.price, order: o });
   const seen = new Set();
+  planNow.clear();
   items.sort((a, b) => b.price - a.price); // top to bottom: labels stack without overlapping
   const placed = []; // [top, bottom] of the labels already placed
   for (const it of items) {
@@ -1220,14 +1842,31 @@ function draw() {
     let le = legEls.get(it.id);
     if (!le) {
       le = { line: document.createElement('div'), chip: document.createElement('div'), html: '' };
-      const ro = it.entry || it.ko || it.dd50 || it.avgL || it.pv; // (also AVG NEXT and the FAIL NEW preview) read-only: no drag, no X
+      const omDrag = !!(it.om && it.om.drag); // ENTRY and plan SL: dragged, nothing sent
+      const ro = it.entry || it.ko || it.dd50 || it.avgL || it.pv || (it.om && !omDrag); // (also AVG NEXT, the FAIL NEW preview, the plan targets) read-only: no drag, no X
       le.line.className = ro ? 'hl entry' : 'hl grab';
-      le.chip.className = 'chip ' + it.kind + (ro ? ' pos' : '');
+      le.chip.className = 'chip ' + it.kind + (ro ? ' pos' : '') + (it.om ? ' plan' : '');
       const id = it.id;
       // label and line are grabbed the same way: dragging moves the level, the X cancels/removes
       const grab = (el) => (e) => {
         const cur = getModel();
         if (!cur) return;
+        if (id === 'om:entry' && e.target.closest('.x')) {
+          e.preventDefault();
+          e.stopPropagation();
+          omAnchor = null;
+          return say('Plan ENTRY back to the market price', '');
+        }
+        if (id === 'om:entry' && e.target.closest('.go')) {
+          e.preventDefault();
+          e.stopPropagation();
+          return omSend();
+        }
+        if (id === 'om:entry' || id === 'om:sl') {
+          const p = planNow.get(id);
+          if (!p) return;
+          return startDrag(e, el, id === 'om:sl' ? 'sl' : 'lm', { id, price: p.price, entry: p.entry, qty: p.qty }, 'plan');
+        }
         if (id.startsWith('o:')) {
           const o = (cur.pendings || []).find((x) => 'o:' + x.id === id);
           if (!o) return;
@@ -1275,7 +1914,17 @@ function draw() {
       continue;
     }
     let html, price;
-    if (it.pvAvg) {
+    if (it.om) {
+      price = it.price;
+      const om = it.om;
+      if (om.drag) planNow.set(it.id, { price, entry: om.entry === true ? price : om.entry, qty: om.qty });
+      const dragging = !!(drag && drag.from === 'plan' && drag.existing.id === it.id && drag.moved);
+      html = `<span class="ph ${omActNow ? 'act' : 'view'}">${omActNow ? 'RISK ACTIVE' : 'RISK PLAN'}</span><span class="k">${om.k}</span><b>${F.price(price, priceDec)}</b>${om.qty > 0 ? `<span>${F.qty(om.qty)}</span>` : ''}${Number.isFinite(om.usd) ? `<span class="${F.cls(om.usd)}">${F.usd(om.usd, true)}</span>` : ''}` +
+        (om.go ? `<span class="go live">START</span>${om.back ? '<span class="x">✕</span>' : ''}` : '');
+      le.chip.classList.toggle('drag', dragging);
+      le.chip.classList.toggle('bad', !!(dragging && !drag.ok));
+      le.chip.classList.toggle('act', omActNow); // order of the plan really there: black label
+    } else if (it.pvAvg) {
       const P = it.pv;
       price = P.avg;
       html = `<span class="k">AVG NEW</span><b>${F.price(price, priceDec)}</b><span class="qy">${F.qty(P.qty)}</span>`;
@@ -1449,7 +2098,10 @@ function draw() {
     let txt;
     if (drag.kind === 'lm' || drag.kind === 'st') {
       const side = entrySide(drag.kind, drag.price, mark);
-      txt = `<span class="k">${NAME[drag.kind]}</span>${side ? `<span class="${side === 'long' ? 'up' : 'down'}">${sideWord(side)}</span>` : ''}<b>${F.price(drag.price, priceDec)}</b><span>${sz.qty > 0 ? F.qty(sz.qty) : ''}</span>`;
+      // ACTIVE: the LIMIT goes with the plan size at this price (recalculated at every move); otherwise the % size
+      const pq = (drag.kind === 'lm' || drag.kind === 'st') && side && col && omMode !== 'manual' ? omPlan(m, side, bv, drag.price).qty : NaN;
+      const q = omMode !== 'manual' && col && (drag.kind === 'lm' || drag.kind === 'st') ? pq : sz.qty;
+      txt = `<span class="k">${NAME[drag.kind]}</span>${side ? `<span class="${side === 'long' ? 'up' : 'down'}">${sideWord(side)}</span>` : ''}<b>${F.price(drag.price, priceDec)}</b><span>${q > 0 ? F.qty(q) : ''}</span>`;
     } else {
       const usd = pos ? pnlUsd(pos.side, pos.qty, pos.openPrice, drag.price) : NaN;
       txt = `<span class="k">${NAME[drag.kind]}</span><b>${F.price(drag.price, priceDec)}</b><span class="${F.cls(usd)}">${F.usd(usd, true)}</span>${pos ? sumAll(drag.price) : ''}`;
@@ -1472,6 +2124,7 @@ function draw() {
 // ── removing a stop/target. The target goes on the first click; the STOP needs a second click within 3 s
 // (removing the stop increases the risk: hence two clicks).
 let removeArm = null; // { id, until }
+const planNow = new Map(); // 'om:entry' | 'om:sl' -> { price, entry, qty } as drawn in the last frame (start of a plan drag)
 const removing = new Map(); // id -> wait deadline
 function askRemove(leg) {
   const now = Date.now();
@@ -1516,7 +2169,7 @@ function askCancel(o) {
 function startDrag(e, el, kind, existing, from) {
   const m = getModel();
   if (!m || !state.visible || !m.market) return;
-  if ((kind === 'tp' || kind === 'sl') && !m.pos) return;
+  if ((kind === 'tp' || kind === 'sl') && !m.pos && from !== 'plan') return;
   e.preventDefault();
   e.stopPropagation();
   try {
@@ -1533,7 +2186,8 @@ function startDrag(e, el, kind, existing, from) {
     if (!drag.moved || !drag.g || !cur || !cur.market) return;
     const { tick, mark } = cur.market;
     drag.price = roundToTick(G.yToPrice(ev.clientY - drag.g.top, drag.g.vr, drag.g.height), tick);
-    if (drag.from === 'order') drag.ok = entrySide(drag.kind, drag.price, mark) === drag.existing.order.side && !tooClose(drag.price, mark, tick);
+    if (drag.from === 'plan') drag.ok = drag.kind === 'lm' || (drag.price - drag.existing.entry) * (omPv === 'long' ? -1 : 1) > 0; // plan SL on the stop side of the entry
+    else if (drag.from === 'order') drag.ok = entrySide(drag.kind, drag.price, mark) === drag.existing.order.side && !tooClose(drag.price, mark, tick);
     else if (drag.kind === 'lm' || drag.kind === 'st') drag.ok = !!entrySide(drag.kind, drag.price, mark) && !tooClose(drag.price, mark, tick);
     else drag.ok = !!cur.pos && !checkLeg({ kind: drag.kind, side: cur.pos.side, price: drag.price, mark, tick });
   };
@@ -1548,10 +2202,85 @@ function startDrag(e, el, kind, existing, from) {
   el.addEventListener('pointercancel', up);
 }
 
+/** Plan line dropped (nothing is sent). ENTRY: the plan starts there. SL: stop = that distance, size unchanged, risk follows. */
+function omDrop(d) {
+  const m = getModel();
+  if (!m || !m.market || !omPv) return;
+  if (d.kind === 'lm') {
+    omAnchor = { side: omPv, symbol: m.market.symbol, price: d.price, type: (omAnchor && omAnchor.type) || 'lm' };
+    return;
+  }
+  if (!d.ok) return say(`plan SL must be ${omPv === 'long' ? 'below' : 'above'} the entry`, 'err');
+  const dist = Math.abs(d.existing.entry - d.price);
+  const dec = Math.max(0, Math.ceil(-Math.log10(m.market.tick || 1)) + 1);
+  const before = omSt.stopBy;
+  omSt.stopBy = 'dist';
+  omSt.stopVal = String(+dist.toFixed(dec));
+  omFill();
+  omSave();
+  const side = omPv;
+  const en = omEntry(m, side);
+  const x = omPlan(m, side, omBv, en.price);
+  const what = `stop ${omSt.stopVal} points${before !== 'dist' ? ' (stop rule now Points)' : ''}, size ${x.qty > 0 ? F.qty(x.qty) : '—'}`;
+  // plan on a pending LIMIT: that order is placed again with the new size, SL and TP
+  if (omLim() && en.src === 'limit') {
+    const pl = omOrderPlan(m, side, en.order.price);
+    if (pl instanceof Error) return say(pl.message, 'err');
+    omRun(actions.planMove(en.order, en.order.price, pl), `PLAN LIMIT updated: ${pl.qty} with SL ${pl.sl}`, side, en.order.price);
+    return;
+  }
+  if (omLim() && en.src === 'stop') {
+    const pl = omOrderPlan(m, side, en.order.price);
+    if (pl instanceof Error) return say(pl.message, 'err');
+    run(actions.planStopMove(en.order, en.order.price, pl), `PLAN STOP updated: ${pl.qty} with SL ${pl.sl} (local)`);
+    return;
+  }
+  say('Plan: ' + what, '');
+}
+
+/** Button on ENTRY: READY (in PLAN) switches to READY, START (in READY) places the LIMIT (or arms the local STOP) with the plan. */
+function omSend() {
+  const m = getModel();
+  if (!m || !m.market || !omLim()) return;
+  if (omMode === 'view') {
+    omMode = 'live';
+    omSave();
+    return say('READY: press START on ENTRY to place the order with the plan', '');
+  }
+  const side = omSide;
+  const en = omEntry(m, side);
+  if (en.src === 'mark') {
+    // START on the MARKET label: market entry with the plan size, SL and TP
+    const pl = omOrderPlan(m, side, m.market.mark);
+    if (pl instanceof Error) return say(pl.message, 'err');
+    run(actions.planEntry('market', side, null, pl), `PLAN ${side.toUpperCase()} sent at market: ${pl.qty} with SL ${pl.sl}`);
+    return;
+  }
+  if (en.src !== 'set') return;
+  if (omType(en) === 'st') {
+    if (entrySide('st', en.price, m.market.mark) !== side)
+      return say(`a ${side === 'long' ? 'BUY' : 'SELL'} stop goes ${side === 'long' ? 'above' : 'below'} the price: move ENTRY`, 'err');
+    const pl = omOrderPlan(m, side, en.price);
+    if (pl instanceof Error) return say(pl.message, 'err');
+    const p = actions.planStop(side, en.price, pl);
+    run(p, `PLAN STOP ${side === 'long' ? 'BUY' : 'SELL'} ${pl.qty} at ${en.price} with SL ${pl.sl} armed (LOCAL, in this tab)`);
+    p.then(() => (omAnchor = null), () => {}); // then the plan follows the STOP on the chart
+    return;
+  }
+  if (entrySide('lm', en.price, m.market.mark) !== side)
+    return say(`a ${side === 'long' ? 'BUY' : 'SELL'} limit goes ${side === 'long' ? 'below' : 'above'} the price: move ENTRY`, 'err');
+  const pl = omOrderPlan(m, side, en.price);
+  if (pl instanceof Error) return say(pl.message, 'err');
+  const p = actions.planEntry('limit', side, en.price, pl);
+  omRun(p, `PLAN LIMIT ${side === 'long' ? 'BUY' : 'SELL'} ${pl.qty} @ ${en.price} with SL ${pl.sl}`, side, en.price);
+  p.then(() => (omAnchor = null), () => {}); // then the plan follows the LIMIT on the chart
+}
+
 function endDrag(commit) {
   const d = drag;
   drag = null;
   if (!d || !commit) return;
+  if (d.from === 'plan') return d.moved && omDrop(d);
   if (!d.moved) {
     if (d.from !== 'leg' && d.from !== 'order') say(`Hold ${NAME[d.kind]} and drag it to the level you want`, '');
     return;
@@ -1562,10 +2291,43 @@ function endDrag(commit) {
     if (Math.abs(d.price - o.price) < 1e-9) return;
     if (!d.ok) return say(`${NAME[d.kind]}: invalid level (wrong side or too close to the price)`, 'err');
     pending = { kind: d.kind, legId: 'o:' + o.id, price: d.price, until: Date.now() + 6000 };
+    if (omLim() && o.local && o.plan) {
+      const pl = omOrderPlan(getModel(), o.side, d.price);
+      if (pl instanceof Error) {
+        pending = null;
+        return say(pl.message, 'err');
+      }
+      const p = actions.planStopMove(o, d.price, pl);
+      run(p, `PLAN STOP moved to ${d.price}: ${pl.qty} with SL ${pl.sl} (local)`);
+      p.catch(() => (pending = null));
+      return;
+    }
+    if (omLim() && !o.local && o.kind === 'lm') {
+      // plan: cancelled and placed again with SL / TP recalculated at the new price
+      const pl = omOrderPlan(getModel(), o.side, d.price);
+      if (pl instanceof Error) {
+        pending = null;
+        return say(pl.message, 'err');
+      }
+      const p = actions.planMove(o, d.price, pl);
+      omRun(p, `PLAN LIMIT moved to ${d.price}: ${pl.qty} with SL ${pl.sl}`, o.side, d.price);
+      p.catch(() => (pending = null));
+      return;
+    }
     const p = actions.movePending(o, d.price);
     run(p, `${NAME[d.kind]} moved to ${d.price}${o.local ? ' (local)' : ''}`);
     p.catch(() => (pending = null));
     return;
+  }
+  if ((d.kind === 'lm' || d.kind === 'st') && omLim()) {
+    const m = getModel();
+    const side = m && m.market && entrySide(d.kind, d.price, m.market.mark);
+    if (!side) return say('current price not available', 'err');
+    // nothing is sent on release: the plan stays at that price, its label has READY (in PLAN) / START (in READY)
+    omSide = side;
+    omAnchor = { side, symbol: m.market.symbol, price: d.price, type: d.kind };
+    omSave();
+    return say(`Plan ${d.kind === 'st' ? 'STOP ' : ''}ENTRY ${side === 'long' ? 'LONG' : 'SHORT'} at ${d.price}: press ${omMode === 'live' ? 'START' : 'READY, then START,'} on its label to ${d.kind === 'st' ? 'arm the local STOP' : 'place the LIMIT'}`, '');
   }
   if (d.kind === 'lm' || d.kind === 'st') {
     // order on release, no confirmation: the real checks are in entry.js / stops.js
@@ -2126,10 +2888,14 @@ function followerOrderId(f, l) {
   const o = ((S.state[f] || {}).orders || []).find((x) => x.symbol === l.symbol && +x.price === l.price);
   return o ? o.id : null;
 }
+// copy orders just cancelled, per copy: their empty placeholder can still be there for a moment (see leftoverPh)
+const justCancelled = new Map(); // follower -> { symbol, ids: Set, at }
 async function cancelLinked(l, why) {
+  const sent = {};
   const res = await Promise.allSettled(
     st.followers.map((f) => {
       const id = followerOrderId(f, l);
+      sent[f] = id;
       if (!id) {
         log.warn(`COPY ${label(f)}: pending order to cancel not found (${why})`);
         return Promise.reject(new Error('not found'));
@@ -2137,7 +2903,21 @@ async function cancelLinked(l, why) {
       return orders.send(f, { method: 'POST', path: '/v3/positions/cancel-order', body: { orderId: id } }, `COPY ${label(f)}: cancel pending order (${why})`, null);
     }),
   );
+  st.followers.forEach((f, i) => {
+    if (res[i].status !== 'fulfilled') return;
+    const jc = justCancelled.get(f);
+    const ids = jc && jc.symbol === l.symbol && Date.now() - jc.at < 10000 ? jc.ids : new Set();
+    ids.add(sent[f]);
+    justCancelled.set(f, { symbol: l.symbol, ids, at: Date.now() });
+  });
   return res.filter((r) => r.status === 'fulfilled').length;
+}
+/** Before copying a new /open: waits (max 5 s) until the copies' placeholders left by a cancel just made are gone. */
+async function leftoversGone(symbol) {
+  const left = (f) => C.leftoverPh(S.state[f], justCancelled.get(f), symbol, Date.now());
+  for (let i = 0; i < 25 && st.followers.some(left); i++) await new Promise((r) => setTimeout(r, 200));
+  const still = st.followers.filter(left);
+  if (still.length) log.warn(`Copy: ${still.map(label).join(', ')} still have the empty placeholder of the order just cancelled: the new order goes onto it (Vest may reject it)`);
 }
 // links of orders the master no longer has (filled or cancelled elsewhere): dropped after 15 s, time for the state to update
 function pruneLinks() {
@@ -2311,6 +3091,7 @@ async function mirror({ accountId, order, before, via, res: mRes }) {
   const m = symbol && S.symbols[symbol];
   const src = via === 'page' ? 'Vest ticket' : 'tool';
   if (!m) return log.warn(`MASTER ${action} (${src}): market ${symbol || '?'} not recognised, not copied`);
+  if (action === 'open') await leftoversGone(symbol); // e.g. LIMIT moved by the plan: cancel + new /open on the master
   const mEq = (store.values(st.master) || {}).equity;
   const t0 = performance.now();
   const plans = st.followers.map((f) => {
@@ -2528,6 +3309,7 @@ const orders = require('./orders');
 const Z = require('../domain/sizing');
 const { floorStep } = require('../domain/num');
 const { closeOrder } = require('../domain/orders');
+const { entryLegs } = require('../domain/plan');
 
 const { S } = store;
 
@@ -2704,12 +3486,71 @@ async function moveLimit({ accountId, symbol, order, price }) {
   return true;
 }
 
+/**
+ * Risk & targets in Active mode: new trade with the plan's size and its SL / TP legs in the same /open request
+ * (market, or limit at price). plan = { qty, sl, targets: [{ price, qty }], each }.
+ * Only on a free market: Vest attaches legs to /open only, while orders added to a position or to a pending order
+ * go through /append, which has no legs.
+ */
+async function planOpen({ accountId, symbol, side, type, price, plan }) {
+  const m = S.symbols[symbol],
+    mk = S.marks[symbol];
+  if (!m || !(mk && mk.px > 0)) throw new Error('market or price not read yet');
+  if (positionOn(accountId, symbol)) throw new Error('Risk plan: there is already a position on this market. The plan opens new trades only (Manual mode to add)');
+  if (placeholderOn(accountId, symbol)) throw new Error('Risk plan: there is already a pending order on this market (SL / TP attach only to the first order): cancel it first');
+  const w = side === 'long' ? 'BUY' : 'SELL';
+  const ref = type === 'limit' ? price : mk.px;
+  if (type === 'limit') {
+    if (Z.entrySide('lm', price, mk.px) !== side) throw new Error(`a ${w} limit goes ${side === 'long' ? 'below' : 'above'} the price`);
+    if (Z.tooClose(price, mk.px, m.tick)) throw new Error('too close to the price');
+  }
+  if (!(plan && plan.qty > 0)) throw new Error('Risk plan: no size (check the Risk & targets section)');
+  if ((side === 'long' ? 1 : -1) * (ref - plan.sl) <= 0) throw new Error(`Risk plan: the stop ${plan.sl} is on the wrong side of the entry ${ref}`);
+  const sz = sizeFor(accountId, symbol, 100);
+  if (!(sz.lev > 0)) throw new Error(sz.why || 'leverage unknown for this market');
+  if (sz.max > 0 && plan.qty > sz.max) throw new Error(`Risk plan: size ${plan.qty} above what the margin allows (${sz.max})`);
+  if (plan.qty * mk.px < 1) throw new Error('below the Vest minimum ($1 notional)');
+  const legs = entryLegs({ qty: plan.qty, sl: plan.sl, targets: plan.targets, each: plan.each, step: m.step, tick: m.tick });
+  if (legs.why) throw new Error('Risk plan: ' + legs.why);
+  const order = Z.openOrder({ symbol, side, qty: plan.qty, leverage: sz.lev, step: m.step, tick: m.tick, type, price });
+  order.body.takeProfits = legs.takeProfits;
+  order.body.stopLosses = legs.stopLosses;
+  const label = `PLAN ${w} ${plan.qty} ${type === 'limit' ? '@ ' + price : 'at market'} with SL ${plan.sl} and ${legs.takeProfits.length} TP`;
+  return orders.send(accountId, order, label, null);
+}
+
+/** Pending orders of the account on a market (Vest limits). */
+const pendingOn = (accountId, symbol) => ((S.state[accountId] || {}).orders || []).filter((o) => o.symbol === symbol);
+
+/**
+ * Moves the LIMIT of an Active plan: cancelled, then placed again at the new price with the legs recalculated there
+ * (a /append move would lose them). If the new one is refused, nothing stays pending: said clearly.
+ */
+async function planMove({ accountId, symbol, order, price, plan }) {
+  const w = order.side === 'long' ? 'BUY' : 'SELL';
+  // checked BEFORE cancelling: when the new /open would surely be refused, the old LIMIT is left where it is
+  if (positionOn(accountId, symbol)) throw new Error('Risk plan: there is a position on this market, the LIMIT is left as it is');
+  if (pendingOn(accountId, symbol).some((o) => o.id !== order.id)) throw new Error('Risk plan: other pending orders on this market, the LIMIT is left as it is (SL / TP attach only to a single order)');
+  const m = S.symbols[symbol];
+  if (!(plan && plan.qty > 0) || !m) throw new Error('Risk plan: no size');
+  const legs = entryLegs({ qty: plan.qty, sl: plan.sl, targets: plan.targets, each: plan.each, step: m.step, tick: m.tick });
+  if (legs.why) throw new Error('Risk plan: ' + legs.why + ', the LIMIT is left as it is');
+  await cancelOrder({ accountId, orderId: order.id, label: `LIMIT ${w} @ ${order.price} (plan moved to ${price})` });
+  // Vest needs a moment to drop the pending slot (placeholder): a new /open before that is refused
+  for (let i = 0; i < 25 && (placeholderOn(accountId, symbol) || pendingOn(accountId, symbol).some((o) => o.id === order.id)); i++) await new Promise((r) => setTimeout(r, 200));
+  try {
+    return await planOpen({ accountId, symbol, side: order.side, type: 'limit', price, plan });
+  } catch (e) {
+    throw new Error(`old LIMIT cancelled, new one at ${price} NOT placed (${e.message}): nothing is pending now`);
+  }
+}
+
 /** Cancels a pending order. */
 function cancelOrder({ accountId, orderId, label }) {
   return orders.send(accountId, { method: 'POST', path: '/v3/positions/cancel-order', body: { orderId } }, `cancel ${label || orderId}`, null);
 }
 
-module.exports = { sizeFor, positionOn, placeholderOn, target, marketOpen, closePct, reduceAll, moveLimit, placeLimit, marketEntry, addMarket, cutHalf, cancelOrder, checkPct };
+module.exports = { planOpen, planMove, sizeFor, positionOn, placeholderOn, target, marketOpen, closePct, reduceAll, moveLimit, placeLimit, marketEntry, addMarket, cutHalf, cancelOrder, checkPct };
 
   },
   "core/feed.js": function (module, exports, require) {
@@ -3124,7 +3965,7 @@ function setEnabled(v) {
 
 /** Reason why trading is not possible now, or null. */
 function blocked(accountId) {
-  if (!transport.ordersEnabled()) return 'Orders are off: switch them on in the panel ("Orders" switch)';
+  if (!transport.ordersEnabled()) return 'Orders are off: switch ORDERS on (Trade commands)';
   if (!S.accounts[accountId]) return 'Account not active';
   if (session.canTradeOf(accountId) === false) return 'Vest says this account cannot trade (canTrade = false)';
   return null;
@@ -3471,27 +4312,34 @@ const log = require('../diag/log');
 const { S } = store;
 const STALE_MS = 3000;
 let seq = 1;
-const armed = new Map(); // id -> { id, accountId, symbol, side, trigger, qty, lev, at, firing }
+const armed = new Map(); // id -> { id, accountId, symbol, side, trigger, qty, lev, at, firing, plan? }
+// plan STOP (Risk & targets): when touched, this sends the market entry WITH the plan's SL / TP (set by main.js)
+let planFire = null;
 const listeners = new Set();
 const notify = () => {
   for (const fn of listeners) fn();
   store.changed();
 };
 
-/** Arms an entry stop at the given price (size and leverage fixed now). */
-function arm({ accountId, symbol, price, pct, cap }) {
-  entry.checkPct(pct, cap);
+/** Arms an entry stop at the given price (size and leverage fixed now). With plan: size, SL and TP of the plan. */
+function arm({ accountId, symbol, price, pct, cap, plan }) {
+  if (!plan) entry.checkPct(pct, cap);
   const m = S.symbols[symbol],
     mk = S.marks[symbol];
   const side = Z.entrySide('st', price, mk && mk.px);
   if (!side) throw new Error('current price not available');
   if (Z.tooClose(price, mk.px, m.tick)) throw new Error('too close to the price: to enter now use ADD or the ticket');
-  entry.target(accountId, symbol, side, 'a stop'); // same side as the position or the pending orders
-  const sz = entry.sizeFor(accountId, symbol, pct);
+  if (plan) {
+    // the plan opens only on a free market (no position, no pending order): same rule as the plan LIMIT
+    if (entry.positionOn(accountId, symbol)) throw new Error('plan STOP: only with no position on this market');
+    if (entry.placeholderOn(accountId, symbol)) throw new Error('plan STOP: a pending order is on this market (cancel it first)');
+    if ([...armed.values()].some((x) => x.accountId === accountId && x.symbol === symbol)) throw new Error('plan STOP: another local stop is armed on this market');
+  } else entry.target(accountId, symbol, side, 'a stop'); // same side as the position or the pending orders
+  const sz = plan ? { qty: plan.qty, lev: null } : entry.sizeFor(accountId, symbol, pct);
   if (sz.why) throw new Error(sz.why);
-  const st = { id: 'st' + seq++, accountId, symbol, side, trigger: price, qty: sz.qty, lev: sz.lev, at: Date.now(), firing: false };
+  const st = { id: 'st' + seq++, accountId, symbol, side, trigger: price, qty: sz.qty, lev: sz.lev, at: Date.now(), firing: false, plan: plan || null };
   armed.set(st.id, st);
-  log.warn(`STOP ${side === 'long' ? 'BUY' : 'SELL'} ${st.qty} at ${price} armed (LOCAL: lives in this tab, triggers at market)`);
+  log.warn(`STOP ${side === 'long' ? 'BUY' : 'SELL'} ${st.qty} at ${price} armed${plan ? ` with plan SL ${plan.sl} and ${plan.targets.length} TP` : ''} (LOCAL: lives in this tab, triggers at market)`);
   notify();
   return st;
 }
@@ -3504,8 +4352,9 @@ function cancel(id, why) {
   notify();
 }
 
-/** Moves a local stop (dragged on the chart): same side, not too close to the price. */
-function move(id, price) {
+/** Moves a local stop (dragged on the chart): same side, not too close to the price. plan = new plan for it;
+ *  a plan stop moved without a new plan keeps size and distances (SL / TP shift with it). */
+function move(id, price, plan) {
   const st = armed.get(id);
   if (!st) throw new Error('local stop not found (triggered or cancelled?)');
   const mk = S.marks[st.symbol],
@@ -3514,7 +4363,15 @@ function move(id, price) {
   if (!side) throw new Error('current price not available');
   if (side !== st.side) throw new Error(`a ${st.side === 'long' ? 'BUY stop goes above' : 'SELL stop goes below'} the price: for the other side cancel it and place a new one`);
   if (Z.tooClose(price, mk.px, m.tick)) throw new Error('too close to the price');
-  log.info(`STOP ${st.side === 'long' ? 'BUY' : 'SELL'} moved ${st.trigger} -> ${price} (local)`);
+  log.info(`STOP ${st.side === 'long' ? 'BUY' : 'SELL'} moved ${st.trigger} -> ${price} (local)${plan ? `: plan ${plan.qty} with SL ${plan.sl}` : ''}`);
+  if (plan) {
+    st.plan = plan;
+    st.qty = plan.qty;
+  } else if (st.plan) {
+    const dx = price - st.trigger;
+    const sh = (v) => +(v + dx).toFixed(8);
+    st.plan = { ...st.plan, sl: sh(st.plan.sl), targets: st.plan.targets.map((t) => ({ ...t, price: sh(t.price) })) };
+  }
   st.trigger = price;
   notify();
   return st;
@@ -3541,9 +4398,10 @@ function check() {
     if (!Z.stopHit(st.side, st.trigger, mk.px)) continue;
     st.firing = true;
     armed.delete(st.id);
-    log.warn(`STOP ${st.side === 'long' ? 'BUY' : 'SELL'} ${st.trigger} touched (price ${mk.px}): sending at market`);
-    entry
-      .marketEntry({ accountId: st.accountId, symbol: st.symbol, side: st.side, qty: st.qty, lev: st.lev, why: 'STOP' })
+    log.warn(`STOP ${st.side === 'long' ? 'BUY' : 'SELL'} ${st.trigger} touched (price ${mk.px}): sending at market${st.plan ? ' with the plan' : ''}`);
+    (st.plan && planFire
+      ? planFire(st)
+      : entry.marketEntry({ accountId: st.accountId, symbol: st.symbol, side: st.side, qty: st.qty, lev: st.lev, why: 'STOP' }))
       .catch((e) => log.error(`STOP not executed: ${e.message}`))
       .finally(notify);
   }
@@ -3556,6 +4414,7 @@ module.exports = {
   cancelAll,
   cancelWhere,
   check,
+  setPlanFire: (fn) => (planFire = fn),
   list: () => [...armed.values()],
   count: () => armed.size,
   onChange: (fn) => (listeners.add(fn), () => listeners.delete(fn)),
@@ -4538,7 +5397,15 @@ function parseRestPositions(res) {
 function parseRestPlaceholders(res) {
   return ((res && res.positions) || [])
     .filter((p) => (p.positionId || p.position_id) && p.symbol && !(num(p.quantity) > 0))
-    .map((p) => ({ id: p.positionId || p.position_id, symbol: p.symbol, side: p.side, qty: 0, leverage: num(p.leverage) || null }));
+    .map((p) => ({
+      id: p.positionId || p.position_id,
+      symbol: p.symbol,
+      side: p.side,
+      qty: 0,
+      leverage: num(p.leverage) || null,
+      // SL / TP that Vest keeps on the pending LIMIT (sent with /open); null = Vest sent no list at all
+      triggers: p.takeProfits || p.stopLosses ? [...(p.takeProfits || []).map(legOf('tp')), ...(p.stopLosses || []).map(legOf('sl'))] : null,
+    }));
 }
 
 /**
@@ -4962,7 +5829,20 @@ function exitedSymbols(prev, positions) {
 /** Id of the created order, from Vest's response (orderId in camelCase or snake_case). */
 const orderIdOf = (res) => (res && (res.orderId || res.order_id || (res.order && (res.order.orderId || res.order.id)))) || null;
 
-module.exports = { actionOf, capQty, scaleQty, planFollower, orderIdOf, exitedSymbols, CAP_BUFFER, CAP_SAME_SIZE };
+/**
+ * Size-0 placeholder of a copy that is only the leftover of orders the copier has just cancelled on that market (Vest
+ * removes it a moment later). A new /open in that window would go to append on it and Vest rejects it later (10009).
+ * fs = copy's state { positions, placeholders, orders }; jc = { symbol, ids: Set, at } of the last cancel.
+ */
+function leftoverPh(fs, jc, symbol, now) {
+  if (!jc || jc.symbol !== symbol || now - jc.at > 10000) return false;
+  const s = fs || {};
+  const on = (l) => (l || []).some((p) => p.symbol === symbol);
+  if (!on(s.placeholders) || on(s.positions)) return false;
+  return (s.orders || []).every((o) => o.symbol !== symbol || jc.ids.has(o.id));
+}
+
+module.exports = { leftoverPh, actionOf, capQty, scaleQty, planFollower, orderIdOf, exitedSymbols, CAP_BUFFER, CAP_SAME_SIZE };
 
   },
   "domain/daypts.js": function (module, exports, require) {
@@ -5412,6 +6292,134 @@ function breakevenPlan(pos, mark, tick, offPts = 0) {
 module.exports = { closeOrder, legOrder, legDeleteOrder, checkLeg, breakevenPrice, breakevenPlan, DEFAULT_LEVERAGE };
 
   },
+  "domain/plan.js": function (module, exports, require) {
+// Risk & targets (column section): trade plan computed from the chosen size, stop and target rules.
+// Calculation only: nothing here sends orders. Linear contracts: P&L = size x points.
+const { roundToTick, floorStep, decimalsOf } = require('./num');
+
+const SPLITS = ['even', 'front', 'back'];
+const SIZE_BY = ['risk', 'pct', 'qty']; // risk in $ / % of the maximum size / fixed quantity
+const STOP_BY = ['dist', 'ticks', 'bar', 'atr']; // price distance / ticks / last closed candle low-high ± ticks / ATR multiple
+const TGT_BY = ['r', 'ticks', 'dist', 'atr', 'trail']; // multiple of the stop distance / ticks / price distance / ATR multiple / no TP (trailing)
+
+/** Weights of the targets: even = equal parts, front = more on the first, back = more on the last. */
+function weights(n, split) {
+  const w = [];
+  for (let i = 0; i < n; i++) w.push(split === 'front' ? n - i : split === 'back' ? i + 1 : 1);
+  return w;
+}
+
+/** Splits qty among the weights, each part rounded down to the step; the last one takes what is left. */
+function splitQty(qty, w, step) {
+  const sum = w.reduce((a, b) => a + b, 0);
+  const out = [];
+  let used = 0;
+  for (let i = 0; i < w.length; i++) {
+    const q = i === w.length - 1 ? floorStep(qty - used, step) : floorStep((qty * w[i]) / sum, step);
+    out.push(q);
+    used += q;
+  }
+  return out;
+}
+
+/** Stop price for the rule, or { why }. bar = { h, l } of the last closed candle. */
+function stopPrice({ side, entry, by, val, tick, bar, atr }) {
+  const sgn = side === 'long' ? 1 : -1;
+  let raw;
+  if (by === 'dist') raw = val > 0 ? entry - sgn * val : NaN;
+  else if (by === 'ticks') raw = val > 0 ? entry - sgn * val * tick : NaN;
+  else if (by === 'atr') {
+    if (!(atr > 0)) return { why: 'ATR not read yet' };
+    raw = val > 0 ? entry - sgn * val * atr : NaN;
+  } else if (by === 'bar') {
+    if (!bar || !(bar.h > 0) || !(bar.l > 0)) return { why: 'last candle not read yet' };
+    const off = val > 0 ? val * tick : 0;
+    raw = side === 'long' ? bar.l - off : bar.h + off;
+    if (sgn * (entry - raw) <= 0) return { why: `the last candle ${side === 'long' ? 'low is above' : 'high is below'} the price: no stop there` };
+  } else return { why: 'stop rule?' };
+  if (!Number.isFinite(raw)) return { why: 'set the stop value' };
+  const sl = roundToTick(raw, tick);
+  if (!(sgn * (entry - sl) > 0)) return { why: 'stop distance below one tick' };
+  return { sl };
+}
+
+/**
+ * plan({ side, entry, step, tick, maxQty, capPct, fee, sizeBy, sizeVal, fees, stopBy, stopVal, bar, atr, targets: [{ on, by, val }], split })
+ * -> { qty, capped, capQty, sl, riskUsd, targets: [{ n, by, val, price|NaN, qty, reward }], why }
+ * fee = taker fee rate; with fees on, the risk counts the entry and exit fee. why: reason there is no plan (qty 0) or a warning.
+ */
+function plan(o) {
+  const { side, entry, step, tick, maxQty, capPct, fee } = o;
+  const none = (why, extra) => ({ qty: 0, capped: false, sl: NaN, riskUsd: 0, targets: [], why, ...extra });
+  if (side !== 'long' && side !== 'short') return none('side?');
+  if (!(entry > 0)) return none('price not read yet');
+  if (!(step > 0) || !(tick > 0)) return none('market not read yet');
+  const sizeBy = SIZE_BY.includes(o.sizeBy) ? o.sizeBy : 'risk';
+  const sizeVal = +o.sizeVal;
+  if (!(sizeVal > 0)) return none(sizeBy === 'risk' ? 'set the risk in $' : sizeBy === 'pct' ? 'set the size in %' : 'set the quantity');
+  const st = stopPrice({ side, entry, by: o.stopBy, val: +o.stopVal, tick, bar: o.bar, atr: o.atr });
+  if (st.why) return none(st.why);
+  const sl = st.sl;
+  const d = Math.abs(entry - sl);
+  const feeRate = o.fees && fee > 0 ? fee : 0;
+  const lossPerUnit = d + feeRate * (entry + sl); // price distance plus entry and exit fee per unit
+  let qty;
+  if (sizeBy === 'risk') qty = floorStep(sizeVal / lossPerUnit, step);
+  else if (sizeBy === 'pct') qty = maxQty > 0 ? floorStep((maxQty * Math.min(100, sizeVal)) / 100, step) : 0;
+  else qty = floorStep(sizeVal, step);
+  // never above the per-order cap of the panel (percentage of the maximum size)
+  const capQty = maxQty > 0 && capPct > 0 ? floorStep((maxQty * Math.min(100, capPct)) / 100, step) : NaN;
+  const capped = Number.isFinite(capQty) && qty > capQty;
+  if (capped) qty = capQty;
+  if (!(qty > 0)) return none(capped ? 'size cap is 0: no free margin?' : sizeBy === 'pct' && !(maxQty > 0) ? 'maximum size not read yet' : 'size below the minimum', { sl, capQty });
+  const sgn = side === 'long' ? 1 : -1;
+  const on = (o.targets || [])
+    .map((t, i) => ({ n: i + 1, on: !!t.on, by: TGT_BY.includes(t.by) ? t.by : 'r', val: +t.val }))
+    .filter((t) => t.on && (t.by === 'trail' || t.val > 0));
+  const qs = on.length ? splitQty(qty, weights(on.length, SPLITS.includes(o.split) ? o.split : 'even'), step) : [];
+  let why = null;
+  const tg = on.map((t, i) => {
+    let dist = NaN;
+    if (t.by === 'r') dist = d * t.val;
+    else if (t.by === 'ticks') dist = t.val * tick;
+    else if (t.by === 'dist') dist = t.val;
+    else if (t.by === 'atr') dist = o.atr > 0 ? t.val * o.atr : NaN;
+    if (t.by === 'atr' && !(o.atr > 0)) why = why || 'ATR not read yet: ATR targets missing';
+    const price = Number.isFinite(dist) ? roundToTick(entry + sgn * dist, tick) : NaN;
+    const reward = Number.isFinite(price) ? qs[i] * Math.abs(price - entry) - qs[i] * feeRate * (entry + price) : NaN;
+    return { n: t.n, by: t.by, val: t.val, price, qty: qs[i], reward };
+  });
+  if (tg.some((t) => !(t.qty > 0))) why = 'size too small to split among the targets';
+  return { qty, capped, capQty, sl, riskUsd: qty * lossPerUnit, targets: tg, why };
+}
+
+/**
+ * SL / TP legs attached to an entry order (Vest /open: takeProfits[] and stopLosses[], prices and sizes as strings).
+ * A leg without quantity covers the whole position; partial legs carry their quantity (their sum must not exceed qty).
+ * targets = [{ price, qty }] of the plan (a trailing part has no price: no TP, the stop still covers it).
+ * each = one stop per target with that target's size, otherwise one stop for everything. -> { takeProfits, stopLosses } or { why }
+ * NOTE: the format of partial legs comes from notes on Vest's fields, not yet seen on a real order.
+ */
+function entryLegs({ qty, sl, targets, each, step, tick }) {
+  const pd = decimalsOf(tick),
+    qd = decimalsOf(step);
+  if (!(qty > 0)) return { why: 'no size' };
+  if (!(sl > 0)) return { why: 'no stop price' };
+  const all = (targets || []).filter((t) => t.qty > 0);
+  if (all.length !== (targets || []).length) return { why: 'a target has no size (size too small to split)' };
+  const tps = all.filter((t) => Number.isFinite(t.price) && t.price > 0);
+  const sum = tps.reduce((a, t) => a + t.qty, 0);
+  if (sum > qty + step / 2) return { why: 'targets larger than the size' };
+  const leg = (price, q) => (q == null ? { executionType: 'market', triggerPrice: price.toFixed(pd) } : { executionType: 'market', triggerPrice: price.toFixed(pd), quantity: q.toFixed(qd) });
+  const whole = (q) => Math.abs(q - qty) < step / 2;
+  const takeProfits = tps.map((t) => leg(t.price, tps.length === 1 && whole(t.qty) ? null : t.qty));
+  const stopLosses = each && all.length > 1 ? all.map((t) => leg(sl, t.qty)) : [leg(sl, null)];
+  return { takeProfits, stopLosses };
+}
+
+module.exports = { plan, stopPrice, weights, splitQty, entryLegs, SPLITS, SIZE_BY, STOP_BY, TGT_BY };
+
+  },
   "domain/shapes.js": function (module, exports, require) {
 // Data shapes: only field NAMES and TYPES, never values. Used by the startup check and the diagnostics
 // (shareable without exposing tokens, ids or amounts). PURE.
@@ -5759,7 +6767,7 @@ function start(version) {
   const stops = require('./core/stops');
   const trail = require('./core/trail');
   const { toPts } = require('./domain/trail');
-  const { breakevenPrice } = require('./domain/orders');
+  const { breakevenPrice, legOrder } = require('./domain/orders');
   const copier = require('./core/copier');
   const { knockout, ladder, ddHalf } = require('./domain/ladder');
 const { limitsOf } = require('./domain/account');
@@ -5861,7 +6869,7 @@ on that market are closed. Real money on every account. It switches off at every
       ...stops
         .list()
         .filter((x) => x.accountId === acc && x.symbol === symbol)
-        .map((x) => ({ id: x.id, kind: 'st', side: x.side, price: x.trigger, qty: x.qty, local: true })),
+        .map((x) => ({ id: x.id, kind: 'st', side: x.side, price: x.trigger, qty: x.qty, local: true, plan: x.plan ? { sl: x.plan.sl, targets: x.plan.targets } : null })),
     ];
     // account equity and room to the TOTAL drawdown limit (max drawdown + profit = equity - floor)
     const a = S.accounts[acc],
@@ -5906,12 +6914,15 @@ on that market are closed. Real money on every account. It switches off at every
       })(),
       selected: S.selected,
       copy: cs.followers.length && copyRows.length ? { armed: cs.armed, rows: copyRows, tot: copyTot } : null,
-      market: { symbol, label: m.label, tick: m.tick, priceDec: m.priceDec, mark: (S.marks[symbol] || {}).px },
+      market: { symbol, label: m.label, tick: m.tick, step: m.step, fee: m.takerFee, priceDec: m.priceDec, mark: (S.marks[symbol] || {}).px },
       pos,
       lev: size.lev,
       size,
+      capPct: +ui.capPct || 0, // per-order cap: also limits the Risk & targets plan
+      tb: { trOn: !!ui.trOn, trUnit: ui.trUnit, trAct: ui.trAct, trDist: ui.trDist, trStep: ui.trStep, beOn: !!ui.beOn, beUnit: ui.beUnit, beOff: ui.beOff, beAuto: !!ui.beAuto, beAt: ui.beAt, note: panel.trailNote() },
       pct: +ui.sizePct || 0,
       pendings,
+      phLegs: (((st && st.placeholders) || []).find((p) => p.symbol === symbol) || {}).triggers || null, // legs Vest keeps on the pending LIMIT
       ordersOn: orders.enabled(),
       busy: pos ? orders.busyOn(pos.id) : null,
       closePct: +ui.closePct || 0,
@@ -5977,6 +6988,7 @@ on that market are closed. Real money on every account. It switches off at every
       }),
       blockPct: ui.blockPct,
       lineStyles: panel.lineStyles(),
+      btnColors: panel.btnColors(),
       // positions on the same side on ALL accounts (TP and SL show the P&L of every account in the trade)
       allPos: pos
         ? Object.keys(S.accounts)
@@ -6001,7 +7013,8 @@ on that market are closed. Real money on every account. It switches off at every
       chipPct: ui.chipPct,
       roomPx: ui.roomPx,
       cdOn: ui.cdOn !== false,
-      theme: ui.theme === 'sonar' ? 'sonar' : 'classic',
+      theme: ui.theme === 'sonar' || ui.theme === 'classic' ? ui.theme : 'console',
+      cardsCol: panel.cardsColumn(), // cards in the docked column (null = next to the price axis)
       hlOn: ui.hlOn !== false,
       atrOn: ui.atrOn !== false,
       // out of range -> nearest limit (not the default: a value that silently does nothing is worse); empty -> default
@@ -6060,6 +7073,7 @@ It switches off by itself at every page reload.`,
           return r;
         });
       }),
+    setSetting: (k, v) => panel.setUiInput(k, v), // Trailing & breakeven section of the column
     setLeg: (kind, price, existing) => Promise.resolve().then(() => orders.setLeg(S.selected, curPos(), kind, price, existing)),
     removeLeg: (leg) => Promise.resolve().then(() => orders.removeLeg(S.selected, curPos(), leg)),
     // second card
@@ -6083,10 +7097,46 @@ It switches off by itself at every page reload.`,
         const ui = panel.ui(),
           symbol = chartMarket();
         if (!symbol) throw new Error('chart market not recognised');
-        if (!orders.enabled()) throw new Error('Orders are off: switch them on from the panel');
+        if (!orders.enabled()) throw new Error('Orders are off: switch ORDERS on (Trade commands)');
         const args = { accountId: S.selected, symbol, price, pct: +ui.sizePct || 0, cap: +ui.capPct || 0 };
         return kind === 'lm' ? entry.placeLimit(args) : stops.arm(args);
       }),
+    // Risk & targets, Active mode: entries with the plan's size and SL / TP (in place of the % size)
+    planEntry: (type, side, price, plan) =>
+      Promise.resolve().then(async () => {
+        const symbol = chartMarket(),
+          acc = S.selected;
+        if (!symbol || !acc) throw new Error('chart market not recognised');
+        const r = await entry.planOpen({ accountId: acc, symbol, side, type, price, plan });
+        guardPlan(acc, symbol, plan.sl, type);
+        return r;
+      }),
+    // plan STOP: LOCAL (Vest has no entry stop), when touched it sends the market entry with the plan's SL / TP
+    planStop: (side, price, plan) =>
+      Promise.resolve().then(() => {
+        const symbol = chartMarket(),
+          acc = S.selected;
+        if (!symbol || !acc) throw new Error('chart market not recognised');
+        if (!orders.enabled()) throw new Error('Orders are off: switch ORDERS on (Trade commands)');
+        const st = stops.arm({ accountId: acc, symbol, price, plan });
+        if (st.side !== side) {
+          stops.cancel(st.id, 'wrong side');
+          throw new Error(`a ${side === 'long' ? 'BUY stop goes above' : 'SELL stop goes below'} the price`);
+        }
+        return st;
+      }),
+    planStopMove: (o, price, plan) => Promise.resolve().then(() => stops.move(o.id, price, plan)),
+    planMove: (o, price, plan) =>
+      Promise.resolve().then(async () => {
+        const symbol = chartMarket(),
+          acc = S.selected;
+        if (!symbol || !acc) throw new Error('chart market not recognised');
+        const r = await entry.planMove({ accountId: acc, symbol, order: o, price, plan });
+        guardPlan(acc, symbol, plan.sl, 'limit');
+        return r;
+      }),
+    say: (text, kind) => panel.say(text, kind),
+    head: (d) => panel.headPos(d),
     market: (side) => Promise.resolve().then(() => entry.marketOpen({ accountId: S.selected, symbol: chartMarket(), side, pct: +panel.ui().sizePct || 0, cap: +panel.ui().capPct || 0 })),
     // cancel limits / cancel local stops / cancel both. Cancellations only: allowed with Orders OFF
     cancelOrders: (kind) =>
@@ -6109,6 +7159,47 @@ It switches off by itself at every page reload.`,
         o.local ? stops.move(o.id, price) : entry.moveLimit({ accountId: S.selected, symbol: chartMarket(), order: { ...o, reduceOnly: o.label === 'CLOSE' }, price }),
       ),
   };
+  // ── safety net of the Active plan: if the position appears WITHOUT a stop (legs refused or lost), the stop is added
+  // with the single-stop request already in use (whole position). In memory only: after a reload it is not watched.
+  const planGuards = new Map(); // 'acc|symbol' -> { sl, until, seen, sending }
+  // plan STOP touched: market entry with the plan, watched like the others
+  stops.setPlanFire((st) =>
+    entry.planOpen({ accountId: st.accountId, symbol: st.symbol, side: st.side, type: 'market', price: null, plan: st.plan }).then((r) => {
+      guardPlan(st.accountId, st.symbol, st.plan.sl, 'market');
+      return r;
+    }),
+  );
+  function guardPlan(acc, symbol, sl, type) {
+    planGuards.set(acc + '|' + symbol, { sl, until: Date.now() + (type === 'limit' ? 7 * 864e5 : 20000), seen: 0, sending: false, t0: Date.now() });
+  }
+  setInterval(() => {
+    const now = Date.now();
+    for (const [k, g] of planGuards) {
+      const [acc, symbol] = k.split('|');
+      const pos = entry.positionOn(acc, symbol);
+      if (!pos) {
+        // market: not filled within 20 s / limit: cancelled (no pending slot any more) -> nothing to watch
+        if (g.seen || now > g.until || (now - g.t0 > 5000 && !entry.placeholderOn(acc, symbol))) planGuards.delete(k);
+        continue;
+      }
+      if (!g.seen) g.seen = now;
+      if (pos.triggers.some((t) => t.kind === 'sl')) {
+        planGuards.delete(k);
+        continue;
+      }
+      if (now - g.seen < 5000 || g.sending) continue;
+      g.sending = true;
+      const m = S.symbols[symbol];
+      orders
+        .send(acc, legOrder(pos, 'sl', g.sl, m.tick), `PLAN: the position had NO stop, stop added at ${g.sl}`, pos.id)
+        .then(
+          () => panel.say(`The position had no stop: stop added at ${g.sl}`, 'err'),
+          (e) => panel.say(`POSITION WITHOUT STOP: adding it at ${g.sl} failed (${e.message}). Set the SL now`, 'err'),
+        )
+        .finally(() => planGuards.delete(k));
+    }
+  }, 1000);
+
   // ── panel Trade section: chart market for the selected account, margin, risk, pending orders
   function tradeInfo() {
     const acc = S.selected,
@@ -6409,6 +7500,41 @@ const triggerUsd = (p, t) => pnlUsd(p.side, t.qty > 0 ? t.qty : p.qty, p.openPri
 module.exports = { compute, refPosition, triggerUsd, DEFAULT_SYMBOL };
 
   },
+  "ui/dock.js": function (module, exports, require) {
+// Docked panel: Vest's page is narrowed by W px on the right and the panel fills that column at full height.
+// Done with one <style> added to Vest's page (narrower <body>); switching off removes it and the page is exactly as before.
+// The panel and the chart overlay hang on <html>, outside <body>, so they are not narrowed with it.
+// transform on <body>: Vest's position:fixed elements (top bar, dialogs) are placed inside the narrowed body, not under the column.
+const STYLE_ID = 'vt-dock-style';
+const CLS = 'vt-dock';
+let cur = 0; // width applied now, 0 = not docked
+
+function css(w) {
+  return `html.${CLS} { overflow: hidden !important; }
+html.${CLS} body { position: relative !important; width: calc(100vw - ${w}px) !important; min-width: 0 !important;
+  max-width: calc(100vw - ${w}px) !important; height: 100vh !important; overflow: hidden !important; transform: translateZ(0) !important; }`;
+}
+
+/** w > 0: dock with that width; 0: undock. Returns true when something changed. */
+function apply(w) {
+  w = w > 0 ? Math.round(w) : 0;
+  if (w === cur) return false;
+  cur = w;
+  const old = document.getElementById(STYLE_ID);
+  if (old) old.remove();
+  document.documentElement.classList.toggle(CLS, w > 0);
+  if (w > 0) {
+    const tag = Object.assign(document.createElement('style'), { id: STYLE_ID, textContent: css(w) });
+    document.documentElement.append(tag); // after Vest's own styles, so these rules win
+  }
+  // Vest and the TradingView chart measure themselves again on resize
+  setTimeout(() => window.dispatchEvent(new Event('resize')), 0);
+  return true;
+}
+
+module.exports = { apply, width: () => cur, css };
+
+  },
   "ui/format.js": function (module, exports, require) {
 // Formatting. Dollars: US separators (1,520.00), always 2 decimals. Prices: tick decimals, decimal point as on the chart.
 
@@ -6629,16 +7755,68 @@ const HELP = {
   chipPct: ['Label scale', 'Size of the labels on the chart (SL, TP, LIMIT, STOP, position...). 50-250.'],
   roomPx: [
     'Label space',
-    'Fixed space in pixels between the last candle and the cards, for the labels and the trailing/BE segments (150-900, empty = 360). The chart does not shift when the labels change width.',
+    'Fixed space in pixels between the last candle and the cards (in the docked column: the price axis), for the labels and the trailing/BE segments (50-900, empty = 360). The chart does not shift when the labels change width.',
   ],
   countdown: [
     'Candle countdown',
     'Time left before the current candle of the chart\'s timeframe closes, shown on the first card between the instrument and the clock. It follows the timeframe you choose on the chart.',
   ],
+  btncol: [
+    'Button and mode colours',
+    `Background, text and size of LIMIT, STOP, LONG, SHORT and FLAT in Trade commands, and the colour of the mode words: MANUAL,
+    RISK PLAN and RISK ACTIVE (next to Trade commands and on the plan labels; RISK ACTIVE = an order of the plan is really there: pending
+    LIMIT, armed local STOP or open position). Font size of each button (default = the column's size). Saved in this browser. <b>Default colours</b> puts them all back. Keep LONG and SHORT easy to tell apart.`,
+  ],
+  layout: [
+    'Panel layout',
+    'Where the panel sits and how it looks. Saved in this browser; nothing here sends orders.',
+  ],
+  dock: [
+    'Dock as a column',
+    `The panel becomes a full-height column on the right and Vest's page is narrowed to leave room for it, so the panel no longer covers
+    the chart. Width 320-900 px. It always stays docked; only the Trade commands panel can float (⇱ in its title, ⇥ puts it back).
+    <br><b>Chart cards</b>: the cards are sections under the folded panel (position, account limits, copier,
+    volatility; a click on a section title folds it) and puts every button in the <b>Trade commands</b> panel at the top of the column.
+    The <b>Trailing &amp; breakeven</b> section holds the same settings as the panel's "Trailing stop and breakeven" (that section
+    is hidden from the panel while the cards are in the column).
+    The <b>Risk &amp; targets</b> section computes a trade plan: <b>size by</b> risk in $ (size = risk ÷ stop distance, with
+    <i>count fees</i> also the entry and exit fee), % of the maximum size or a fixed quantity, never above the size cap;
+    <b>stop by</b> points, ticks, the previous closed candle's low (LONG) / high (SHORT) plus the ticks you set beyond it, or a multiple
+    of the ATR (14 closed candles of the chart's timeframe); targets <b>T1-T4</b> as a multiple of the risk, ticks, points, ATR multiple or
+    <i>trailing</i> (that part has no TP); <b>split</b> equal, mostly on T1 or mostly on the last; <b>stops</b> one for the whole size or one
+    per target. Leverage is Vest's, read only. The plan is drawn on the chart with labels <i>RISK PLAN</i>, or <i>RISK ACTIVE</i> (black) once the order is really placed.
+    The plan starts from the market price, or from your pending LIMIT / armed plan STOP of that side (it follows them when you move them).
+    Drag <b>ENTRY</b> to plan from another price: the stop and the targets move with it. Drag <b>plan SL</b> to change the stop:
+    the risk in $ stays, the size is recalculated and the stop rule becomes Points.
+    <b>ON / OFF</b> next to the section title: OFF = MANUAL, Trade commands use the % size and no plan is drawn. ON = the plan drives
+    Trade commands: the % size and the LONG / SHORT buttons are off. The entry label says MARKET, LIMIT or STOP and the side:
+    <b>START</b> on the MARKET label sends the plan size WITH its SL and TP at market; a LIMIT or STOP dragged from Trade
+    commands only moves the entry there (nothing is sent) and START on its label places it with the plan (a STOP is armed LOCALLY in this
+    tab: when touched it sends a market order with the plan; reload or Orders off = gone); <b>✕</b> puts the entry back at the market price. <b>LONG SIDE / SHORT SIDE</b> choose the side shown.
+    Next to Trade commands: MANUAL, RISK PLAN (ON, nothing placed) or RISK ACTIVE (ON, pending LIMIT, armed STOP or open position).
+    Moving a pending LIMIT or plan SL cancels it and places it again recalculated (the lines disappear until the new LIMIT is on the chart).
+    Under a pending LIMIT the section lists the SL / TP that Vest's data shows for it.
+    While you drag LIMIT or STOP from Trade commands the plan follows it live. Plan orders work only on a market with no position and no
+    pending order. ON is never kept after a reload. If a planned position appears without a stop, the tool adds the stop at the plan's
+    price (while the page stays open). To look at a plan without any risk of sending, keep ORDERS OFF.
+    Partial targets are sent as legs with their size: try them at minimum size first. The copier copies only legs without size.
+    The small arrows next to the target values change them by 0.25 (ticks by 1). The <b>Chart space</b> section sets the space between
+    the last candle and the price axis (the same setting as label space in Chart display; arrows ±10 px).
+    The Trade commands ⇱ button detaches it as a floating window you drag by the title bar and resize (width and height) from the bottom-right corner, with the copier accounts inside; ⇥ puts it back.
+    Unfolding the panel (– or Alt+Shift+V) fills the column for the settings and hides the sections until you fold it again; a floating
+    Trade commands panel stays on the screen.
+    <i>On the chart</i> keeps the cards next to the price axis, as before.
+    The lines and labels always stay on the chart.
+    <br>If a Vest window or menu ends up hidden or cut, switch it off and report it with the diagnostics.`,
+  ],
+  pstyle: [
+    'Panel style',
+    '<b>Console</b>: larger text and fields, section titles with a coloured bar, bigger buttons. <b>Classic</b>: compact. Only the look changes.',
+  ],
   theme: [
     'Card style',
-    `<b>Classic</b>: the original design. <b>Sonar</b>: amber on black, square cards with cut corners, segmented bars and a
-    monospaced font. Only colours and fonts change: every button stays in the same place and does the same thing.
+    `<b>Console</b>: the same look as the Console panel. <b>Classic</b>: the original design. <b>Sonar</b>: amber on black, square cards with cut corners, segmented bars and a
+    monospaced font. Applies to the cards on the chart and to the sections in the docked column. Only colours and fonts change: every button stays in the same place and does the same thing.
     Green and red keep their meaning (profit / loss, buy / sell). Your line and quantity colours are kept.`,
   ],
   hilo: [
@@ -6674,7 +7852,7 @@ module.exports = { HELP };
 
   },
   "ui/panel.css": function (module, exports, require) {
-module.exports = ":host { all: initial; }\n.panel {\n  position: fixed; top: 64px; right: 16px; z-index: 2147483000;\n  width: 640px; max-width: calc(100vw - 32px); max-height: calc(100vh - 80px);\n  display: flex; flex-direction: column;\n  background: #12151b; color: #d7dbe3; border: 1px solid #2a2f3a; border-radius: 8px;\n  font: 12px/1.4 system-ui, -apple-system, \"Segoe UI\", sans-serif;\n  box-shadow: 0 8px 28px rgba(0,0,0,.45);\n}\n.panel.min .body { display: none; }\n.head {\n  display: flex; align-items: center; gap: 8px; padding: 6px 10px;\n  border-bottom: 1px solid #2a2f3a; cursor: move; user-select: none;\n}\n.title { font-weight: 600; }\n.ro { font-size: 10px; padding: 1px 6px; border-radius: 4px; background: #2b3346; color: #9fb3d9; }\n.dots { display: flex; gap: 8px; margin-left: auto; }\n.dot { display: inline-flex; align-items: center; gap: 4px; color: #8b93a3; font-size: 11px; }\n.dot::before { content: \"\"; width: 7px; height: 7px; border-radius: 50%; background: #5b6373; }\n.dot.pass::before { background: #3ecf8e; } .dot.warn::before, .dot.wait::before { background: #e8b84a; } .dot.fail::before { background: #ff5a4f; }\n.btn { background: #1d222c; color: #d7dbe3; border: 1px solid #333a48; border-radius: 4px; padding: 3px 8px; font: inherit; cursor: pointer; }\n.btn:hover { background: #262c38; }\n.btn.ord { font-size: 10px; padding: 1px 6px; color: #9fb3d9; }\n.btn.ord.on { background: #8a2a2a; border-color: #c44; color: #fff; font-weight: 700; }\n.body { overflow: auto; padding: 8px 10px 10px; display: flex; flex-direction: column; gap: 10px; }\nh4 { margin: 0 0 4px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: #8b93a3; }\ntable { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }\nth, td { padding: 3px 4px; text-align: right; white-space: nowrap; }\nth { color: #8b93a3; font-weight: 500; border-bottom: 1px solid #2a2f3a; }\nth:first-child, td:first-child { text-align: left; }\ntbody tr { cursor: pointer; } tbody tr:hover { background: #1a1f28; }\ntr.sel { background: #1f2633; }\ntfoot td { border-top: 1px solid #2a2f3a; font-weight: 600; }\n.up { color: #3ecf8e; } .down { color: #ff6b61; } .muted { color: #6f7787; }\n.tot { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }\n.tot div { background: #171b23; border-radius: 6px; padding: 5px 7px; }\n.tot b { display: block; font-size: 13px; font-variant-numeric: tabular-nums; }\n.tot span { color: #8b93a3; font-size: 10px; }\n.calc { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; align-items: end; }\nlabel { display: flex; flex-direction: column; gap: 2px; color: #8b93a3; font-size: 11px; }\ninput, select { background: #0d1015; color: #e6e9ef; border: 1px solid #333a48; border-radius: 4px; padding: 4px 6px; font: inherit; width: 100%; box-sizing: border-box; }\n.out { margin-top: 6px; background: #171b23; border-radius: 6px; padding: 6px 8px; font-variant-numeric: tabular-nums; }\n.note { color: #6f7787; font-size: 11px; }\n.checks td { text-align: left; white-space: normal; }\n.lvl { font-weight: 600; } .lvl.pass { color: #3ecf8e; } .lvl.warn, .lvl.wait { color: #e8b84a; } .lvl.fail { color: #ff5a4f; }\n.log { max-height: 120px; overflow: auto; font-family: ui-monospace, Consolas, monospace; font-size: 11px; color: #9aa3b2; }\n.log .warn { color: #e8b84a; } .log .error { color: #ff6b61; }\n.row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }\n.pl { display: flex; flex-direction: column; gap: 6px; }\n.plhead { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }\n.plbig { font-size: 26px; font-weight: 800; line-height: 1.1; font-variant-numeric: tabular-nums; }\n.plsub { color: #8b93a3; font-size: 11px; } .plsub b { font-weight: 700; }\n.btn.flatall { color: #ff8a80; border-color: #a33; background: #2a1416; font-weight: 700; padding: 6px 12px; }\n.btn.flatall:hover { background: #8a2a2a; color: #fff; }\n.btn.flatall[disabled] { opacity: .5; cursor: default; }\n.placc { display: flex; flex-direction: column; }\n.pla { padding: 5px 2px; border-top: 1px solid #22272f; cursor: pointer; }\n.plr { display: flex; justify-content: space-between; gap: 8px; font-variant-numeric: tabular-nums; }\n.plr.muted { font-size: 11px; }\n.trd { display: flex; flex-direction: column; gap: 6px; }\n.trh { display: flex; align-items: baseline; gap: 8px; } .trh b { font-size: 16px; } .trh .lev { font-size: 10px; padding: 1px 5px; border: 1px solid #3a4150; border-radius: 3px; color: #aab1be; }\n.trh .trpx { margin-left: auto; font-variant-numeric: tabular-nums; }\n.bars { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }\n.bar { border: 1px solid #2a2f3a; border-radius: 6px; padding: 5px 7px; }\n.bl { display: flex; justify-content: space-between; gap: 6px; font-size: 10px; color: #8b93a3; } .bl span:last-child { color: #d7dbe3; text-align: right; }\n.track { height: 4px; background: #222733; border-radius: 2px; margin-top: 5px; overflow: hidden; }\n.track i { display: block; height: 100%; width: 0; background: #3ecf8e; } .track i.warn { background: #e8b84a; } .track i.hot { background: #ff5a4f; }\n.warn { color: #e8b84a; } .hot { color: #ff6b61; }\n.pend { display: flex; flex-direction: column; gap: 3px; }\n.pr { display: flex; align-items: center; gap: 8px; font-variant-numeric: tabular-nums; border-left: 2px solid #2f4a70; padding-left: 6px; }\n.pr .pk { font-weight: 700; min-width: 54px; }\n.pr .btn.sm { margin-left: auto; padding: 1px 6px; font-size: 10px; }\n.trs { font-size: 11px; color: #aab1be; font-variant-numeric: tabular-nums; } .trs b { font-weight: 700; }\n\n/* copier */\n.copy .cprow { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }\n.btn.seg { padding: 2px 8px; color: #aab1be; }\n.btn.seg.on { color: #fff; border-color: #7fb2ff; background: #16223f; }\n.btn.seg[disabled] { cursor: default; opacity: .7; }\n.copy .cpst { flex: 1; text-align: right; }\n.btn.cpgo { font-weight: 700; color: #3ecf8e; border-color: #2f6b52; background: #0f2a20; padding: 3px 14px; }\n.btn.cpgo.on { color: #fff; border-color: #c44; background: #8a2a2a; }\n.cpacc { width: 100%; }\n.cpacc td.eq { text-align: right; font-variant-numeric: tabular-nums; }\n.cpacc select { background: #0d1015; color: #d7dbe3; border: 1px solid #333a48; border-radius: 3px; font: inherit; }\n.cpacc input.alias { width: 110px; background: #0d1015; color: #e6e9ef; border: 1px solid #333a48; border-radius: 3px; padding: 1px 4px; font: inherit; }\n.cpacc .idt { color: #6b7385; font-size: 10px; font-family: ui-monospace, Consolas, monospace; margin-left: 4px; }\n/* chart lines: colour, dash, width per kind */\n.lstyle td { padding: 2px 4px 2px 0; }\n.lstyle td:first-child { width: 52px; font-weight: 700; }\n.lstyle input[type=\"color\"] { width: 34px; height: 20px; padding: 0 2px; cursor: pointer; }\n.lstyle select { padding: 2px 4px; }\n/* trailing/BE fields without a value clearly visible, warnings in yellow */\ninput[placeholder=\"empty\"]::placeholder { color: #5b6170; font-style: italic; }\n.note.warn { color: #ffb402; }\n\n/* account activity dot next to the name (store.activityOf) */\n.adot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 5px; vertical-align: 1px; background: #5b6373; flex: none; }\n.adot.free { background: #3ecf8e; } .adot.busy { background: #ff5a4f; } .adot.ph { background: #e8b84a; }\n/* foldable sections: title bar with a fold button and a \"?\" that opens the explanation */\n.sec { flex: none; border: 1px solid #222733; border-radius: 6px; background: #14181f; }\n.sh { display: flex; align-items: center; gap: 6px; padding: 4px 8px; }\n.fold { flex: 1; text-align: left; background: none; border: 0; padding: 2px 0; cursor: pointer; font: 600 11px/1.4 system-ui, -apple-system, \"Segoe UI\", sans-serif;\n  text-transform: uppercase; letter-spacing: .04em; color: #aab2c0; }\n.fold::before { content: \"▾\"; display: inline-block; width: 14px; color: #6f7787; }\n.sec.folded .fold::before { content: \"▸\"; }\n.fold:hover { color: #e6e9ef; }\n.sb { padding: 2px 8px 8px; overflow-x: auto; display: flex; flex-direction: column; gap: 6px; }\n.sec.folded .sb { display: none; }\n.sb > * { flex: none; }\n.group { margin-top: 4px; padding: 0 2px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: #6f7787;\n  border-bottom: 1px solid #2a2f3a; }\n.qi { flex: none; width: 17px; height: 17px; padding: 0; border-radius: 50%; border: 1px solid #3b4456; background: #1d222c; color: #9fb3d9;\n  font: 700 10px/15px system-ui, -apple-system, \"Segoe UI\", sans-serif; text-align: center; cursor: pointer; }\n.qi:hover { background: #2b3346; color: #fff; }\n.opt { display: inline-flex; align-items: center; gap: 4px; margin-right: 8px; }\nlabel.il { flex-direction: row; align-items: center; gap: 4px; flex-wrap: wrap; }\nlabel.il input[type=\"checkbox\"] { width: auto; }\n.pop { position: absolute; z-index: 5; max-height: 70%; overflow: auto; padding: 8px 10px; background: #1b2029; border: 1px solid #4a5468;\n  border-radius: 6px; box-shadow: 0 8px 24px rgba(0,0,0,.55); color: #d7dbe3; font-size: 12px; line-height: 1.45; }\n.pop .pt { font-weight: 700; margin-bottom: 4px; color: #fff; }\n.pop ul, .helptext ul { margin: 4px 0; padding-left: 18px; }\n.pop li, .helptext li { margin: 2px 0; }\n.helptext { color: #b8bfcc; font-size: 12px; line-height: 1.45; }\n";
+module.exports = ":host { all: initial; }\n.panel {\n  position: fixed; top: 64px; right: 16px; z-index: 2147483000;\n  width: 640px; max-width: calc(100vw - 32px); max-height: calc(100vh - 80px);\n  display: flex; flex-direction: column;\n  background: #12151b; color: #d7dbe3; border: 1px solid #2a2f3a; border-radius: 8px;\n  font: 12px/1.4 system-ui, -apple-system, \"Segoe UI\", sans-serif;\n  box-shadow: 0 8px 28px rgba(0,0,0,.45);\n}\n.panel.min .body { display: none; }\n.head {\n  display: flex; align-items: center; gap: 8px; padding: 6px 10px;\n  border-bottom: 1px solid #2a2f3a; cursor: move; user-select: none;\n}\n.title { font-weight: 600; }\n.ro { font-size: 10px; padding: 1px 6px; border-radius: 4px; background: #2b3346; color: #9fb3d9; }\n.dots { display: flex; gap: 8px; margin-left: auto; }\n.dot { display: inline-flex; align-items: center; gap: 4px; color: #8b93a3; font-size: 11px; }\n.dot::before { content: \"\"; width: 7px; height: 7px; border-radius: 50%; background: #5b6373; }\n.dot.pass::before { background: #3ecf8e; } .dot.warn::before, .dot.wait::before { background: #e8b84a; } .dot.fail::before { background: #ff5a4f; }\n.btn { background: #1d222c; color: #d7dbe3; border: 1px solid #333a48; border-radius: 4px; padding: 3px 8px; font: inherit; cursor: pointer; }\n.btn:hover { background: #262c38; }\n.btn.ord { font-size: 10px; padding: 1px 6px; color: #9fb3d9; }\n.btn.ord.on { background: #1f6b3f; border-color: #3ecf8e; color: #fff; font-weight: 700; } /* ON: green (orders can be sent) */\n.body { overflow: auto; padding: 8px 10px 10px; display: flex; flex-direction: column; gap: 10px; }\nh4 { margin: 0 0 4px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: #8b93a3; }\ntable { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }\nth, td { padding: 3px 4px; text-align: right; white-space: nowrap; }\nth { color: #8b93a3; font-weight: 500; border-bottom: 1px solid #2a2f3a; }\nth:first-child, td:first-child { text-align: left; }\ntbody tr { cursor: pointer; } tbody tr:hover { background: #1a1f28; }\ntr.sel { background: #1f2633; }\ntfoot td { border-top: 1px solid #2a2f3a; font-weight: 600; }\n.up { color: #3ecf8e; } .down { color: #ff6b61; } .muted { color: #6f7787; }\n.tot { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }\n.tot div { background: #171b23; border-radius: 6px; padding: 5px 7px; }\n.tot b { display: block; font-size: 13px; font-variant-numeric: tabular-nums; }\n.tot span { color: #8b93a3; font-size: 10px; }\n.calc { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; align-items: end; }\nlabel { display: flex; flex-direction: column; gap: 2px; color: #8b93a3; font-size: 11px; }\ninput, select { background: #0d1015; color: #e6e9ef; border: 1px solid #333a48; border-radius: 4px; padding: 4px 6px; font: inherit; width: 100%; box-sizing: border-box; }\n.out { margin-top: 6px; background: #171b23; border-radius: 6px; padding: 6px 8px; font-variant-numeric: tabular-nums; }\n.note { color: #6f7787; font-size: 11px; }\n.checks td { text-align: left; white-space: normal; }\n.lvl { font-weight: 600; } .lvl.pass { color: #3ecf8e; } .lvl.warn, .lvl.wait { color: #e8b84a; } .lvl.fail { color: #ff5a4f; }\n.log { max-height: 120px; overflow: auto; font-family: ui-monospace, Consolas, monospace; font-size: 11px; color: #9aa3b2; }\n.log .warn { color: #e8b84a; } .log .error { color: #ff6b61; }\n.row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }\n.pl { display: flex; flex-direction: column; gap: 6px; }\n.plhead { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }\n.plbig { font-size: 26px; font-weight: 800; line-height: 1.1; font-variant-numeric: tabular-nums; }\n.plsub { color: #8b93a3; font-size: 11px; } .plsub b { font-weight: 700; }\n.btn.flatall { color: #ff8a80; border-color: #a33; background: #2a1416; font-weight: 700; padding: 6px 12px; }\n.btn.flatall:hover { background: #8a2a2a; color: #fff; }\n.btn.flatall[disabled] { opacity: .5; cursor: default; }\n.placc { display: flex; flex-direction: column; }\n.pla { padding: 5px 2px; border-top: 1px solid #22272f; cursor: pointer; }\n.plr { display: flex; justify-content: space-between; gap: 8px; font-variant-numeric: tabular-nums; }\n.plr.muted { font-size: 11px; }\n.trd { display: flex; flex-direction: column; gap: 6px; }\n.trh { display: flex; align-items: baseline; gap: 8px; } .trh b { font-size: 16px; } .trh .lev { font-size: 10px; padding: 1px 5px; border: 1px solid #3a4150; border-radius: 3px; color: #aab1be; }\n.trh .trpx { margin-left: auto; font-variant-numeric: tabular-nums; }\n.bars { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }\n.bar { border: 1px solid #2a2f3a; border-radius: 6px; padding: 5px 7px; }\n.bl { display: flex; justify-content: space-between; gap: 6px; font-size: 10px; color: #8b93a3; } .bl span:last-child { color: #d7dbe3; text-align: right; }\n.track { height: 4px; background: #222733; border-radius: 2px; margin-top: 5px; overflow: hidden; }\n.track i { display: block; height: 100%; width: 0; background: #3ecf8e; } .track i.warn { background: #e8b84a; } .track i.hot { background: #ff5a4f; }\n.warn { color: #e8b84a; } .hot { color: #ff6b61; }\n.pend { display: flex; flex-direction: column; gap: 3px; }\n.pr { display: flex; align-items: center; gap: 8px; font-variant-numeric: tabular-nums; border-left: 2px solid #2f4a70; padding-left: 6px; }\n.pr .pk { font-weight: 700; min-width: 54px; }\n.pr .btn.sm { margin-left: auto; padding: 1px 6px; font-size: 10px; }\n.trs { font-size: 11px; color: #aab1be; font-variant-numeric: tabular-nums; } .trs b { font-weight: 700; }\n\n/* copier */\n.copy .cprow { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }\n.btn.seg { padding: 2px 8px; color: #aab1be; }\n.btn.seg.on { color: #fff; border-color: #7fb2ff; background: #16223f; }\n.btn.seg[disabled] { cursor: default; opacity: .7; }\n.copy .cpst { flex: 1; text-align: right; }\n.btn.cpgo { font-weight: 700; color: #3ecf8e; border-color: #2f6b52; background: #0f2a20; padding: 3px 14px; }\n.btn.cpgo.on { color: #fff; border-color: #c44; background: #8a2a2a; }\n.cpacc { width: 100%; }\n.cpacc td.eq { text-align: right; font-variant-numeric: tabular-nums; }\n.cpacc select { background: #0d1015; color: #d7dbe3; border: 1px solid #333a48; border-radius: 3px; font: inherit; }\n.cpacc input.alias { width: 110px; background: #0d1015; color: #e6e9ef; border: 1px solid #333a48; border-radius: 3px; padding: 1px 4px; font: inherit; }\n.cpacc .idt { color: #6b7385; font-size: 10px; font-family: ui-monospace, Consolas, monospace; margin-left: 4px; }\n/* chart lines: colour, dash, width per kind */\n.lstyle td { padding: 2px 4px 2px 0; }\n.lstyle td:first-child { width: 52px; font-weight: 700; }\n.lstyle input[type=\"color\"] { width: 34px; height: 20px; padding: 0 2px; cursor: pointer; }\n.lstyle select { padding: 2px 4px; }\n/* trailing/BE fields without a value clearly visible, warnings in yellow */\ninput[placeholder=\"empty\"]::placeholder { color: #5b6170; font-style: italic; }\n.note.warn { color: #ffb402; }\n\n/* account activity dot next to the name (store.activityOf) */\n.adot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 5px; vertical-align: 1px; background: #5b6373; flex: none; }\n.adot.free { background: #3ecf8e; } .adot.busy { background: #ff5a4f; } .adot.ph { background: #e8b84a; }\n/* foldable sections: title bar with a fold button and a \"?\" that opens the explanation */\n.sec { flex: none; border: 1px solid #222733; border-radius: 6px; background: #14181f; }\n.sh { display: flex; align-items: center; gap: 6px; padding: 4px 8px; }\n.fold { flex: 1; text-align: left; background: none; border: 0; padding: 2px 0; cursor: pointer; font: 600 11px/1.4 system-ui, -apple-system, \"Segoe UI\", sans-serif;\n  text-transform: uppercase; letter-spacing: .04em; color: #aab2c0; }\n.fold::before { content: \"▾\"; display: inline-block; width: 14px; color: #6f7787; }\n.sec.folded .fold::before { content: \"▸\"; }\n.fold:hover { color: #e6e9ef; }\n.sb { padding: 2px 8px 8px; overflow-x: auto; display: flex; flex-direction: column; gap: 6px; }\n.sec.folded .sb { display: none; }\n.sb > * { flex: none; }\n.group { margin-top: 4px; padding: 0 2px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: #6f7787;\n  border-bottom: 1px solid #2a2f3a; }\n.qi { flex: none; width: 17px; height: 17px; padding: 0; border-radius: 50%; border: 1px solid #3b4456; background: #1d222c; color: #9fb3d9;\n  font: 700 10px/15px system-ui, -apple-system, \"Segoe UI\", sans-serif; text-align: center; cursor: pointer; }\n.qi:hover { background: #2b3346; color: #fff; }\n.opt { display: inline-flex; align-items: center; gap: 4px; margin-right: 8px; }\nlabel.il { flex-direction: row; align-items: center; gap: 4px; flex-wrap: wrap; }\nlabel.il input[type=\"checkbox\"] { width: auto; }\n.pop { position: absolute; z-index: 5; max-height: 70%; overflow: auto; padding: 8px 10px; background: #1b2029; border: 1px solid #4a5468;\n  border-radius: 6px; box-shadow: 0 8px 24px rgba(0,0,0,.55); color: #d7dbe3; font-size: 12px; line-height: 1.45; }\n.pop .pt { font-weight: 700; margin-bottom: 4px; color: #fff; }\n.pop ul, .helptext ul { margin: 4px 0; padding-left: 18px; }\n.pop li, .helptext li { margin: 2px 0; }\n.helptext { color: #b8bfcc; font-size: 12px; line-height: 1.45; }\n\n/* ── docked: full-height column on the right (Vest's page is narrowed by dock.js) */\n/* column background: stays when the panel is folded, the cards are drawn on it (overlay above, panel above both) */\n.dockbg { display: none; position: fixed; top: 0; right: 0; bottom: 0; z-index: 2147481000; background: #1f2024; border-left: 1px solid #34363c; }\n.panel.dock { top: 0; right: 0; bottom: auto; left: auto; width: var(--dw, 420px); max-width: none; max-height: 100vh; height: auto;\n  border-radius: 0; border-width: 0 0 0 1px; box-shadow: -6px 0 18px rgba(0,0,0,.35); }\n.panel.dock .head { cursor: default; flex-wrap: wrap; row-gap: 4px; }\n.panel.dock .tot { grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); }\n.panel.dock .calc { grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); }\n.btn.on { color: #fff; border-color: #7fb2ff; background: #16223f; }\n\n/* ── Console style: larger, section titles on a bar with a coloured edge, roomy fields and buttons */\n.panel.console { background: #1f2024; border-color: #34363c; font-size: 13px; color: #e2e4e9; }\n.panel.console .head { background: #26272c; border-bottom-color: #34363c; padding: 8px 12px; }\n.panel.console .title { font-size: 15px; font-weight: 800; letter-spacing: .02em; }\n.panel.console .body { padding: 10px 10px 14px; gap: 10px; }\n.panel.console .sec { border: 1px solid #34363c; border-radius: 6px; background: #26272c; overflow: hidden; }\n.panel.console .sh { background: #303136; border-left: 4px solid #f97316; padding: 6px 10px 6px 8px; }\n.panel.console .fold { font-size: 13px; text-transform: none; letter-spacing: 0; font-weight: 700; color: #f1f2f5; }\n.panel.console .fold::before { content: \"\"; width: 0; }\n.panel.console .sh::after { content: \"▾\"; color: #8e939e; font-size: 12px; margin-left: 2px; }\n.panel.console .sec.folded .sh::after { content: \"▸\"; }\n.panel.console .sb { padding: 10px 12px 12px; gap: 10px; }\n.panel.console .group { margin-top: 8px; font-size: 11px; color: #8e939e; border-bottom-color: #34363c; }\n.panel.console input, .panel.console select { background: #17181b; border: 1px solid #45474e; border-radius: 5px; padding: 6px 8px; color: #f1f2f5; }\n.panel.console input:focus, .panel.console select:focus { outline: none; border-color: #f97316; }\n.panel.console input[type=\"checkbox\"] { width: 15px; height: 15px; accent-color: #f97316; }\n.panel.console label { color: #a4a8b1; font-size: 12px; }\n.panel.console .opt { margin: 2px 12px 2px 0; }\n.panel.console .row { gap: 8px 4px; }\n.panel.console .btn { border-radius: 5px; padding: 6px 12px; background: #34363c; border-color: #45474e; color: #f1f2f5; font-weight: 600; }\n.panel.console .btn:hover { background: #3f4148; }\n.panel.console .btn.ord { padding: 3px 9px; font-size: 11px; }\n.panel.console .btn.ord.on { background: #15803d; border-color: #22c55e; }\n.panel.console .btn.on { background: #c2410c; border-color: #f97316; color: #fff; }\n.panel.console .btn.flatall { background: #d4a514; border-color: #f0c03a; color: #17181b; font-size: 12px; padding: 6px 12px; white-space: nowrap; }\n.panel.console .btn.flatall:hover { background: #e8b923; color: #000; }\n.panel.console .btn.cpgo { background: #15803d; border-color: #22c55e; color: #fff; padding: 6px 18px; }\n.panel.console .btn.cpgo.on { background: #b91c1c; border-color: #ef4444; }\n.panel.console .btn.seg.on { background: #c2410c; border-color: #f97316; color: #fff; }\n.panel.console .tot div, .panel.console .out { background: #17181b; border: 1px solid #34363c; border-radius: 6px; }\n.panel.console .tot b { font-size: 15px; }\n.panel.console .plbig { font-size: 30px; }\n.panel.console th { color: #a4a8b1; border-bottom-color: #45474e; }\n.panel.console tbody tr:hover { background: #303136; } .panel.console tr.sel { background: #1e2a44; }\n.panel.console .bar { border-color: #45474e; background: #17181b; }\n.panel.console .track { height: 6px; background: #34363c; border-radius: 3px; }\n.panel.console .up { color: #4ade80; } .panel.console .down { color: #f87171; }\n.panel.console .qi { width: 19px; height: 19px; line-height: 17px; background: #303136; border-color: #45474e; color: #fdba74; }\n.panel.console .log { background: #17181b; border: 1px solid #34363c; border-radius: 5px; padding: 6px 8px; font-size: 11.5px; color: #c4c7ce; max-height: 160px; }\n.panel.console .pop { background: #2a2b30; border-color: #4b4e57; }\n\n/* docked: the open panel fills the column to the bottom (the column's cards are hidden meanwhile);\n   folded = header only, the cards under it */\n.panel.dock:not(.min) { height: 100vh; }\n.panel.dock.withcards.min { box-shadow: 0 6px 14px rgba(0,0,0,.35); border-width: 0 0 1px 1px; }\n/* Trailing stop and breakeven: shown in the docked column instead (Trailing & breakeven section) */\n.panel.stopscol .sec[data-sec=\"stops\"] { display: none; }\n/* result of the last command, in the header (two short lines at most: the header keeps its height) */\n.say { flex: 1 1 0; min-width: 0; align-self: center; font-size: 10.5px; line-height: 11px; max-height: 22px; overflow: hidden;\n  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; word-break: break-word; color: #8b93a3; }\n.say.ok { color: #3ecf8e; } .say.err { color: #ff6b61; }\n/* docked: title, version and messages on the first row; status dots and the buttons on the second */\n.hbr { display: none; }\n.panel.dock .hbr { display: block; flex-basis: 100%; height: 0; }\n/* header, docked: timeframe / countdown / clock / account left of the status dots; the position on its own row */\n.hinfo { display: none; }\n.panel.dock .hinfo { display: inline-flex; align-items: baseline; gap: 8px; min-width: 0; overflow: hidden; white-space: nowrap;\n  font-size: 12px; font-variant-numeric: tabular-nums; color: #e2e4e9; }\n.hinfo b { font-weight: 800; }\n.hinfo i { font-style: normal; font-weight: 600; }\n.hinfo i.cd { color: #7fb2ff; }\n.hinfo .acc { color: #c9d1e0; font-size: 11px; font-weight: 700; text-transform: uppercase; overflow: hidden; text-overflow: ellipsis; }\n.hpos { flex-basis: 100%; display: flex; align-items: baseline; gap: 10px; box-sizing: border-box; padding: 4px 8px; border-radius: 5px;\n  border-left: 3px solid #3a4150; background: #1a1b1f; font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; }\n.hpos.long { border-left-color: #3ecf8e; } .hpos.short { border-left-color: #ff6b61; }\n.hpos .sd { font-weight: 800; color: #8b93a3; }\n.hpos.long .sd, .hpos.long .q, .hpos.long .en { color: #3ecf8e; } .hpos.short .sd, .hpos.short .q, .hpos.short .en { color: #ff6b61; }\n.hpos .q { color: #ffb402; }\n.hpos .pl { font-size: 13px; }\n.hpos .mic { color: #d7dbe3; font-weight: 600; }\n.hpos .day { margin-left: auto; color: #8b93a3; font-weight: 600; }\n.hpos .up { color: #3ecf8e; } .hpos .down { color: #ff6b61; }\n/* position in the header: two rows (side / size / entry .. P&L, then points / contracts .. today) */\n.hpos { flex-direction: column; align-items: stretch; gap: 3px; }\n.hpos .r1, .hpos .r2 { display: flex; align-items: baseline; gap: 12px; min-width: 0; white-space: nowrap; overflow: hidden; }\n.hpos .r2 { font-size: 11.5px; }\n.hpos i { font-style: normal; font-weight: 600; font-size: 10.5px; color: #8b93a3; margin-right: 2px; }\n.hpos .pl { margin-left: auto; font-size: 14px; font-weight: 800; }\n.hpos .day { margin-left: auto; }\n.hpos .day b { font-weight: 700; }\n";
   },
   "ui/panel.js": function (module, exports, require) {
 // Panel in a closed Shadow DOM. Minimal look. Orders are sent only from the chart overlay, with the Orders switch on.
@@ -6684,6 +7862,7 @@ const calc = require('./calc');
 const { HELP } = require('./help');
 const store = require('../core/store');
 const log = require('../diag/log');
+const dock = require('./dock');
 
 const UI_KEY = 'vt1:ui';
 // chart overlay lines: [kind, name, default colour] (colour, dash and width of each one can be changed)
@@ -6719,19 +7898,39 @@ const LINE_DEFAULTS = Object.fromEntries([
   ...SEG_KINDS.flatMap(([k, , c, s]) => [['lc_' + k, c], ['ls_' + k, s], ['lw_' + k, '3'], ['ll_' + k, '']]),
   ...HL_KINDS.flatMap(([k, , c, s]) => [['lc_' + k, c], ['ls_' + k, s], ['lw_' + k, '2']]),
 ]);
+// colours of the entry buttons and FLAT in Trade commands, and of the mode words: [key, name, default]
+const BTN_COLS = [
+  ['lm', 'LIMIT', '#1d4ed8', '#e0ecff'],
+  ['st', 'STOP', '#74746b', '#ffffff'],
+  ['long', 'LONG', '#15803d', '#ffffff'],
+  ['short', 'SHORT', '#b91c1c', '#ffffff'],
+  ['flat', 'FLAT', '#ec9900', '#ffffff'],
+];
+const MODE_COLS = [
+  ['manual', 'MANUAL (Risk & targets OFF)', '#cbd5e1'],
+  ['view', 'RISK PLAN (ON, nothing placed yet)', '#fb923c'],
+  ['act', 'RISK ACTIVE (ON, order or position there)', '#c084fc'],
+];
+const COL_DEFAULTS = Object.fromEntries([
+  ...BTN_COLS.flatMap(([k, , bg, tx]) => [['bc_' + k + '_bg', bg], ['bc_' + k + '_tx', tx], ['bc_' + k + '_fs', '']]),
+  ...MODE_COLS.flatMap(([k, , c]) => [['mc_' + k, c], ['mc_' + k + '_fs', ''], ['mc_' + k + '_lfs', ''], ['mc_' + k + '_fw', '']]),
+]);
 const { S } = store;
 
 let root = null,
   panel = null,
   els = {},
   handlers = {};
-let ui = { ...LINE_DEFAULTS, qc: '#ffb402', qsz: '11', qb: true, trOn: false, trUnit: 'pt', trAct: '', trDist: '', trStep: '', beOn: false, beUnit: 'pt', beOff: '', beAuto: false, beAt: '', x: null, y: null, min: false, lines: true, overlay: true, dd50: true, hideVest: true, blockPct: 125, chipPct: 100, roomPx: 360, cdOn: true, theme: 'classic', hlOn: true, hlK: 2, atrOn: true, atrH: 14, atrR: 3, pp0: 1, pp1: 2, pp2: 4, pp3: 8, pp4: 5, pp5: 16, dailyGoal: '', closePct: 100, sizePct: 1, capPct: 10, mode: 'pos', slUsd: '', tpUsd: '', side: 'long', qty: '', entry: '', symbol: calc.DEFAULT_SYMBOL };
+let ui = { ...LINE_DEFAULTS, ...COL_DEFAULTS, qc: '#ffb402', qsz: '11', qb: true, trOn: false, trUnit: 'pt', trAct: '', trDist: '', trStep: '', beOn: false, beUnit: 'pt', beOff: '', beAuto: false, beAt: '', x: null, y: null, min: false, lines: true, overlay: true, dd50: true, hideVest: true, blockPct: 125, chipPct: 100, roomPx: 360, cdOn: true, theme: 'console', dock: true, dockW: 420, pstyle: 'console', cardsAt: 'column', hlOn: true, hlK: 2, atrOn: true, atrH: 14, atrR: 3, pp0: 1, pp1: 2, pp2: 4, pp3: 8, pp4: 5, pp5: 16, dailyGoal: '', closePct: 100, sizePct: 1, capPct: 10, mode: 'pos', slUsd: '', tpUsd: '', side: 'long', qty: '', entry: '', symbol: calc.DEFAULT_SYMBOL };
 
 try {
   Object.assign(ui, JSON.parse(localStorage.getItem(UI_KEY) || '{}'));
 } catch {
   /* default settings */
 }
+// v0.10.95: STOP and FLAT colours still at the old defaults -> the new defaults (colours chosen by hand are kept)
+if (ui.bc_st_bg === '#eab308' && ui.bc_st_tx === '#1a1405') Object.assign(ui, { bc_st_bg: '#74746b', bc_st_tx: '#ffffff' });
+if (ui.bc_flat_bg === '#d4a514' && ui.bc_flat_tx === '#17181b') Object.assign(ui, { bc_flat_bg: '#ec9900', bc_flat_tx: '#ffffff' });
 // trailing and auto BE send orders on their own: off after every reload, like Orders (never re-armed automatically)
 ui.trOn = false;
 ui.beAuto = false;
@@ -6756,12 +7955,17 @@ const chk = (k, text) => `<input type="checkbox" data-in="${k}"> ${text}`;
 const num = (k, w, ph = '') => `<input data-in="${k}" inputmode="decimal"${ph ? ` placeholder="${ph}"` : ''} style="width:${w}px">`;
 const unit = (k) => `<select data-in="${k}" style="width:44px"><option value="pt">pt</option><option value="$">$</option></select>`;
 
+const modeSize = (k, list) => `<select data-in="${k}"><option value="">default</option>${list.map((v) => `<option value="${v}">${v} px</option>`).join('')}</select>`;
+
 const SKELETON = `
+<div class="dockbg" data-dockbg></div>
 <div class="panel">
   <div class="head" data-drag>
-    <span class="title">VestTool</span><button class="btn ord" data-act="orders" data-ord>Orders: OFF</button>${info('orders')}<span class="muted" data-ver></span>
+    <span class="title">VestTool</span><span class="hdord" style="display:none"><button class="btn ord" data-act="orders" data-ord>Orders: OFF</button>${info('orders')}</span><span class="muted" data-ver></span><span class="say" data-say></span><span class="hbr"></span>
+    <span class="hinfo" data-hinfo></span>
     <div class="dots" data-dots></div>
     <button class="btn" data-act="min" title="Minimise (Alt+Shift+V)">–</button>
+    <div class="hpos" data-hpos style="display:none"></div>
   </div>
   <div class="body">
     ${sec('overview', 'Overview', `
@@ -6793,6 +7997,11 @@ const SKELETON = `
       <table data-accounts></table>
       <h4 data-pos-title style="margin-top:8px">Positions</h4><div data-positions></div>`)}
     <div class="group">Settings</div>
+    ${sec('layout', 'Panel layout', `
+      <div class="row">
+        ${opt('dock', `column width ${num('dockW', 40)} px`)}
+        ${opt('pstyle', `panel style <select data-in="pstyle" style="width:88px"><option value="console">Console</option><option value="classic">Classic</option></select>`)}
+      </div>`)}
     ${sec('size', 'Order size and daily goal', `
       <div class="row">
         ${opt('capPct', `size cap ${num('capPct', 38)}%`)}
@@ -6818,7 +8027,7 @@ const SKELETON = `
         ${opt('atr', `${chk('atrOn', 'volatility heatmap: last')} ${num('atrR', 30)} candles vs last ${num('atrH', 34)} hours`)}
       </div>
       <div class="row">
-        ${opt('theme', `card style <select data-in="theme" style="width:80px"><option value="classic">Classic</option><option value="sonar">Sonar</option></select>`)}
+        ${opt('theme', `card style <select data-in="theme" style="width:88px"><option value="console">Console</option><option value="classic">Classic</option><option value="sonar">Sonar</option></select>`)}
         ${opt('blockPct', `card scale ${num('blockPct', 40)}%`)}
         ${opt('chipPct', `label scale ${num('chipPct', 40)}%`)}
         ${opt('roomPx', `label space ${num('roomPx', 40)}px`)}
@@ -6834,6 +8043,15 @@ const SKELETON = `
         <tr><td colspan="5"><h4 style="margin-top:6px">Last swing high / low</h4></td></tr>
         ${HL_KINDS.map(([k, name]) => `<tr><td>${name}</td><td><input type="color" data-in="lc_${k}"></td><td><select data-in="ls_${k}"><option value="solid">solid</option><option value="dashed">dashed</option><option value="dotted">dotted</option></select></td><td><select data-in="lw_${k}">${[1, 2, 3, 4].map((w) => `<option value="${w}">${w} px</option>`).join('')}</select></td><td></td></tr>`).join('')}
       </table>`)}
+    ${sec('btncol', 'Button and mode colours', `
+      <table class="lstyle">
+        <tr><td></td><td class="muted">background</td><td class="muted">text</td><td class="muted">size</td></tr>
+        ${BTN_COLS.map(([k, name]) => `<tr><td>${name}</td><td><input type="color" data-in="bc_${k}_bg"></td><td><input type="color" data-in="bc_${k}_tx"></td><td><select data-in="bc_${k}_fs"><option value="">default</option>${[10, 11, 12, 13, 14, 15, 16, 17, 18].map((v) => `<option value="${v}">${v} px</option>`).join('')}</select></td></tr>`).join('')}
+        <tr><td colspan="5"><h4 style="margin-top:6px">Mode words (next to Trade commands and on the chart labels)</h4></td></tr>
+        <tr><td></td><td class="muted">colour</td><td class="muted">size next to Trade commands</td><td class="muted">size on the labels</td><td class="muted">weight</td></tr>
+        ${MODE_COLS.map(([k, name]) => `<tr><td>${name}</td><td><input type="color" data-in="mc_${k}"></td><td>${modeSize(`mc_${k}_fs`, [9, 10, 11, 12, 13, 14, 15, 16, 18, 20])}</td><td>${k === 'manual' ? '' : modeSize(`mc_${k}_lfs`, [8, 9, 10, 11, 12, 13, 14, 15, 16])}</td><td><select data-in="mc_${k}_fw"><option value="">default</option><option value="b">bold</option><option value="n">normal</option></select></td></tr>`).join('')}
+      </table>
+      <div class="row"><button class="btn" data-act="colreset">Default colours</button></div>`)}
     ${sec('calc', 'SL / TP calculator', `
       <div class="calc">
         <label>Base<select data-in="mode"><option value="pos">Account position</option><option value="man">Manual</option></select></label>
@@ -6869,15 +8087,20 @@ function mount(version, h) {
   root.innerHTML = `<style>${css}</style>${SKELETON}`;
   document.documentElement.appendChild(host);
   panel = root.querySelector('.panel');
-  for (const k of ['trsize', 'trtitle', 'trsym', 'trlev', 'trpx', 'mtxt', 'mfill', 'rtxt', 'rfill', 'pend', 'dots', 'totals', 'plbig', 'plsub', 'placc', 'flatall', 'accounts', 'positions', 'calc', 'checks', 'log', 'sync', 'manual', 'ver', 'ord', 'cpst', 'cpgo', 'cpacc', 'cplast', 'trst']) els[k] = root.querySelector(`[data-${k}]`);
+  for (const k of ['trsize', 'trtitle', 'trsym', 'trlev', 'trpx', 'mtxt', 'mfill', 'rtxt', 'rfill', 'pend', 'dots', 'totals', 'plbig', 'plsub', 'placc', 'flatall', 'accounts', 'positions', 'calc', 'checks', 'log', 'sync', 'manual', 'ver', 'ord', 'cpst', 'cpgo', 'cpacc', 'cplast', 'trst', 'say', 'hinfo', 'hpos']) els[k] = root.querySelector(`[data-${k}]`);
   els.posTitle = root.querySelector('[data-pos-title]');
   els.pop = root.querySelector('[data-pop]');
   els.popt = root.querySelector('[data-popt]');
   els.poph = root.querySelector('[data-poph]');
   els.body = root.querySelector('.body');
   els.ver.textContent = 'v' + version;
+  // always docked with the cards in the column (only Trade commands can float): the panel opens folded at the top
+  ui.dock = true;
+  ui.cardsAt = 'column';
+  ui.min = true;
   if (ui.min) panel.classList.add('min');
   if (ui.x != null) place(ui.x, ui.y);
+  layout(true);
 
   // inputs: state kept in ui, recalculated at once
   for (const inp of root.querySelectorAll('[data-in]')) {
@@ -6887,6 +8110,7 @@ function mount(version, h) {
     inp.addEventListener(inp.type === 'checkbox' || inp.tagName === 'SELECT' ? 'change' : 'input', () => {
       ui[k] = inp.type === 'checkbox' ? inp.checked : inp.value.trim().replace(',', '.');
       saveUi();
+      if (k === 'dock' || k === 'dockW' || k === 'pstyle' || k === 'cardsAt') layout(k !== 'dockW'); // width: wait for the typing to stop
       handlers.onInput && handlers.onInput();
       render();
     });
@@ -6986,6 +8210,16 @@ function act(a) {
     ui.min = !ui.min;
     panel.classList.toggle('min', ui.min);
     saveUi();
+    layout(true);
+  } else if (a === 'colreset') {
+    for (const [k, v] of Object.entries(COL_DEFAULTS)) {
+      ui[k] = v;
+      const inp = root.querySelector(`[data-in="${k}"]`);
+      if (inp) inp.value = v;
+    }
+    saveUi();
+    handlers.onInput && handlers.onInput();
+    render();
   } else if (a === 'sync') handlers.sync();
   else if (a === 'check') handlers.check();
   else if (a === 'session') store.resetSession();
@@ -7040,6 +8274,37 @@ function renderCopy(ids, vals) {
   els.cplast.textContent = l ? `Last copy: ${l.action} from ${l.src}, ${l.ok}/${l.n} copies${l.ms != null ? ` in ${l.ms} ms` : ''}, ${F.ago(l.at)}` : c.armed ? 'No copies yet' : 'After a reload the copier starts switched off.';
 }
 
+// docked (full-height column on the right, Vest's page narrowed) or floating. Docked and minimised: only the header at the top,
+// the column stays (with the cards in it when they are set to live there).
+const DOCK_MIN = 320,
+  DOCK_MAX = 900;
+let layoutT = 0;
+function layout(now) {
+  clearTimeout(layoutT);
+  if (!now) {
+    layoutT = setTimeout(() => layout(true), 500);
+    return;
+  }
+  const w = Math.min(DOCK_MAX, Math.max(DOCK_MIN, Math.round(parseFloat(ui.dockW)) || 420));
+  const on = !!ui.dock;
+  panel.classList.toggle('console', ui.pstyle === 'console');
+  panel.classList.toggle('dock', on);
+  panel.style.setProperty('--dw', w + 'px');
+  const col = on && ui.cardsAt !== 'chart';
+  panel.classList.toggle('withcards', col); // folded panel: the cards under it; open: full height, cards hidden
+  const bg = root.querySelector('[data-dockbg]');
+  bg.style.display = on ? 'block' : 'none';
+  bg.style.width = w + 'px';
+  const db = root.querySelector('[data-dockbtn]');
+  if (db) db.classList.toggle('on', on);
+  if (on || ui.x == null) {
+    panel.style.left = '';
+    panel.style.top = '';
+    panel.style.right = '';
+  } else place(ui.x, ui.y);
+  dock.apply(on ? w : 0);
+}
+
 function place(x, y) {
   const maxX = window.innerWidth - 80,
     maxY = window.innerHeight - 40;
@@ -7051,7 +8316,7 @@ function place(x, y) {
 function drag(handle) {
   let start = null;
   handle.addEventListener('pointerdown', (e) => {
-    if (e.target.closest('button')) return;
+    if (e.target.closest('button') || panel.classList.contains('dock')) return;
     const r = panel.getBoundingClientRect();
     start = { dx: e.clientX - r.left, dy: e.clientY - r.top };
     handle.setPointerCapture(e.pointerId);
@@ -7106,6 +8371,7 @@ function render() {
   if (ui.trOn && !(+ui.trDist > 0)) warn.push('Trailing is on but "pullback" is empty: it does nothing');
   els.trst.textContent = [...warn, ts ? 'Trailing / BE: ' + ts : ''].filter(Boolean).join(' · ');
   els.trst.classList.toggle('warn', warn.length > 0);
+  if (panel) panel.classList.toggle('stopscol', stopsInColumn()); // the section is in the column: not shown twice
 
   // totals of all accounts
   const sum = (k) => {
@@ -7281,6 +8547,75 @@ function renderLog() {
 }
 
 /** Changes a value from the chart cards (e.g. the size %) and saves it. */
+/** Result of the last command (docked column): in the header, so nothing below moves when it appears. */
+let sayTimer = null;
+function say(text, kind) {
+  if (!els.say) return;
+  els.say.textContent = text || '';
+  els.say.title = text || '';
+  els.say.className = 'say ' + (kind || '');
+  clearTimeout(sayTimer);
+  sayTimer = setTimeout(() => {
+    els.say.textContent = '';
+    els.say.title = '';
+  }, kind === 'err' ? 9000 : 4000);
+}
+
+/** Position data of the chart card, shown in the header (docked column). null = hidden. Rewritten only when they change. */
+let headKey = '';
+function headPos(d) {
+  if (!els.hinfo || !els.hpos) return;
+  const key = d ? JSON.stringify(d) : '';
+  if (key === headKey) return;
+  headKey = key;
+  els.hpos.style.display = d ? '' : 'none';
+  if (!d) {
+    els.hinfo.innerHTML = '';
+    els.hpos.innerHTML = '';
+    return;
+  }
+  const e = F.esc;
+  // row 2, left of the status dots: timeframe + candle countdown, clock, account
+  els.hinfo.innerHTML =
+    `<b>${e(d.tf)}</b>` + (d.cd ? `<i class="cd">${e(d.cd)}</i>` : '') + `<i>${e(d.clk)}</i>` + (d.acc ? `<span class="acc">${e(d.acc)}</span>` : '');
+  // the position on two rows:
+  //   1) side, size, entry price ............ open P&L in $
+  //   2) points from the entry, contracts and $ per point ............ points of the day
+  // flat: one row, FLAT ............ points of the day
+  const flat = d.side === 'flat';
+  const day = d.dpt ? `<span class="day"><i>today</i> <b class="${e(d.dptC)}">${e(d.dpt)}</b></span>` : '';
+  els.hpos.className = 'hpos ' + d.side;
+  els.hpos.innerHTML = flat
+    ? `<div class="r1"><span class="sd">FLAT</span>${day}</div>`
+    : `<div class="r1"><span class="sd">${d.side.toUpperCase()}</span><span class="q">${e(d.qty)}</span>` +
+      (d.entry ? `<span class="en"><i>entry</i> ${e(d.entry)}</span>` : '') +
+      (d.pnl ? `<span class="pl ${e(d.pnlC)}">${e(d.pnl)}</span>` : '') +
+      `</div><div class="r2">` +
+      (d.gap ? `<span class="gp ${e(d.gapC)}">${e(d.gap)}</span>` : '') +
+      (d.mic ? `<span class="mic">${e(d.mic)}</span>` : '') +
+      day +
+      `</div>`;
+}
+
+/** A setting changed from the column (Trailing & breakeven): same effect as typing it in the panel. */
+function setUiInput(k, v) {
+  ui[k] = v;
+  saveUi();
+  const inp = root && root.querySelector('[data-in="' + k + '"]');
+  if (inp) {
+    if (inp.type === 'checkbox') inp.checked = !!v;
+    else inp.value = v;
+  }
+  handlers.onInput && handlers.onInput();
+  render();
+}
+
+/** Trailing / BE status line of the panel (warnings for empty fields + what is running). */
+const trailNote = () => (els.trst ? { text: els.trst.textContent, warn: els.trst.classList.contains('warn') } : { text: '', warn: false });
+
+/** True when the Trailing & breakeven settings live in the docked column instead of the panel. */
+const stopsInColumn = () => !!(ui.dock && ui.cardsAt !== 'chart' && ui.overlay && dock.width());
+
 function setUi(k, v) {
   ui[k] = v;
   saveUi();
@@ -7289,6 +8624,29 @@ function setUi(k, v) {
 }
 
 /** Line style per kind: { kind: { c, s, w } }; invalid values -> default. */
+/** Colours of the Trade commands buttons and of the mode words, as CSS variables for the overlay. */
+function btnColors() {
+  const ok = (k) => (/^#[0-9a-f]{6}$/i.test(ui[k]) ? ui[k] : COL_DEFAULTS[k]);
+  const out = {};
+  for (const [k] of BTN_COLS) {
+    out[`--b-${k}-bg`] = ok(`bc_${k}_bg`);
+    out[`--b-${k}-tx`] = ok(`bc_${k}_tx`);
+    const fs = Math.round(+ui[`bc_${k}_fs`]);
+    out[`--b-${k}-fs`] = fs >= 8 && fs <= 24 ? fs + 'px' : ''; // '' = default (the property is removed)
+  }
+  for (const [k] of MODE_COLS) {
+    out[`--m-${k}`] = ok('mc_' + k);
+    // size next to Trade commands / on the chart labels, weight of both ('' = default: the property is removed)
+    const fs = Math.round(+ui[`mc_${k}_fs`]),
+      lfs = Math.round(+ui[`mc_${k}_lfs`]),
+      fw = ui[`mc_${k}_fw`];
+    out[`--m-${k}-fs`] = fs >= 8 && fs <= 24 ? fs + 'px' : '';
+    out[`--m-${k}-lfs`] = lfs >= 8 && lfs <= 20 ? lfs + 'px' : '';
+    out[`--m-${k}-fw`] = fw === 'b' ? '800' : fw === 'n' ? '400' : '';
+  }
+  return out;
+}
+
 function lineStyles() {
   const out = {};
   for (const [k, , c] of LINE_KINDS) {
@@ -7317,9 +8675,24 @@ function qtyStyle() {
   return { c: /^#[0-9a-f]{6}$/i.test(ui.qc) ? ui.qc : '#ffb402', s: Math.min(16, Math.max(9, Math.round(+ui.qsz) || 11)), b: ui.qb !== false };
 }
 
+/** Where the chart cards go when they live in the docked column: the free part of the column under the folded panel
+ *  (hidden: true while the panel is open and fills the column), or null = on the chart. */
+function cardsColumn() {
+  if (!panel || !ui.dock || ui.cardsAt === 'chart' || !ui.overlay) return null;
+  const w = dock.width();
+  if (!w) return null;
+  const top = Math.ceil(panel.getBoundingClientRect().bottom);
+  return { left: window.innerWidth - w, width: w, top, height: Math.max(0, window.innerHeight - top), hidden: !ui.min };
+}
+
 module.exports = {
   qtyStyle,
-  lineStyles, mount, render, ui: () => ui, setUi };
+  cardsColumn,
+  setUiInput,
+  say,
+  headPos,
+  trailNote,
+  lineStyles, btnColors, mount, render, ui: () => ui, setUi };
 
   },
   };
@@ -7345,5 +8718,5 @@ module.exports = {
     });
     return module.exports;
   };
-  __load("main.js").start("0.10.60");
+  __load("main.js").start("0.10.98");
 })();

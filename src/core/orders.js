@@ -37,7 +37,7 @@ function setEnabled(v) {
 
 /** Reason why trading is not possible now, or null. */
 function blocked(accountId) {
-  if (!transport.ordersEnabled()) return 'Orders are off: switch them on in the panel ("Orders" switch)';
+  if (!transport.ordersEnabled()) return 'Orders are off: switch ORDERS on (Trade commands)';
   if (!S.accounts[accountId]) return 'Account not active';
   if (session.canTradeOf(accountId) === false) return 'Vest says this account cannot trade (canTrade = false)';
   return null;

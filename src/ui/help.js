@@ -172,16 +172,68 @@ const HELP = {
   chipPct: ['Label scale', 'Size of the labels on the chart (SL, TP, LIMIT, STOP, position...). 50-250.'],
   roomPx: [
     'Label space',
-    'Fixed space in pixels between the last candle and the cards, for the labels and the trailing/BE segments (150-900, empty = 360). The chart does not shift when the labels change width.',
+    'Fixed space in pixels between the last candle and the cards (in the docked column: the price axis), for the labels and the trailing/BE segments (50-900, empty = 360). The chart does not shift when the labels change width.',
   ],
   countdown: [
     'Candle countdown',
     'Time left before the current candle of the chart\'s timeframe closes, shown on the first card between the instrument and the clock. It follows the timeframe you choose on the chart.',
   ],
+  btncol: [
+    'Button and mode colours',
+    `Background, text and size of LIMIT, STOP, LONG, SHORT and FLAT in Trade commands, and the colour of the mode words: MANUAL,
+    RISK PLAN and RISK ACTIVE (next to Trade commands and on the plan labels; RISK ACTIVE = an order of the plan is really there: pending
+    LIMIT, armed local STOP or open position). Font size of each button (default = the column's size). Saved in this browser. <b>Default colours</b> puts them all back. Keep LONG and SHORT easy to tell apart.`,
+  ],
+  layout: [
+    'Panel layout',
+    'Where the panel sits and how it looks. Saved in this browser; nothing here sends orders.',
+  ],
+  dock: [
+    'Dock as a column',
+    `The panel becomes a full-height column on the right and Vest's page is narrowed to leave room for it, so the panel no longer covers
+    the chart. Width 320-900 px. It always stays docked; only the Trade commands panel can float (⇱ in its title, ⇥ puts it back).
+    <br><b>Chart cards</b>: the cards are sections under the folded panel (position, account limits, copier,
+    volatility; a click on a section title folds it) and puts every button in the <b>Trade commands</b> panel at the top of the column.
+    The <b>Trailing &amp; breakeven</b> section holds the same settings as the panel's "Trailing stop and breakeven" (that section
+    is hidden from the panel while the cards are in the column).
+    The <b>Risk &amp; targets</b> section computes a trade plan: <b>size by</b> risk in $ (size = risk ÷ stop distance, with
+    <i>count fees</i> also the entry and exit fee), % of the maximum size or a fixed quantity, never above the size cap;
+    <b>stop by</b> points, ticks, the previous closed candle's low (LONG) / high (SHORT) plus the ticks you set beyond it, or a multiple
+    of the ATR (14 closed candles of the chart's timeframe); targets <b>T1-T4</b> as a multiple of the risk, ticks, points, ATR multiple or
+    <i>trailing</i> (that part has no TP); <b>split</b> equal, mostly on T1 or mostly on the last; <b>stops</b> one for the whole size or one
+    per target. Leverage is Vest's, read only. The plan is drawn on the chart with labels <i>RISK PLAN</i>, or <i>RISK ACTIVE</i> (black) once the order is really placed.
+    The plan starts from the market price, or from your pending LIMIT / armed plan STOP of that side (it follows them when you move them).
+    Drag <b>ENTRY</b> to plan from another price: the stop and the targets move with it. Drag <b>plan SL</b> to change the stop:
+    the risk in $ stays, the size is recalculated and the stop rule becomes Points.
+    <b>ON / OFF</b> next to the section title: OFF = MANUAL, Trade commands use the % size and no plan is drawn. ON = the plan drives
+    Trade commands: the % size and the LONG / SHORT buttons are off. The entry label says MARKET, LIMIT or STOP and the side:
+    <b>START</b> on the MARKET label sends the plan size WITH its SL and TP at market; a LIMIT or STOP dragged from Trade
+    commands only moves the entry there (nothing is sent) and START on its label places it with the plan (a STOP is armed LOCALLY in this
+    tab: when touched it sends a market order with the plan; reload or Orders off = gone); <b>✕</b> puts the entry back at the market price. <b>LONG SIDE / SHORT SIDE</b> choose the side shown.
+    Next to Trade commands: MANUAL, RISK PLAN (ON, nothing placed) or RISK ACTIVE (ON, pending LIMIT, armed STOP or open position).
+    Moving a pending LIMIT or plan SL cancels it and places it again recalculated (the lines disappear until the new LIMIT is on the chart).
+    Under a pending LIMIT the section lists the SL / TP that Vest's data shows for it.
+    While you drag LIMIT or STOP from Trade commands the plan follows it live. Plan orders work only on a market with no position and no
+    pending order. ON is never kept after a reload. If a planned position appears without a stop, the tool adds the stop at the plan's
+    price (while the page stays open). To look at a plan without any risk of sending, keep ORDERS OFF.
+    Partial targets are sent as legs with their size: try them at minimum size first. The copier copies only legs without size.
+    The small arrows next to the target values change them by 0.25 (ticks by 1). The <b>Chart space</b> section sets the space between
+    the last candle and the price axis (the same setting as label space in Chart display; arrows ±10 px).
+    The Trade commands ⇱ button detaches it as a floating window you drag by the title bar and resize (width and height) from the bottom-right corner, with the copier accounts inside; ⇥ puts it back.
+    Unfolding the panel (– or Alt+Shift+V) fills the column for the settings and hides the sections until you fold it again; a floating
+    Trade commands panel stays on the screen.
+    <i>On the chart</i> keeps the cards next to the price axis, as before.
+    The lines and labels always stay on the chart.
+    <br>If a Vest window or menu ends up hidden or cut, switch it off and report it with the diagnostics.`,
+  ],
+  pstyle: [
+    'Panel style',
+    '<b>Console</b>: larger text and fields, section titles with a coloured bar, bigger buttons. <b>Classic</b>: compact. Only the look changes.',
+  ],
   theme: [
     'Card style',
-    `<b>Classic</b>: the original design. <b>Sonar</b>: amber on black, square cards with cut corners, segmented bars and a
-    monospaced font. Only colours and fonts change: every button stays in the same place and does the same thing.
+    `<b>Console</b>: the same look as the Console panel. <b>Classic</b>: the original design. <b>Sonar</b>: amber on black, square cards with cut corners, segmented bars and a
+    monospaced font. Applies to the cards on the chart and to the sections in the docked column. Only colours and fonts change: every button stays in the same place and does the same thing.
     Green and red keep their meaning (profit / loss, buy / sell). Your line and quantity colours are kept.`,
   ],
   hilo: [

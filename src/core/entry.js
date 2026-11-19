@@ -7,6 +7,7 @@ const orders = require('./orders');
 const Z = require('../domain/sizing');
 const { floorStep } = require('../domain/num');
 const { closeOrder } = require('../domain/orders');
+const { entryLegs } = require('../domain/plan');
 
 const { S } = store;
 
@@ -183,9 +184,68 @@ async function moveLimit({ accountId, symbol, order, price }) {
   return true;
 }
 
+/**
+ * Risk & targets in Active mode: new trade with the plan's size and its SL / TP legs in the same /open request
+ * (market, or limit at price). plan = { qty, sl, targets: [{ price, qty }], each }.
+ * Only on a free market: Vest attaches legs to /open only, while orders added to a position or to a pending order
+ * go through /append, which has no legs.
+ */
+async function planOpen({ accountId, symbol, side, type, price, plan }) {
+  const m = S.symbols[symbol],
+    mk = S.marks[symbol];
+  if (!m || !(mk && mk.px > 0)) throw new Error('market or price not read yet');
+  if (positionOn(accountId, symbol)) throw new Error('Risk plan: there is already a position on this market. The plan opens new trades only (Manual mode to add)');
+  if (placeholderOn(accountId, symbol)) throw new Error('Risk plan: there is already a pending order on this market (SL / TP attach only to the first order): cancel it first');
+  const w = side === 'long' ? 'BUY' : 'SELL';
+  const ref = type === 'limit' ? price : mk.px;
+  if (type === 'limit') {
+    if (Z.entrySide('lm', price, mk.px) !== side) throw new Error(`a ${w} limit goes ${side === 'long' ? 'below' : 'above'} the price`);
+    if (Z.tooClose(price, mk.px, m.tick)) throw new Error('too close to the price');
+  }
+  if (!(plan && plan.qty > 0)) throw new Error('Risk plan: no size (check the Risk & targets section)');
+  if ((side === 'long' ? 1 : -1) * (ref - plan.sl) <= 0) throw new Error(`Risk plan: the stop ${plan.sl} is on the wrong side of the entry ${ref}`);
+  const sz = sizeFor(accountId, symbol, 100);
+  if (!(sz.lev > 0)) throw new Error(sz.why || 'leverage unknown for this market');
+  if (sz.max > 0 && plan.qty > sz.max) throw new Error(`Risk plan: size ${plan.qty} above what the margin allows (${sz.max})`);
+  if (plan.qty * mk.px < 1) throw new Error('below the Vest minimum ($1 notional)');
+  const legs = entryLegs({ qty: plan.qty, sl: plan.sl, targets: plan.targets, each: plan.each, step: m.step, tick: m.tick });
+  if (legs.why) throw new Error('Risk plan: ' + legs.why);
+  const order = Z.openOrder({ symbol, side, qty: plan.qty, leverage: sz.lev, step: m.step, tick: m.tick, type, price });
+  order.body.takeProfits = legs.takeProfits;
+  order.body.stopLosses = legs.stopLosses;
+  const label = `PLAN ${w} ${plan.qty} ${type === 'limit' ? '@ ' + price : 'at market'} with SL ${plan.sl} and ${legs.takeProfits.length} TP`;
+  return orders.send(accountId, order, label, null);
+}
+
+/** Pending orders of the account on a market (Vest limits). */
+const pendingOn = (accountId, symbol) => ((S.state[accountId] || {}).orders || []).filter((o) => o.symbol === symbol);
+
+/**
+ * Moves the LIMIT of an Active plan: cancelled, then placed again at the new price with the legs recalculated there
+ * (a /append move would lose them). If the new one is refused, nothing stays pending: said clearly.
+ */
+async function planMove({ accountId, symbol, order, price, plan }) {
+  const w = order.side === 'long' ? 'BUY' : 'SELL';
+  // checked BEFORE cancelling: when the new /open would surely be refused, the old LIMIT is left where it is
+  if (positionOn(accountId, symbol)) throw new Error('Risk plan: there is a position on this market, the LIMIT is left as it is');
+  if (pendingOn(accountId, symbol).some((o) => o.id !== order.id)) throw new Error('Risk plan: other pending orders on this market, the LIMIT is left as it is (SL / TP attach only to a single order)');
+  const m = S.symbols[symbol];
+  if (!(plan && plan.qty > 0) || !m) throw new Error('Risk plan: no size');
+  const legs = entryLegs({ qty: plan.qty, sl: plan.sl, targets: plan.targets, each: plan.each, step: m.step, tick: m.tick });
+  if (legs.why) throw new Error('Risk plan: ' + legs.why + ', the LIMIT is left as it is');
+  await cancelOrder({ accountId, orderId: order.id, label: `LIMIT ${w} @ ${order.price} (plan moved to ${price})` });
+  // Vest needs a moment to drop the pending slot (placeholder): a new /open before that is refused
+  for (let i = 0; i < 25 && (placeholderOn(accountId, symbol) || pendingOn(accountId, symbol).some((o) => o.id === order.id)); i++) await new Promise((r) => setTimeout(r, 200));
+  try {
+    return await planOpen({ accountId, symbol, side: order.side, type: 'limit', price, plan });
+  } catch (e) {
+    throw new Error(`old LIMIT cancelled, new one at ${price} NOT placed (${e.message}): nothing is pending now`);
+  }
+}
+
 /** Cancels a pending order. */
 function cancelOrder({ accountId, orderId, label }) {
   return orders.send(accountId, { method: 'POST', path: '/v3/positions/cancel-order', body: { orderId } }, `cancel ${label || orderId}`, null);
 }
 
-module.exports = { sizeFor, positionOn, placeholderOn, target, marketOpen, closePct, reduceAll, moveLimit, placeLimit, marketEntry, addMarket, cutHalf, cancelOrder, checkPct };
+module.exports = { planOpen, planMove, sizeFor, positionOn, placeholderOn, target, marketOpen, closePct, reduceAll, moveLimit, placeLimit, marketEntry, addMarket, cutHalf, cancelOrder, checkPct };

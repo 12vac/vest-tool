@@ -21,7 +21,7 @@
 .btn { background: #1d222c; color: #d7dbe3; border: 1px solid #333a48; border-radius: 4px; padding: 3px 8px; font: inherit; cursor: pointer; }
 .btn:hover { background: #262c38; }
 .btn.ord { font-size: 10px; padding: 1px 6px; color: #9fb3d9; }
-.btn.ord.on { background: #8a2a2a; border-color: #c44; color: #fff; font-weight: 700; }
+.btn.ord.on { background: #1f6b3f; border-color: #3ecf8e; color: #fff; font-weight: 700; } /* ON: green (orders can be sent) */
 .body { overflow: auto; padding: 8px 10px 10px; display: flex; flex-direction: column; gap: 10px; }
 h4 { margin: 0 0 4px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: #8b93a3; }
 table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
@@ -122,3 +122,94 @@ label.il input[type="checkbox"] { width: auto; }
 .pop ul, .helptext ul { margin: 4px 0; padding-left: 18px; }
 .pop li, .helptext li { margin: 2px 0; }
 .helptext { color: #b8bfcc; font-size: 12px; line-height: 1.45; }
+
+/* ── docked: full-height column on the right (Vest's page is narrowed by dock.js) */
+/* column background: stays when the panel is folded, the cards are drawn on it (overlay above, panel above both) */
+.dockbg { display: none; position: fixed; top: 0; right: 0; bottom: 0; z-index: 2147481000; background: #1f2024; border-left: 1px solid #34363c; }
+.panel.dock { top: 0; right: 0; bottom: auto; left: auto; width: var(--dw, 420px); max-width: none; max-height: 100vh; height: auto;
+  border-radius: 0; border-width: 0 0 0 1px; box-shadow: -6px 0 18px rgba(0,0,0,.35); }
+.panel.dock .head { cursor: default; flex-wrap: wrap; row-gap: 4px; }
+.panel.dock .tot { grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); }
+.panel.dock .calc { grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); }
+.btn.on { color: #fff; border-color: #7fb2ff; background: #16223f; }
+
+/* ── Console style: larger, section titles on a bar with a coloured edge, roomy fields and buttons */
+.panel.console { background: #1f2024; border-color: #34363c; font-size: 13px; color: #e2e4e9; }
+.panel.console .head { background: #26272c; border-bottom-color: #34363c; padding: 8px 12px; }
+.panel.console .title { font-size: 15px; font-weight: 800; letter-spacing: .02em; }
+.panel.console .body { padding: 10px 10px 14px; gap: 10px; }
+.panel.console .sec { border: 1px solid #34363c; border-radius: 6px; background: #26272c; overflow: hidden; }
+.panel.console .sh { background: #303136; border-left: 4px solid #f97316; padding: 6px 10px 6px 8px; }
+.panel.console .fold { font-size: 13px; text-transform: none; letter-spacing: 0; font-weight: 700; color: #f1f2f5; }
+.panel.console .fold::before { content: ""; width: 0; }
+.panel.console .sh::after { content: "▾"; color: #8e939e; font-size: 12px; margin-left: 2px; }
+.panel.console .sec.folded .sh::after { content: "▸"; }
+.panel.console .sb { padding: 10px 12px 12px; gap: 10px; }
+.panel.console .group { margin-top: 8px; font-size: 11px; color: #8e939e; border-bottom-color: #34363c; }
+.panel.console input, .panel.console select { background: #17181b; border: 1px solid #45474e; border-radius: 5px; padding: 6px 8px; color: #f1f2f5; }
+.panel.console input:focus, .panel.console select:focus { outline: none; border-color: #f97316; }
+.panel.console input[type="checkbox"] { width: 15px; height: 15px; accent-color: #f97316; }
+.panel.console label { color: #a4a8b1; font-size: 12px; }
+.panel.console .opt { margin: 2px 12px 2px 0; }
+.panel.console .row { gap: 8px 4px; }
+.panel.console .btn { border-radius: 5px; padding: 6px 12px; background: #34363c; border-color: #45474e; color: #f1f2f5; font-weight: 600; }
+.panel.console .btn:hover { background: #3f4148; }
+.panel.console .btn.ord { padding: 3px 9px; font-size: 11px; }
+.panel.console .btn.ord.on { background: #15803d; border-color: #22c55e; }
+.panel.console .btn.on { background: #c2410c; border-color: #f97316; color: #fff; }
+.panel.console .btn.flatall { background: #d4a514; border-color: #f0c03a; color: #17181b; font-size: 12px; padding: 6px 12px; white-space: nowrap; }
+.panel.console .btn.flatall:hover { background: #e8b923; color: #000; }
+.panel.console .btn.cpgo { background: #15803d; border-color: #22c55e; color: #fff; padding: 6px 18px; }
+.panel.console .btn.cpgo.on { background: #b91c1c; border-color: #ef4444; }
+.panel.console .btn.seg.on { background: #c2410c; border-color: #f97316; color: #fff; }
+.panel.console .tot div, .panel.console .out { background: #17181b; border: 1px solid #34363c; border-radius: 6px; }
+.panel.console .tot b { font-size: 15px; }
+.panel.console .plbig { font-size: 30px; }
+.panel.console th { color: #a4a8b1; border-bottom-color: #45474e; }
+.panel.console tbody tr:hover { background: #303136; } .panel.console tr.sel { background: #1e2a44; }
+.panel.console .bar { border-color: #45474e; background: #17181b; }
+.panel.console .track { height: 6px; background: #34363c; border-radius: 3px; }
+.panel.console .up { color: #4ade80; } .panel.console .down { color: #f87171; }
+.panel.console .qi { width: 19px; height: 19px; line-height: 17px; background: #303136; border-color: #45474e; color: #fdba74; }
+.panel.console .log { background: #17181b; border: 1px solid #34363c; border-radius: 5px; padding: 6px 8px; font-size: 11.5px; color: #c4c7ce; max-height: 160px; }
+.panel.console .pop { background: #2a2b30; border-color: #4b4e57; }
+
+/* docked: the open panel fills the column to the bottom (the column's cards are hidden meanwhile);
+   folded = header only, the cards under it */
+.panel.dock:not(.min) { height: 100vh; }
+.panel.dock.withcards.min { box-shadow: 0 6px 14px rgba(0,0,0,.35); border-width: 0 0 1px 1px; }
+/* Trailing stop and breakeven: shown in the docked column instead (Trailing & breakeven section) */
+.panel.stopscol .sec[data-sec="stops"] { display: none; }
+/* result of the last command, in the header (two short lines at most: the header keeps its height) */
+.say { flex: 1 1 0; min-width: 0; align-self: center; font-size: 10.5px; line-height: 11px; max-height: 22px; overflow: hidden;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; word-break: break-word; color: #8b93a3; }
+.say.ok { color: #3ecf8e; } .say.err { color: #ff6b61; }
+/* docked: title, version and messages on the first row; status dots and the buttons on the second */
+.hbr { display: none; }
+.panel.dock .hbr { display: block; flex-basis: 100%; height: 0; }
+/* header, docked: timeframe / countdown / clock / account left of the status dots; the position on its own row */
+.hinfo { display: none; }
+.panel.dock .hinfo { display: inline-flex; align-items: baseline; gap: 8px; min-width: 0; overflow: hidden; white-space: nowrap;
+  font-size: 12px; font-variant-numeric: tabular-nums; color: #e2e4e9; }
+.hinfo b { font-weight: 800; }
+.hinfo i { font-style: normal; font-weight: 600; }
+.hinfo i.cd { color: #7fb2ff; }
+.hinfo .acc { color: #c9d1e0; font-size: 11px; font-weight: 700; text-transform: uppercase; overflow: hidden; text-overflow: ellipsis; }
+.hpos { flex-basis: 100%; display: flex; align-items: baseline; gap: 10px; box-sizing: border-box; padding: 4px 8px; border-radius: 5px;
+  border-left: 3px solid #3a4150; background: #1a1b1f; font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; }
+.hpos.long { border-left-color: #3ecf8e; } .hpos.short { border-left-color: #ff6b61; }
+.hpos .sd { font-weight: 800; color: #8b93a3; }
+.hpos.long .sd, .hpos.long .q, .hpos.long .en { color: #3ecf8e; } .hpos.short .sd, .hpos.short .q, .hpos.short .en { color: #ff6b61; }
+.hpos .q { color: #ffb402; }
+.hpos .pl { font-size: 13px; }
+.hpos .mic { color: #d7dbe3; font-weight: 600; }
+.hpos .day { margin-left: auto; color: #8b93a3; font-weight: 600; }
+.hpos .up { color: #3ecf8e; } .hpos .down { color: #ff6b61; }
+/* position in the header: two rows (side / size / entry .. P&L, then points / contracts .. today) */
+.hpos { flex-direction: column; align-items: stretch; gap: 3px; }
+.hpos .r1, .hpos .r2 { display: flex; align-items: baseline; gap: 12px; min-width: 0; white-space: nowrap; overflow: hidden; }
+.hpos .r2 { font-size: 11.5px; }
+.hpos i { font-style: normal; font-weight: 600; font-size: 10.5px; color: #8b93a3; margin-right: 2px; }
+.hpos .pl { margin-left: auto; font-size: 14px; font-weight: 800; }
+.hpos .day { margin-left: auto; }
+.hpos .day b { font-weight: 700; }

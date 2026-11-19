@@ -5,6 +5,7 @@ const calc = require('./calc');
 const { HELP } = require('./help');
 const store = require('../core/store');
 const log = require('../diag/log');
+const dock = require('./dock');
 
 const UI_KEY = 'vt1:ui';
 // chart overlay lines: [kind, name, default colour] (colour, dash and width of each one can be changed)
@@ -40,19 +41,39 @@ const LINE_DEFAULTS = Object.fromEntries([
   ...SEG_KINDS.flatMap(([k, , c, s]) => [['lc_' + k, c], ['ls_' + k, s], ['lw_' + k, '3'], ['ll_' + k, '']]),
   ...HL_KINDS.flatMap(([k, , c, s]) => [['lc_' + k, c], ['ls_' + k, s], ['lw_' + k, '2']]),
 ]);
+// colours of the entry buttons and FLAT in Trade commands, and of the mode words: [key, name, default]
+const BTN_COLS = [
+  ['lm', 'LIMIT', '#1d4ed8', '#e0ecff'],
+  ['st', 'STOP', '#74746b', '#ffffff'],
+  ['long', 'LONG', '#15803d', '#ffffff'],
+  ['short', 'SHORT', '#b91c1c', '#ffffff'],
+  ['flat', 'FLAT', '#ec9900', '#ffffff'],
+];
+const MODE_COLS = [
+  ['manual', 'MANUAL (Risk & targets OFF)', '#cbd5e1'],
+  ['view', 'RISK PLAN (ON, nothing placed yet)', '#fb923c'],
+  ['act', 'RISK ACTIVE (ON, order or position there)', '#c084fc'],
+];
+const COL_DEFAULTS = Object.fromEntries([
+  ...BTN_COLS.flatMap(([k, , bg, tx]) => [['bc_' + k + '_bg', bg], ['bc_' + k + '_tx', tx], ['bc_' + k + '_fs', '']]),
+  ...MODE_COLS.flatMap(([k, , c]) => [['mc_' + k, c], ['mc_' + k + '_fs', ''], ['mc_' + k + '_lfs', ''], ['mc_' + k + '_fw', '']]),
+]);
 const { S } = store;
 
 let root = null,
   panel = null,
   els = {},
   handlers = {};
-let ui = { ...LINE_DEFAULTS, qc: '#ffb402', qsz: '11', qb: true, trOn: false, trUnit: 'pt', trAct: '', trDist: '', trStep: '', beOn: false, beUnit: 'pt', beOff: '', beAuto: false, beAt: '', x: null, y: null, min: false, lines: true, overlay: true, dd50: true, hideVest: true, blockPct: 125, chipPct: 100, roomPx: 360, cdOn: true, theme: 'classic', hlOn: true, hlK: 2, atrOn: true, atrH: 14, atrR: 3, pp0: 1, pp1: 2, pp2: 4, pp3: 8, pp4: 5, pp5: 16, dailyGoal: '', closePct: 100, sizePct: 1, capPct: 10, mode: 'pos', slUsd: '', tpUsd: '', side: 'long', qty: '', entry: '', symbol: calc.DEFAULT_SYMBOL };
+let ui = { ...LINE_DEFAULTS, ...COL_DEFAULTS, qc: '#ffb402', qsz: '11', qb: true, trOn: false, trUnit: 'pt', trAct: '', trDist: '', trStep: '', beOn: false, beUnit: 'pt', beOff: '', beAuto: false, beAt: '', x: null, y: null, min: false, lines: true, overlay: true, dd50: true, hideVest: true, blockPct: 125, chipPct: 100, roomPx: 360, cdOn: true, theme: 'console', dock: true, dockW: 420, pstyle: 'console', cardsAt: 'column', hlOn: true, hlK: 2, atrOn: true, atrH: 14, atrR: 3, pp0: 1, pp1: 2, pp2: 4, pp3: 8, pp4: 5, pp5: 16, dailyGoal: '', closePct: 100, sizePct: 1, capPct: 10, mode: 'pos', slUsd: '', tpUsd: '', side: 'long', qty: '', entry: '', symbol: calc.DEFAULT_SYMBOL };
 
 try {
   Object.assign(ui, JSON.parse(localStorage.getItem(UI_KEY) || '{}'));
 } catch {
   /* default settings */
 }
+// v0.10.95: STOP and FLAT colours still at the old defaults -> the new defaults (colours chosen by hand are kept)
+if (ui.bc_st_bg === '#eab308' && ui.bc_st_tx === '#1a1405') Object.assign(ui, { bc_st_bg: '#74746b', bc_st_tx: '#ffffff' });
+if (ui.bc_flat_bg === '#d4a514' && ui.bc_flat_tx === '#17181b') Object.assign(ui, { bc_flat_bg: '#ec9900', bc_flat_tx: '#ffffff' });
 // trailing and auto BE send orders on their own: off after every reload, like Orders (never re-armed automatically)
 ui.trOn = false;
 ui.beAuto = false;
@@ -77,12 +98,17 @@ const chk = (k, text) => `<input type="checkbox" data-in="${k}"> ${text}`;
 const num = (k, w, ph = '') => `<input data-in="${k}" inputmode="decimal"${ph ? ` placeholder="${ph}"` : ''} style="width:${w}px">`;
 const unit = (k) => `<select data-in="${k}" style="width:44px"><option value="pt">pt</option><option value="$">$</option></select>`;
 
+const modeSize = (k, list) => `<select data-in="${k}"><option value="">default</option>${list.map((v) => `<option value="${v}">${v} px</option>`).join('')}</select>`;
+
 const SKELETON = `
+<div class="dockbg" data-dockbg></div>
 <div class="panel">
   <div class="head" data-drag>
-    <span class="title">VestTool</span><button class="btn ord" data-act="orders" data-ord>Orders: OFF</button>${info('orders')}<span class="muted" data-ver></span>
+    <span class="title">VestTool</span><span class="hdord" style="display:none"><button class="btn ord" data-act="orders" data-ord>Orders: OFF</button>${info('orders')}</span><span class="muted" data-ver></span><span class="say" data-say></span><span class="hbr"></span>
+    <span class="hinfo" data-hinfo></span>
     <div class="dots" data-dots></div>
     <button class="btn" data-act="min" title="Minimise (Alt+Shift+V)">–</button>
+    <div class="hpos" data-hpos style="display:none"></div>
   </div>
   <div class="body">
     ${sec('overview', 'Overview', `
@@ -114,6 +140,11 @@ const SKELETON = `
       <table data-accounts></table>
       <h4 data-pos-title style="margin-top:8px">Positions</h4><div data-positions></div>`)}
     <div class="group">Settings</div>
+    ${sec('layout', 'Panel layout', `
+      <div class="row">
+        ${opt('dock', `column width ${num('dockW', 40)} px`)}
+        ${opt('pstyle', `panel style <select data-in="pstyle" style="width:88px"><option value="console">Console</option><option value="classic">Classic</option></select>`)}
+      </div>`)}
     ${sec('size', 'Order size and daily goal', `
       <div class="row">
         ${opt('capPct', `size cap ${num('capPct', 38)}%`)}
@@ -139,7 +170,7 @@ const SKELETON = `
         ${opt('atr', `${chk('atrOn', 'volatility heatmap: last')} ${num('atrR', 30)} candles vs last ${num('atrH', 34)} hours`)}
       </div>
       <div class="row">
-        ${opt('theme', `card style <select data-in="theme" style="width:80px"><option value="classic">Classic</option><option value="sonar">Sonar</option></select>`)}
+        ${opt('theme', `card style <select data-in="theme" style="width:88px"><option value="console">Console</option><option value="classic">Classic</option><option value="sonar">Sonar</option></select>`)}
         ${opt('blockPct', `card scale ${num('blockPct', 40)}%`)}
         ${opt('chipPct', `label scale ${num('chipPct', 40)}%`)}
         ${opt('roomPx', `label space ${num('roomPx', 40)}px`)}
@@ -155,6 +186,15 @@ const SKELETON = `
         <tr><td colspan="5"><h4 style="margin-top:6px">Last swing high / low</h4></td></tr>
         ${HL_KINDS.map(([k, name]) => `<tr><td>${name}</td><td><input type="color" data-in="lc_${k}"></td><td><select data-in="ls_${k}"><option value="solid">solid</option><option value="dashed">dashed</option><option value="dotted">dotted</option></select></td><td><select data-in="lw_${k}">${[1, 2, 3, 4].map((w) => `<option value="${w}">${w} px</option>`).join('')}</select></td><td></td></tr>`).join('')}
       </table>`)}
+    ${sec('btncol', 'Button and mode colours', `
+      <table class="lstyle">
+        <tr><td></td><td class="muted">background</td><td class="muted">text</td><td class="muted">size</td></tr>
+        ${BTN_COLS.map(([k, name]) => `<tr><td>${name}</td><td><input type="color" data-in="bc_${k}_bg"></td><td><input type="color" data-in="bc_${k}_tx"></td><td><select data-in="bc_${k}_fs"><option value="">default</option>${[10, 11, 12, 13, 14, 15, 16, 17, 18].map((v) => `<option value="${v}">${v} px</option>`).join('')}</select></td></tr>`).join('')}
+        <tr><td colspan="5"><h4 style="margin-top:6px">Mode words (next to Trade commands and on the chart labels)</h4></td></tr>
+        <tr><td></td><td class="muted">colour</td><td class="muted">size next to Trade commands</td><td class="muted">size on the labels</td><td class="muted">weight</td></tr>
+        ${MODE_COLS.map(([k, name]) => `<tr><td>${name}</td><td><input type="color" data-in="mc_${k}"></td><td>${modeSize(`mc_${k}_fs`, [9, 10, 11, 12, 13, 14, 15, 16, 18, 20])}</td><td>${k === 'manual' ? '' : modeSize(`mc_${k}_lfs`, [8, 9, 10, 11, 12, 13, 14, 15, 16])}</td><td><select data-in="mc_${k}_fw"><option value="">default</option><option value="b">bold</option><option value="n">normal</option></select></td></tr>`).join('')}
+      </table>
+      <div class="row"><button class="btn" data-act="colreset">Default colours</button></div>`)}
     ${sec('calc', 'SL / TP calculator', `
       <div class="calc">
         <label>Base<select data-in="mode"><option value="pos">Account position</option><option value="man">Manual</option></select></label>
@@ -190,15 +230,20 @@ function mount(version, h) {
   root.innerHTML = `<style>${css}</style>${SKELETON}`;
   document.documentElement.appendChild(host);
   panel = root.querySelector('.panel');
-  for (const k of ['trsize', 'trtitle', 'trsym', 'trlev', 'trpx', 'mtxt', 'mfill', 'rtxt', 'rfill', 'pend', 'dots', 'totals', 'plbig', 'plsub', 'placc', 'flatall', 'accounts', 'positions', 'calc', 'checks', 'log', 'sync', 'manual', 'ver', 'ord', 'cpst', 'cpgo', 'cpacc', 'cplast', 'trst']) els[k] = root.querySelector(`[data-${k}]`);
+  for (const k of ['trsize', 'trtitle', 'trsym', 'trlev', 'trpx', 'mtxt', 'mfill', 'rtxt', 'rfill', 'pend', 'dots', 'totals', 'plbig', 'plsub', 'placc', 'flatall', 'accounts', 'positions', 'calc', 'checks', 'log', 'sync', 'manual', 'ver', 'ord', 'cpst', 'cpgo', 'cpacc', 'cplast', 'trst', 'say', 'hinfo', 'hpos']) els[k] = root.querySelector(`[data-${k}]`);
   els.posTitle = root.querySelector('[data-pos-title]');
   els.pop = root.querySelector('[data-pop]');
   els.popt = root.querySelector('[data-popt]');
   els.poph = root.querySelector('[data-poph]');
   els.body = root.querySelector('.body');
   els.ver.textContent = 'v' + version;
+  // always docked with the cards in the column (only Trade commands can float): the panel opens folded at the top
+  ui.dock = true;
+  ui.cardsAt = 'column';
+  ui.min = true;
   if (ui.min) panel.classList.add('min');
   if (ui.x != null) place(ui.x, ui.y);
+  layout(true);
 
   // inputs: state kept in ui, recalculated at once
   for (const inp of root.querySelectorAll('[data-in]')) {
@@ -208,6 +253,7 @@ function mount(version, h) {
     inp.addEventListener(inp.type === 'checkbox' || inp.tagName === 'SELECT' ? 'change' : 'input', () => {
       ui[k] = inp.type === 'checkbox' ? inp.checked : inp.value.trim().replace(',', '.');
       saveUi();
+      if (k === 'dock' || k === 'dockW' || k === 'pstyle' || k === 'cardsAt') layout(k !== 'dockW'); // width: wait for the typing to stop
       handlers.onInput && handlers.onInput();
       render();
     });
@@ -307,6 +353,16 @@ function act(a) {
     ui.min = !ui.min;
     panel.classList.toggle('min', ui.min);
     saveUi();
+    layout(true);
+  } else if (a === 'colreset') {
+    for (const [k, v] of Object.entries(COL_DEFAULTS)) {
+      ui[k] = v;
+      const inp = root.querySelector(`[data-in="${k}"]`);
+      if (inp) inp.value = v;
+    }
+    saveUi();
+    handlers.onInput && handlers.onInput();
+    render();
   } else if (a === 'sync') handlers.sync();
   else if (a === 'check') handlers.check();
   else if (a === 'session') store.resetSession();
@@ -361,6 +417,37 @@ function renderCopy(ids, vals) {
   els.cplast.textContent = l ? `Last copy: ${l.action} from ${l.src}, ${l.ok}/${l.n} copies${l.ms != null ? ` in ${l.ms} ms` : ''}, ${F.ago(l.at)}` : c.armed ? 'No copies yet' : 'After a reload the copier starts switched off.';
 }
 
+// docked (full-height column on the right, Vest's page narrowed) or floating. Docked and minimised: only the header at the top,
+// the column stays (with the cards in it when they are set to live there).
+const DOCK_MIN = 320,
+  DOCK_MAX = 900;
+let layoutT = 0;
+function layout(now) {
+  clearTimeout(layoutT);
+  if (!now) {
+    layoutT = setTimeout(() => layout(true), 500);
+    return;
+  }
+  const w = Math.min(DOCK_MAX, Math.max(DOCK_MIN, Math.round(parseFloat(ui.dockW)) || 420));
+  const on = !!ui.dock;
+  panel.classList.toggle('console', ui.pstyle === 'console');
+  panel.classList.toggle('dock', on);
+  panel.style.setProperty('--dw', w + 'px');
+  const col = on && ui.cardsAt !== 'chart';
+  panel.classList.toggle('withcards', col); // folded panel: the cards under it; open: full height, cards hidden
+  const bg = root.querySelector('[data-dockbg]');
+  bg.style.display = on ? 'block' : 'none';
+  bg.style.width = w + 'px';
+  const db = root.querySelector('[data-dockbtn]');
+  if (db) db.classList.toggle('on', on);
+  if (on || ui.x == null) {
+    panel.style.left = '';
+    panel.style.top = '';
+    panel.style.right = '';
+  } else place(ui.x, ui.y);
+  dock.apply(on ? w : 0);
+}
+
 function place(x, y) {
   const maxX = window.innerWidth - 80,
     maxY = window.innerHeight - 40;
@@ -372,7 +459,7 @@ function place(x, y) {
 function drag(handle) {
   let start = null;
   handle.addEventListener('pointerdown', (e) => {
-    if (e.target.closest('button')) return;
+    if (e.target.closest('button') || panel.classList.contains('dock')) return;
     const r = panel.getBoundingClientRect();
     start = { dx: e.clientX - r.left, dy: e.clientY - r.top };
     handle.setPointerCapture(e.pointerId);
@@ -427,6 +514,7 @@ function render() {
   if (ui.trOn && !(+ui.trDist > 0)) warn.push('Trailing is on but "pullback" is empty: it does nothing');
   els.trst.textContent = [...warn, ts ? 'Trailing / BE: ' + ts : ''].filter(Boolean).join(' · ');
   els.trst.classList.toggle('warn', warn.length > 0);
+  if (panel) panel.classList.toggle('stopscol', stopsInColumn()); // the section is in the column: not shown twice
 
   // totals of all accounts
   const sum = (k) => {
@@ -602,6 +690,75 @@ function renderLog() {
 }
 
 /** Changes a value from the chart cards (e.g. the size %) and saves it. */
+/** Result of the last command (docked column): in the header, so nothing below moves when it appears. */
+let sayTimer = null;
+function say(text, kind) {
+  if (!els.say) return;
+  els.say.textContent = text || '';
+  els.say.title = text || '';
+  els.say.className = 'say ' + (kind || '');
+  clearTimeout(sayTimer);
+  sayTimer = setTimeout(() => {
+    els.say.textContent = '';
+    els.say.title = '';
+  }, kind === 'err' ? 9000 : 4000);
+}
+
+/** Position data of the chart card, shown in the header (docked column). null = hidden. Rewritten only when they change. */
+let headKey = '';
+function headPos(d) {
+  if (!els.hinfo || !els.hpos) return;
+  const key = d ? JSON.stringify(d) : '';
+  if (key === headKey) return;
+  headKey = key;
+  els.hpos.style.display = d ? '' : 'none';
+  if (!d) {
+    els.hinfo.innerHTML = '';
+    els.hpos.innerHTML = '';
+    return;
+  }
+  const e = F.esc;
+  // row 2, left of the status dots: timeframe + candle countdown, clock, account
+  els.hinfo.innerHTML =
+    `<b>${e(d.tf)}</b>` + (d.cd ? `<i class="cd">${e(d.cd)}</i>` : '') + `<i>${e(d.clk)}</i>` + (d.acc ? `<span class="acc">${e(d.acc)}</span>` : '');
+  // the position on two rows:
+  //   1) side, size, entry price ............ open P&L in $
+  //   2) points from the entry, contracts and $ per point ............ points of the day
+  // flat: one row, FLAT ............ points of the day
+  const flat = d.side === 'flat';
+  const day = d.dpt ? `<span class="day"><i>today</i> <b class="${e(d.dptC)}">${e(d.dpt)}</b></span>` : '';
+  els.hpos.className = 'hpos ' + d.side;
+  els.hpos.innerHTML = flat
+    ? `<div class="r1"><span class="sd">FLAT</span>${day}</div>`
+    : `<div class="r1"><span class="sd">${d.side.toUpperCase()}</span><span class="q">${e(d.qty)}</span>` +
+      (d.entry ? `<span class="en"><i>entry</i> ${e(d.entry)}</span>` : '') +
+      (d.pnl ? `<span class="pl ${e(d.pnlC)}">${e(d.pnl)}</span>` : '') +
+      `</div><div class="r2">` +
+      (d.gap ? `<span class="gp ${e(d.gapC)}">${e(d.gap)}</span>` : '') +
+      (d.mic ? `<span class="mic">${e(d.mic)}</span>` : '') +
+      day +
+      `</div>`;
+}
+
+/** A setting changed from the column (Trailing & breakeven): same effect as typing it in the panel. */
+function setUiInput(k, v) {
+  ui[k] = v;
+  saveUi();
+  const inp = root && root.querySelector('[data-in="' + k + '"]');
+  if (inp) {
+    if (inp.type === 'checkbox') inp.checked = !!v;
+    else inp.value = v;
+  }
+  handlers.onInput && handlers.onInput();
+  render();
+}
+
+/** Trailing / BE status line of the panel (warnings for empty fields + what is running). */
+const trailNote = () => (els.trst ? { text: els.trst.textContent, warn: els.trst.classList.contains('warn') } : { text: '', warn: false });
+
+/** True when the Trailing & breakeven settings live in the docked column instead of the panel. */
+const stopsInColumn = () => !!(ui.dock && ui.cardsAt !== 'chart' && ui.overlay && dock.width());
+
 function setUi(k, v) {
   ui[k] = v;
   saveUi();
@@ -610,6 +767,29 @@ function setUi(k, v) {
 }
 
 /** Line style per kind: { kind: { c, s, w } }; invalid values -> default. */
+/** Colours of the Trade commands buttons and of the mode words, as CSS variables for the overlay. */
+function btnColors() {
+  const ok = (k) => (/^#[0-9a-f]{6}$/i.test(ui[k]) ? ui[k] : COL_DEFAULTS[k]);
+  const out = {};
+  for (const [k] of BTN_COLS) {
+    out[`--b-${k}-bg`] = ok(`bc_${k}_bg`);
+    out[`--b-${k}-tx`] = ok(`bc_${k}_tx`);
+    const fs = Math.round(+ui[`bc_${k}_fs`]);
+    out[`--b-${k}-fs`] = fs >= 8 && fs <= 24 ? fs + 'px' : ''; // '' = default (the property is removed)
+  }
+  for (const [k] of MODE_COLS) {
+    out[`--m-${k}`] = ok('mc_' + k);
+    // size next to Trade commands / on the chart labels, weight of both ('' = default: the property is removed)
+    const fs = Math.round(+ui[`mc_${k}_fs`]),
+      lfs = Math.round(+ui[`mc_${k}_lfs`]),
+      fw = ui[`mc_${k}_fw`];
+    out[`--m-${k}-fs`] = fs >= 8 && fs <= 24 ? fs + 'px' : '';
+    out[`--m-${k}-lfs`] = lfs >= 8 && lfs <= 20 ? lfs + 'px' : '';
+    out[`--m-${k}-fw`] = fw === 'b' ? '800' : fw === 'n' ? '400' : '';
+  }
+  return out;
+}
+
 function lineStyles() {
   const out = {};
   for (const [k, , c] of LINE_KINDS) {
@@ -638,6 +818,21 @@ function qtyStyle() {
   return { c: /^#[0-9a-f]{6}$/i.test(ui.qc) ? ui.qc : '#ffb402', s: Math.min(16, Math.max(9, Math.round(+ui.qsz) || 11)), b: ui.qb !== false };
 }
 
+/** Where the chart cards go when they live in the docked column: the free part of the column under the folded panel
+ *  (hidden: true while the panel is open and fills the column), or null = on the chart. */
+function cardsColumn() {
+  if (!panel || !ui.dock || ui.cardsAt === 'chart' || !ui.overlay) return null;
+  const w = dock.width();
+  if (!w) return null;
+  const top = Math.ceil(panel.getBoundingClientRect().bottom);
+  return { left: window.innerWidth - w, width: w, top, height: Math.max(0, window.innerHeight - top), hidden: !ui.min };
+}
+
 module.exports = {
   qtyStyle,
-  lineStyles, mount, render, ui: () => ui, setUi };
+  cardsColumn,
+  setUiInput,
+  say,
+  headPos,
+  trailNote,
+  lineStyles, btnColors, mount, render, ui: () => ui, setUi };

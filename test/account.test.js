@@ -150,3 +150,14 @@ test('posAt only for messages that touch positions or orders', () => {
   assert.strictEqual(b.state.feedAt, 2000);
 });
 
+
+test('placeholder of a pending LIMIT: legs Vest keeps on it, null when Vest sends no list', () => {
+  const [ph] = A.parseRestPlaceholders({
+    positions: [{ positionId: 'P1', symbol: 'BTC', side: 'long', quantity: '0', takeProfits: [{ id: 't1', triggerPrice: '110', quantity: '0.5' }], stopLosses: [{ id: 's1', triggerPrice: '90' }] }],
+  });
+  assert.deepEqual(ph.triggers, [
+    { id: 't1', kind: 'tp', price: 110, qty: 0.5 },
+    { id: 's1', kind: 'sl', price: 90, qty: null },
+  ]);
+  assert.equal(A.parseRestPlaceholders({ positions: [{ positionId: 'P2', symbol: 'ETH', quantity: '0' }] })[0].triggers, null);
+});

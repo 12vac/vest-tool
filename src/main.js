@@ -29,7 +29,7 @@ function start(version) {
   const stops = require('./core/stops');
   const trail = require('./core/trail');
   const { toPts } = require('./domain/trail');
-  const { breakevenPrice } = require('./domain/orders');
+  const { breakevenPrice, legOrder } = require('./domain/orders');
   const copier = require('./core/copier');
   const { knockout, ladder, ddHalf } = require('./domain/ladder');
 const { limitsOf } = require('./domain/account');
@@ -131,7 +131,7 @@ on that market are closed. Real money on every account. It switches off at every
       ...stops
         .list()
         .filter((x) => x.accountId === acc && x.symbol === symbol)
-        .map((x) => ({ id: x.id, kind: 'st', side: x.side, price: x.trigger, qty: x.qty, local: true })),
+        .map((x) => ({ id: x.id, kind: 'st', side: x.side, price: x.trigger, qty: x.qty, local: true, plan: x.plan ? { sl: x.plan.sl, targets: x.plan.targets } : null })),
     ];
     // account equity and room to the TOTAL drawdown limit (max drawdown + profit = equity - floor)
     const a = S.accounts[acc],
@@ -176,12 +176,15 @@ on that market are closed. Real money on every account. It switches off at every
       })(),
       selected: S.selected,
       copy: cs.followers.length && copyRows.length ? { armed: cs.armed, rows: copyRows, tot: copyTot } : null,
-      market: { symbol, label: m.label, tick: m.tick, priceDec: m.priceDec, mark: (S.marks[symbol] || {}).px },
+      market: { symbol, label: m.label, tick: m.tick, step: m.step, fee: m.takerFee, priceDec: m.priceDec, mark: (S.marks[symbol] || {}).px },
       pos,
       lev: size.lev,
       size,
+      capPct: +ui.capPct || 0, // per-order cap: also limits the Risk & targets plan
+      tb: { trOn: !!ui.trOn, trUnit: ui.trUnit, trAct: ui.trAct, trDist: ui.trDist, trStep: ui.trStep, beOn: !!ui.beOn, beUnit: ui.beUnit, beOff: ui.beOff, beAuto: !!ui.beAuto, beAt: ui.beAt, note: panel.trailNote() },
       pct: +ui.sizePct || 0,
       pendings,
+      phLegs: (((st && st.placeholders) || []).find((p) => p.symbol === symbol) || {}).triggers || null, // legs Vest keeps on the pending LIMIT
       ordersOn: orders.enabled(),
       busy: pos ? orders.busyOn(pos.id) : null,
       closePct: +ui.closePct || 0,
@@ -247,6 +250,7 @@ on that market are closed. Real money on every account. It switches off at every
       }),
       blockPct: ui.blockPct,
       lineStyles: panel.lineStyles(),
+      btnColors: panel.btnColors(),
       // positions on the same side on ALL accounts (TP and SL show the P&L of every account in the trade)
       allPos: pos
         ? Object.keys(S.accounts)
@@ -271,7 +275,8 @@ on that market are closed. Real money on every account. It switches off at every
       chipPct: ui.chipPct,
       roomPx: ui.roomPx,
       cdOn: ui.cdOn !== false,
-      theme: ui.theme === 'sonar' ? 'sonar' : 'classic',
+      theme: ui.theme === 'sonar' || ui.theme === 'classic' ? ui.theme : 'console',
+      cardsCol: panel.cardsColumn(), // cards in the docked column (null = next to the price axis)
       hlOn: ui.hlOn !== false,
       atrOn: ui.atrOn !== false,
       // out of range -> nearest limit (not the default: a value that silently does nothing is worse); empty -> default
@@ -330,6 +335,7 @@ It switches off by itself at every page reload.`,
           return r;
         });
       }),
+    setSetting: (k, v) => panel.setUiInput(k, v), // Trailing & breakeven section of the column
     setLeg: (kind, price, existing) => Promise.resolve().then(() => orders.setLeg(S.selected, curPos(), kind, price, existing)),
     removeLeg: (leg) => Promise.resolve().then(() => orders.removeLeg(S.selected, curPos(), leg)),
     // second card
@@ -353,10 +359,46 @@ It switches off by itself at every page reload.`,
         const ui = panel.ui(),
           symbol = chartMarket();
         if (!symbol) throw new Error('chart market not recognised');
-        if (!orders.enabled()) throw new Error('Orders are off: switch them on from the panel');
+        if (!orders.enabled()) throw new Error('Orders are off: switch ORDERS on (Trade commands)');
         const args = { accountId: S.selected, symbol, price, pct: +ui.sizePct || 0, cap: +ui.capPct || 0 };
         return kind === 'lm' ? entry.placeLimit(args) : stops.arm(args);
       }),
+    // Risk & targets, Active mode: entries with the plan's size and SL / TP (in place of the % size)
+    planEntry: (type, side, price, plan) =>
+      Promise.resolve().then(async () => {
+        const symbol = chartMarket(),
+          acc = S.selected;
+        if (!symbol || !acc) throw new Error('chart market not recognised');
+        const r = await entry.planOpen({ accountId: acc, symbol, side, type, price, plan });
+        guardPlan(acc, symbol, plan.sl, type);
+        return r;
+      }),
+    // plan STOP: LOCAL (Vest has no entry stop), when touched it sends the market entry with the plan's SL / TP
+    planStop: (side, price, plan) =>
+      Promise.resolve().then(() => {
+        const symbol = chartMarket(),
+          acc = S.selected;
+        if (!symbol || !acc) throw new Error('chart market not recognised');
+        if (!orders.enabled()) throw new Error('Orders are off: switch ORDERS on (Trade commands)');
+        const st = stops.arm({ accountId: acc, symbol, price, plan });
+        if (st.side !== side) {
+          stops.cancel(st.id, 'wrong side');
+          throw new Error(`a ${side === 'long' ? 'BUY stop goes above' : 'SELL stop goes below'} the price`);
+        }
+        return st;
+      }),
+    planStopMove: (o, price, plan) => Promise.resolve().then(() => stops.move(o.id, price, plan)),
+    planMove: (o, price, plan) =>
+      Promise.resolve().then(async () => {
+        const symbol = chartMarket(),
+          acc = S.selected;
+        if (!symbol || !acc) throw new Error('chart market not recognised');
+        const r = await entry.planMove({ accountId: acc, symbol, order: o, price, plan });
+        guardPlan(acc, symbol, plan.sl, 'limit');
+        return r;
+      }),
+    say: (text, kind) => panel.say(text, kind),
+    head: (d) => panel.headPos(d),
     market: (side) => Promise.resolve().then(() => entry.marketOpen({ accountId: S.selected, symbol: chartMarket(), side, pct: +panel.ui().sizePct || 0, cap: +panel.ui().capPct || 0 })),
     // cancel limits / cancel local stops / cancel both. Cancellations only: allowed with Orders OFF
     cancelOrders: (kind) =>
@@ -379,6 +421,47 @@ It switches off by itself at every page reload.`,
         o.local ? stops.move(o.id, price) : entry.moveLimit({ accountId: S.selected, symbol: chartMarket(), order: { ...o, reduceOnly: o.label === 'CLOSE' }, price }),
       ),
   };
+  // ── safety net of the Active plan: if the position appears WITHOUT a stop (legs refused or lost), the stop is added
+  // with the single-stop request already in use (whole position). In memory only: after a reload it is not watched.
+  const planGuards = new Map(); // 'acc|symbol' -> { sl, until, seen, sending }
+  // plan STOP touched: market entry with the plan, watched like the others
+  stops.setPlanFire((st) =>
+    entry.planOpen({ accountId: st.accountId, symbol: st.symbol, side: st.side, type: 'market', price: null, plan: st.plan }).then((r) => {
+      guardPlan(st.accountId, st.symbol, st.plan.sl, 'market');
+      return r;
+    }),
+  );
+  function guardPlan(acc, symbol, sl, type) {
+    planGuards.set(acc + '|' + symbol, { sl, until: Date.now() + (type === 'limit' ? 7 * 864e5 : 20000), seen: 0, sending: false, t0: Date.now() });
+  }
+  setInterval(() => {
+    const now = Date.now();
+    for (const [k, g] of planGuards) {
+      const [acc, symbol] = k.split('|');
+      const pos = entry.positionOn(acc, symbol);
+      if (!pos) {
+        // market: not filled within 20 s / limit: cancelled (no pending slot any more) -> nothing to watch
+        if (g.seen || now > g.until || (now - g.t0 > 5000 && !entry.placeholderOn(acc, symbol))) planGuards.delete(k);
+        continue;
+      }
+      if (!g.seen) g.seen = now;
+      if (pos.triggers.some((t) => t.kind === 'sl')) {
+        planGuards.delete(k);
+        continue;
+      }
+      if (now - g.seen < 5000 || g.sending) continue;
+      g.sending = true;
+      const m = S.symbols[symbol];
+      orders
+        .send(acc, legOrder(pos, 'sl', g.sl, m.tick), `PLAN: the position had NO stop, stop added at ${g.sl}`, pos.id)
+        .then(
+          () => panel.say(`The position had no stop: stop added at ${g.sl}`, 'err'),
+          (e) => panel.say(`POSITION WITHOUT STOP: adding it at ${g.sl} failed (${e.message}). Set the SL now`, 'err'),
+        )
+        .finally(() => planGuards.delete(k));
+    }
+  }, 1000);
+
   // ── panel Trade section: chart market for the selected account, margin, risk, pending orders
   function tradeInfo() {
     const acc = S.selected,

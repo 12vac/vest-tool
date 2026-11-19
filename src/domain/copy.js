@@ -200,4 +200,17 @@ function exitedSymbols(prev, positions) {
 /** Id of the created order, from Vest's response (orderId in camelCase or snake_case). */
 const orderIdOf = (res) => (res && (res.orderId || res.order_id || (res.order && (res.order.orderId || res.order.id)))) || null;
 
-module.exports = { actionOf, capQty, scaleQty, planFollower, orderIdOf, exitedSymbols, CAP_BUFFER, CAP_SAME_SIZE };
+/**
+ * Size-0 placeholder of a copy that is only the leftover of orders the copier has just cancelled on that market (Vest
+ * removes it a moment later). A new /open in that window would go to append on it and Vest rejects it later (10009).
+ * fs = copy's state { positions, placeholders, orders }; jc = { symbol, ids: Set, at } of the last cancel.
+ */
+function leftoverPh(fs, jc, symbol, now) {
+  if (!jc || jc.symbol !== symbol || now - jc.at > 10000) return false;
+  const s = fs || {};
+  const on = (l) => (l || []).some((p) => p.symbol === symbol);
+  if (!on(s.placeholders) || on(s.positions)) return false;
+  return (s.orders || []).every((o) => o.symbol !== symbol || jc.ids.has(o.id));
+}
+
+module.exports = { leftoverPh, actionOf, capQty, scaleQty, planFollower, orderIdOf, exitedSymbols, CAP_BUFFER, CAP_SAME_SIZE };

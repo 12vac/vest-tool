@@ -48,7 +48,7 @@ Building it yourself lets you read every line before it touches your account. Th
 ## 3. First start
 
 1. Open **https://next.vestmarkets.com** and log in as usual. Reload the page once.
-2. The **VestTool panel** appears at the top right. Drag it by its title bar. **Alt+Shift+V** folds it.
+2. The **VestTool panel** appears as a column on the right of the page, folded, with the **Trade commands** panel and the card sections under it (⇱ detaches Trade commands as a floating window). **Alt+Shift+V** unfolds / folds it. The panel always stays docked; only Trade commands can float.
 3. Wait for the four dots in the panel header to turn green: *Session*, *Feed*, *Chart*, *Checks*.
    - If *Checks* stays yellow or red, open **Settings → Diagnostics** to see which check failed.
 4. The **cards** appear on the right of the chart for the selected account and the chart's market.
@@ -60,10 +60,10 @@ or extensions that change the Vest page: they hook into the same places.
 
 ## 4. Switching orders on
 
-Out of the box the tool **cannot open positions**. It starts with **Orders: OFF** after every page reload.
+Out of the box the tool **cannot open positions**. It starts with **ORDERS OFF** after every page reload.
 
 - With Orders OFF, only closing and cancelling work: **FLAT**, **FLATTEN ALL**, **CLOSE**, the **CANCEL** menu.
-- Click **Orders: OFF** (panel header) or **ORDERS** (first card) and confirm to switch it on.
+- Click **ORDERS** (Trade commands, or the first card when the cards are on the chart) and confirm to switch it on.
 
 ## 5. Your first trade at minimum size
 
@@ -82,6 +82,12 @@ Check every step on Vest's own positions page.
 - **Order size and daily goal → size cap**: no entry order can be larger than this % of the maximum size. Default 10%.
 - **Order size and daily goal → presets**: the six % buttons on the second card.
 - **Order size and daily goal → daily goal**: your target for the day, shown on the third card.
+- **Panel layout**: the panel is docked as a full-height column (always), with the Trade commands
+  panel and the card sections under it (click a section title to fold it). The **Risk & targets** section calculates:
+  size (risk in $, % of max or quantity), stop (points, ticks, previous candle, ATR) and up to 4 targets, shown on the chart as
+  plan lines for side L or S (drag ENTRY to move the entry, plan SL to change the stop: the risk stays, the size follows; a dragged LIMIT or STOP only sets ENTRY: START on its label places it with the plan; the STOP stays local in the tab); with the section
+  **ON** the LONG / SHORT buttons are off and START on the MARKET label sends the plan's size with its SL and TP, with it OFF (MANUAL) everything uses the % size; the **Chart space** section sets the space between the last candle and the price axis; choose the column width and the panel style. **Button and mode colours**: colours of LIMIT, STOP, LONG, SHORT, FLAT and of the mode words.
+  If a Vest window or menu ends up hidden behind the column, fold the panel or narrow the column.
 - **Chart display**: card style (Classic or Sonar), card and label size, label space, candle countdown, last swing high/low lines (K = candles on each
   side, 1-50), volatility heatmap (last N candles vs the last H hours). Each has a **?** that explains it.
 - **Line colours**: colour, dash and width of every line.

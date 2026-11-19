@@ -58,7 +58,24 @@ Do not run two copies of this script at the same time (for example an old and a 
   of hours (e.g. 14 h = 14 candles of 1h, 840 of 1m). Above 1 = that timeframe is speeding up; a burst usually lights up
   1m first. Blue below 0.75, grey normal, orange from 1.25, red from 1.75. Built from the chart's own candles: timeframes
   shorter than the chart's show "—" (put the chart on 1m to see all five).
-- **Card style**: *Classic* or *Sonar* (amber on black, cut corners, segmented bars, monospaced font) in *Chart display*.
+- **Docked column** (default): the panel is a full-height column on the right and Vest's page is narrowed to make room.
+  The panel opens folded at the top; under it the column shows the **Trade commands** panel (every button: size %, LIMIT, STOP,
+  TP, SL, BE, LONG, SHORT, CANCEL, PARTIAL CLOSE, CLOSE, FLAT, ORDERS, COPY) and foldable sections (account limits,
+  copier, volatility) at the panel's text size. The panel header shows the chart timeframe, candle countdown, clock and account, and under them the position (side, size, entry, points, P&L, contracts, points of the day). ⇱ detaches Trade commands as a floating window you can drag anywhere; ⇥ puts it back.
+  **Trailing & breakeven** moves to a column section (same settings as before).
+  **Risk & targets** (column section): size by risk in $, % of the maximum or fixed quantity (optionally counting
+  fees, never above the size cap); stop by points, ticks, previous candle low/high ± ticks or ATR multiple; up to 4 targets T1-T4
+  (× risk, ticks, points, × ATR or trailing without TP), split equally, mostly on T1 or mostly on the last. Its **ON / OFF** button
+  (next to the title) turns the plan on: the % size and the LONG / SHORT buttons are off; START on the MARKET LONG / SHORT label sends
+  the plan's size with its SL and TP legs at market, a LIMIT or STOP dragged from Trade commands moves the entry there (label LIMIT / STOP)
+  and START on its label places it (the STOP is local: at the touch it sends a market order
+  with the plan). Labels say RISK PLAN, then RISK ACTIVE (black) once the order is really placed; the same word shows next to Trade
+  commands (MANUAL when OFF). Drag ENTRY to plan from another price, drag plan SL to change the stop (same risk in $, the size follows).
+  Only on a market with no position and no pending order; OFF after a reload. Partial TP legs: try them at minimum size first.
+  Lines and labels stay on the chart. Alt+Shift+V (or –) unfolds the panel to full height for the settings (the sections hide meanwhile). The panel always stays docked on the right; *Settings → Panel layout*: column width and panel style.
+  *Settings → Button and mode colours*: background, text and size of LIMIT, STOP, LONG, SHORT, FLAT and the colour of MANUAL / RISK PLAN / RISK ACTIVE.
+  The **Copier accounts** section sits right under Trade commands and floats with it.
+- **Card style**: *Console* (default, same look as the panel), *Classic* or *Sonar* (amber on black, cut corners, segmented bars, monospaced font) in *Chart display*.
   Only colours and fonts change; buttons stay where they are.
 - **TP / SL**: press the button on the card and drag to the level; releasing sends the order. Existing labels can be dragged to
   move them. A yellow border means the level is not valid (wrong side of the price or closer than 2 ticks) and nothing is sent.

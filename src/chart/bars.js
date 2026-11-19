@@ -157,6 +157,16 @@ function trueRanges(bars) {
 
 const mean = (a) => a.reduce((s, v) => s + v, 0) / a.length;
 
+/** Last CLOSED candle (the last one in the series is still forming): { h, l } or null. */
+const lastClosed = (bars) => (bars && bars.length >= 2 ? { h: bars[bars.length - 2].h, l: bars[bars.length - 2].l } : null);
+
+/** ATR of the chart's timeframe: average true range of the last n closed candles (NaN if fewer). */
+function atrClosed(bars, n) {
+  if (!bars || bars.length < n + 2) return NaN;
+  const tr = trueRanges(bars.slice(0, -1)).slice(-n);
+  return tr.length === n ? mean(tr) : NaN;
+}
+
 /**
  * ATR on 1h, 30m, 15m, 5m and 1m over the same span of hours, built from the chart's candles (baseSec = chart timeframe).
  * For each timeframe: atr = average true range of the candles in the last `hours` (closed candles only), recent = the same
@@ -289,6 +299,7 @@ function mtfCached(baseSec, hours, recent) {
  * For the active chart: { left: countdown text, tf: timeframe name, hl: last swing { h, l } | null,
  * mtf: ATR per timeframe | null }. k = candles on each side of a swing; atr = { hours, recent } or null when off.
  */
+const ATR_N = 14;
 function view(chart, k, mark, atr) {
   const K = Math.max(1, Math.min(50, Math.round(k) || 2));
   R.atrHours = atr ? atr.hours : 0;
@@ -309,7 +320,9 @@ function view(chart, k, mark, atr) {
     tf: res != null ? tfLabel(res) : '',
     hl: swings(R.bars, K, mark),
     mtf: atr && R.bars ? mtfCached(resSec(res), atr.hours, atr.recent) : null,
+    prev: lastClosed(R.bars), // Risk & targets: stop on the last candle low / high
+    atr14: atrClosed(R.bars, ATR_N), // Risk & targets: ATR multiples
   };
 }
 
-module.exports = { resSec, nextClose, fmtLeft, parseExport, swings, tfLabel, aggregate, trueRanges, atrMtf, clockOffset, serverNow, view };
+module.exports = { lastClosed, atrClosed, resSec, nextClose, fmtLeft, parseExport, swings, tfLabel, aggregate, trueRanges, atrMtf, clockOffset, serverNow, view };

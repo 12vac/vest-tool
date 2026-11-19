@@ -134,3 +134,15 @@ test('close: /close of the copy position', () => {
   assert.strictEqual(c.order.body.positionId, 'PF');
   assert.ok(C.planFollower({ action: 'close', body: {}, mBefore: mPos, fPos: null, step, tick }).skip);
 });
+
+test('leftoverPh: empty placeholder left by a copy order just cancelled', () => {
+  const jc = { symbol: 'NQ', ids: new Set(['O1']), at: 1000 };
+  const ph = [{ id: 'P', symbol: 'NQ', qty: 0 }];
+  assert.strictEqual(C.leftoverPh({ placeholders: ph, positions: [], orders: [] }, jc, 'NQ', 2000), true);
+  assert.strictEqual(C.leftoverPh({ placeholders: ph, positions: [], orders: [{ id: 'O1', symbol: 'NQ' }] }, jc, 'NQ', 2000), true); // state not updated yet
+  assert.strictEqual(C.leftoverPh({ placeholders: ph, positions: [], orders: [{ id: 'O2', symbol: 'NQ' }] }, jc, 'NQ', 2000), false); // another pending order: real placeholder
+  assert.strictEqual(C.leftoverPh({ placeholders: ph, positions: [{ symbol: 'NQ', qty: 1 }], orders: [] }, jc, 'NQ', 2000), false);
+  assert.strictEqual(C.leftoverPh({ placeholders: [], positions: [], orders: [] }, jc, 'NQ', 2000), false); // gone
+  assert.strictEqual(C.leftoverPh({ placeholders: ph, positions: [], orders: [] }, jc, 'NQ', 12000), false); // too old
+  assert.strictEqual(C.leftoverPh({ placeholders: ph, positions: [], orders: [] }, null, 'NQ', 2000), false); // nothing cancelled
+});

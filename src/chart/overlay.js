@@ -17,6 +17,7 @@ const Fmt = require('../ui/format');
 const F = { ...Fmt, usd: Fmt.usdUS }; // same US dollar format as the panel
 const log = require('../diag/log');
 const bars = require('./bars');
+const OM = require('../domain/plan');
 
 // RESERVED AREA on the right. Distances from the right edge of the chart (start of the price axis):
 //   cards 232 px wide, 20 px from the axis; labels right next to the cards.
@@ -34,7 +35,7 @@ const scaleOf = (v, def) => {
   return (n >= SCALE_MIN && n <= SCALE_MAX ? n : def) / 100;
 };
 const CARD_RIGHT = 20; // cards from the price axis
-const ROOM_MIN = 150, ROOM_MAX = 900, ROOM_DEF = 360; // space between the last candle and the cards (px)
+const ROOM_MIN = 50, ROOM_MAX = 900, ROOM_DEF = 360; // space between the last candle and the cards (px)
 const LEAD_W = 24; // slanted stroke between the line end and a shifted label
 const CHIP_GAP = 19; // SL/TP/LIMIT/STOP labels aligned to the RIGHT, this far from the cards
 const CANDLE_RIGHT = 535; // centre of the last candle, from the price axis (candles and indicators stop there)
@@ -90,14 +91,14 @@ function mount(opts) {
       <span class="w e" data-el="entry"></span>
       <span class="acc" data-el="acc"></span>
       <span class="dpt" data-el="dpt"></span>
-      <span class="tgl ordl">ORDERS</span><button class="ordc" data-a="orders" data-el="ordc">OFF</button>
+      <span class="tgl ordl" data-el="ordl">ORDERS</span><button class="ordc" data-a="orders" data-el="ordc">OFF</button>
       <span class="tgl cpl" data-el="cpl">COPY</span><button class="cpc" data-a="copy" data-el="cpc">OFF</button>
       <span class="mic" data-el="mic"></span>
-      <button class="flat" data-a="flat">FLAT</button>
+      <button class="flat" data-a="flat" data-el="flatB">FLAT</button>
     </div>
     <div class="card2" data-el="card2">
-      ${FRACS.map((p, i) => `<button class="pp pf f${i}" data-p="${p}">${p}</button>`).join('')}
-      ${PRESETS.map((p, i) => `<button class="pp p${i}" data-p="${p}">${p}</button>`).join('')}
+      ${FRACS.map((p, i) => `<button class="pp pf f${i}" data-p="${p}">${p}%</button>`).join('')}
+      ${PRESETS.map((p, i) => `<button class="pp p${i}" data-p="${p}">${p}%</button>`).join('')}
       <label class="pctbox"><input data-el="pctIn" inputmode="decimal" autocomplete="off"><span>%</span></label>
       <span class="sz" data-el="sz"></span>
       <button class="lm" data-a="lm">LIMIT</button>
@@ -115,9 +116,9 @@ function mount(opts) {
       <button class="short" data-a="short">SHORT</button>
     </div>
     <div class="card3" data-el="card3">
-      <label class="pctbox cp"><input data-el="cpIn" inputmode="decimal" autocomplete="off"><span>%</span></label>
-      <button class="close" data-a="close">PARTIAL CLOSE</button>
-      <button class="close all" data-a="closeall">CLOSE</button>
+      <label class="pctbox cp" data-el="cpBox"><input data-el="cpIn" inputmode="decimal" autocomplete="off"><span>%</span></label>
+      <button class="close" data-a="close" data-el="closeB">PARTIAL CLOSE</button>
+      <button class="close all" data-a="closeall" data-el="closeAllB">CLOSE</button>
       <div class="bars">
         <div class="bar"><div class="bl"><span>MARGIN USED</span><span data-el="m1t"></span></div><div class="track"><i data-el="m1f"></i></div></div>
         <div class="bar"><div class="bl"><span>MARGIN + ORDERS</span><span data-el="m2t"></span></div><div class="track"><i data-el="m2f"></i></div></div>
@@ -134,6 +135,54 @@ function mount(opts) {
       <div class="c5r" data-el="swRow"><span>SWING RANGE</span><b data-el="swg"></b></div>
       <div class="c5r" data-el="atrRow"><span>VOLATILITY</span><i data-el="atrHd"></i></div>
       <div class="hm" data-el="hm"></div>
+    </div>
+    <div class="colw" data-el="colw" style="display:none">
+      <div class="csec om" data-el="sOm" data-sec="om"><div class="csh">Risk &amp; targets<button class="omtgl" data-a="omtoggle" data-el="omTgl">OFF</button></div>
+        <div class="omb">
+          <label class="omf"><span>Size by</span><select data-om="sizeBy"><option value="risk">Risk $</option><option value="pct">% of max</option><option value="qty">Quantity</option></select></label>
+          <label class="omf"><span data-el="omSzL">Risk ($)</span><input data-om="sizeVal" inputmode="decimal" autocomplete="off"></label>
+          <label class="omf omck"><span>Fees</span><span class="omcb"><input type="checkbox" data-om="fees"> count fees</span></label>
+          <div class="omf"><span>Leverage (Vest)</span><b class="omro" data-el="omLev">—</b></div>
+          <div class="omt">
+            <div class="omtg"><label><input type="checkbox" data-om="on0"> T1</label><select data-om="by0"><option value="r">× risk</option><option value="ticks">Ticks</option><option value="dist">Points</option><option value="atr">× ATR</option><option value="trail">Trailing</option></select><span class="omsp"><input data-om="val0" inputmode="decimal" autocomplete="off"><span class="spb"><button type="button" tabindex="-1" data-sp="1">▲</button><button type="button" tabindex="-1" data-sp="-1">▼</button></span></span></div>
+            <div class="omtg"><label><input type="checkbox" data-om="on1"> T2</label><select data-om="by1"><option value="r">× risk</option><option value="ticks">Ticks</option><option value="dist">Points</option><option value="atr">× ATR</option><option value="trail">Trailing</option></select><span class="omsp"><input data-om="val1" inputmode="decimal" autocomplete="off"><span class="spb"><button type="button" tabindex="-1" data-sp="1">▲</button><button type="button" tabindex="-1" data-sp="-1">▼</button></span></span></div>
+            <div class="omtg"><label><input type="checkbox" data-om="on2"> T3</label><select data-om="by2"><option value="r">× risk</option><option value="ticks">Ticks</option><option value="dist">Points</option><option value="atr">× ATR</option><option value="trail">Trailing</option></select><span class="omsp"><input data-om="val2" inputmode="decimal" autocomplete="off"><span class="spb"><button type="button" tabindex="-1" data-sp="1">▲</button><button type="button" tabindex="-1" data-sp="-1">▼</button></span></span></div>
+            <div class="omtg"><label><input type="checkbox" data-om="on3"> T4</label><select data-om="by3"><option value="r">× risk</option><option value="ticks">Ticks</option><option value="dist">Points</option><option value="atr">× ATR</option><option value="trail">Trailing</option></select><span class="omsp"><input data-om="val3" inputmode="decimal" autocomplete="off"><span class="spb"><button type="button" tabindex="-1" data-sp="1">▲</button><button type="button" tabindex="-1" data-sp="-1">▼</button></span></span></div>
+          </div>
+          <label class="omf"><span>Stop by</span><select data-om="stopBy"><option value="dist">Points</option><option value="ticks">Ticks</option><option value="bar">Prev. candle</option><option value="atr">ATR ×</option></select></label>
+          <label class="omf"><span data-el="omStL">Distance</span><input data-om="stopVal" inputmode="decimal" autocomplete="off"></label>
+          <label class="omf"><span>Stops</span><select data-om="stops"><option value="one">One stop</option><option value="each">Per target</option></select></label>
+          <label class="omf"><span>Split</span><select data-om="split"><option value="even">Equal</option><option value="front">T1 most</option><option value="back">Last most</option></select></label>
+          <div class="ompv"><span>Side on the chart</span><button class="ompl" data-a="omside" data-v="long" data-el="omL">LONG SIDE</button><button class="omps" data-a="omside" data-v="short" data-el="omS">SHORT SIDE</button></div>
+          <div class="omout" data-el="omOut"></div>
+        </div>
+      </div>
+      <div class="csec" data-el="sPos" data-sec="pos"><div class="csh">Position</div></div>
+      <div class="csec tb" data-el="sTb" data-sec="tb"><div class="csh">Trailing &amp; breakeven</div>
+        <div class="tbb">
+          <label class="omcb tbon"><input type="checkbox" data-tb="trOn"> Trailing stop</label>
+          <label class="omf"><span>Unit</span><select data-tb="trUnit"><option value="pt">pt</option><option value="$">$</option></select></label>
+          <label class="omf"><span>Starts after</span><input data-tb="trAct" inputmode="decimal" autocomplete="off" placeholder="empty"></label>
+          <label class="omf"><span>Pullback</span><input data-tb="trDist" inputmode="decimal" autocomplete="off" placeholder="empty"></label>
+          <label class="omf"><span>Step</span><input data-tb="trStep" inputmode="decimal" autocomplete="off" placeholder="empty"></label>
+          <label class="omcb tbon"><input type="checkbox" data-tb="beOn"> BE+</label>
+          <label class="omf"><span>Unit</span><select data-tb="beUnit"><option value="pt">pt</option><option value="$">$</option></select></label>
+          <label class="omf"><span>Profit</span><input data-tb="beOff" inputmode="decimal" autocomplete="off" placeholder="empty"></label>
+          <label class="omcb tbauto"><input type="checkbox" data-tb="beAuto"> auto BE</label>
+          <label class="omf"><span>after</span><input data-tb="beAt" inputmode="decimal" autocomplete="off" placeholder="empty"></label>
+          <div class="tbnote" data-el="tbNote"></div>
+        </div>
+      </div>
+      <div class="csec" data-el="sLim" data-sec="lim"><div class="csh">Account limits</div></div>
+      <div class="csec" data-el="sCopy" data-sec="copy"><div class="csh">Copier accounts</div></div>
+      <div class="csec" data-el="sVol" data-sec="vol"><div class="csh">Swing range and volatility</div></div>
+      <div class="csec" data-el="sChart" data-sec="chart"><div class="csh">Chart space</div>
+        <div class="chb"><span>Space between the last candle and the price axis (px)</span><span class="omsp"><input data-el="roomIn" data-step="10" inputmode="numeric" autocomplete="off" placeholder="360"><span class="spb"><button type="button" tabindex="-1" data-sp="1">▲</button><button type="button" tabindex="-1" data-sp="-1">▼</button></span></span></div>
+      </div>
+    </div>
+    <div class="cmd" data-el="cmd" style="display:none">
+      <div class="cmdh" data-el="cmdh"><span class="ct">Trade commands</span><span class="cph" data-el="cmdPh"></span><span class="ctg" data-el="cmdTg"></span><button class="cdet" data-a="cmdfloat" data-el="cmdDet"></button></div>
+      <div class="cmdb" data-el="cmdb"><div class="cmdx" data-el="cmdx"></div></div>
     </div>
   </div>`;
   document.documentElement.appendChild(host);
@@ -160,18 +209,10 @@ function mount(opts) {
     tipObs.observe(els[k], { subtree: true, childList: true, attributes: true, attributeFilter: ['title'] });
   }
 
-  els.card.addEventListener('click', (e) => {
-    const b = e.target.closest('button[data-a]');
-    if (!b || b.disabled) return;
-    const a = b.dataset.a;
-    if (a === 'flat') run(actions.flat(), 'FLAT sent');
-    else if (a === 'orders') actions.toggleOrders();
-    else if (a === 'copy' && actions.copyToggle) actions.copyToggle();
-  });
   // preview while hovering LONG / SHORT (no orders: lines only)
   for (const side of ['long', 'short']) {
     const b = els.card2.querySelector(`button[data-a="${side}"]`);
-    b.addEventListener('pointerenter', () => (hoverSide = side));
+    b.addEventListener('pointerenter', () => !b.disabled && (hoverSide = side)); // disabled (Risk ON): no AVG / FAIL NEW preview
     b.addEventListener('pointerleave', () => hoverSide === side && (hoverSide = null));
   }
   // TP / SL from the card: they are dragged (a plain click explains how)
@@ -194,37 +235,66 @@ function mount(opts) {
       startDrag(e, b, kind, null, 'card2');
     });
   }
-  els.card2.addEventListener('click', (e) => {
-    const pp = e.target.closest('button[data-p]');
+  // every button of the cards, wherever it sits (on the chart, in the column or in the floating commands panel)
+  root.addEventListener('click', (e) => {
+    const t = e.target;
+    if (!t || !t.closest) return;
+    const pp = t.closest('button[data-p]');
     if (pp) {
       actions.setPct(+pp.dataset.p);
       els.pctIn.value = pp.dataset.p;
       return;
     }
-    const cx = e.target.closest('button[data-cx]');
+    const cx = t.closest('button[data-cx]');
     if (cx) {
       cxMenu(false);
       if (cx.disabled) return;
       const kind = cx.dataset.cx;
       return run(actions.cancelOrders(kind), kind === 'lm' ? 'pending limits cancelled' : kind === 'st' ? 'local stops cancelled' : 'all orders cancelled');
     }
-    const b = e.target.closest('button[data-a]');
+    const sh = t.closest('.csh');
+    if (sh && !t.closest('.omtgl')) return foldSec(sh.parentNode);
+    const b = t.closest('button[data-a]');
     if (!b || b.disabled) return;
-    if (b.dataset.a === 'cxmenu') return cxMenu(els.cxm.style.display === 'none');
-    if (b.dataset.a === 'be') run(actions.breakeven(), 'BE sent');
-    else if (b.dataset.a === 'long' || b.dataset.a === 'short') run(actions.market(b.dataset.a), b.dataset.a.toUpperCase() + ' sent');
+    const a = b.dataset.a;
+    if (a === 'flat') run(actions.flat(), 'FLAT sent');
+    else if (a === 'orders') actions.toggleOrders();
+    else if (a === 'copy' && actions.copyToggle) actions.copyToggle();
+    else if (a === 'cxmenu') cxMenu(els.cxm.style.display === 'none');
+    else if (a === 'be') run(actions.breakeven(), 'BE sent');
+    else if ((a === 'long' || a === 'short') && omLive()) {
+      // Active plan: market entry with the plan size, SL and TP
+      const m = getModel();
+      if (!m || !m.market) return;
+      omSide = a;
+      omAnchor = null;
+      omSave();
+      const pl = omOrderPlan(m, a, m.market.mark);
+      if (pl instanceof Error) return say(pl.message, 'err');
+      run(actions.planEntry('market', a, null, pl), `PLAN ${a.toUpperCase()} sent: ${pl.qty} with SL ${pl.sl}`);
+    } else if (a === 'long' || a === 'short') run(actions.market(a), a.toUpperCase() + ' sent');
+    else if (a === 'closeall') run(actions.closeAll(), 'CLOSE sent: pending orders stay');
+    else if (a === 'close') run(actions.closePct(), 'PARTIAL CLOSE sent');
+    else if (a === 'cmdfloat') setFloat(!cmdSt.float);
+    else if (a === 'omtoggle') {
+      // Risk & targets ON: the plan drives Trade commands (the % size is off); OFF = manual
+      omMode = omMode === 'manual' ? 'live' : 'manual';
+      omAnchor = null;
+      omSave();
+    } else if (a === 'omside' || a === 'ommode') {
+      if (a === 'omside' && omSide !== b.dataset.v) omAnchor = null; // the other side starts from the market price (or its LIMIT)
+      if (a === 'omside') omSide = b.dataset.v;
+      else omMode = b.dataset.v;
+      if (omMode === 'manual') omAnchor = null;
+      omSave();
+    }
   });
+  colSetup();
   // COPIER: click on a row = account shown by the tool (on press: the table is redrawn)
   els.card4.addEventListener('pointerdown', (e) => {
     if (e.target.closest('[data-a="copy"]')) return actions.copyToggle && actions.copyToggle();
     const tr = e.target.closest('tr[data-id]');
     if (tr && actions.select) actions.select(tr.dataset.id);
-  });
-  els.card3.addEventListener('click', (e) => {
-    const b = e.target.closest('button[data-a="close"], button[data-a="closeall"]');
-    if (!b || b.disabled) return;
-    if (b.dataset.a === 'closeall') run(actions.closeAll(), 'CLOSE sent: pending orders stay');
-    else run(actions.closePct(), 'PARTIAL CLOSE sent');
   });
   els.cpIn.addEventListener('input', () => {
     const v = parseFloat(els.cpIn.value.replace(',', '.'));
@@ -248,6 +318,362 @@ function mount(opts) {
   requestAnimationFrame(frame);
 }
 
+// ── docked column (cards in the panel's column) and trade commands panel
+// In the column the cards are not scaled copies of the chart block: the same elements are moved into sections that
+// follow the column's width (CSS .root.col), and every button goes into the commands panel. That panel sits at the top of
+// the column or floats anywhere on the screen (position kept in localStorage 'vt1:cmd'). Back on the chart, every element
+// returns to its place (comment placeholders), so the chart layout is the measured one as before.
+const CMD_KEY = 'vt1:cmd',
+  SEC_KEY = 'vt1:colsec';
+const CMD_W_DEF = 360,
+  CMD_W_MIN = 260;
+let cmdSt = { float: false, x: null, y: null, w: CMD_W_DEF, h: null };
+let secFold = {};
+let colOn = false;
+// Order management (column section): inputs kept in localStorage 'vt1:om'; the chart preview is never kept (off after a reload)
+const OM_KEY = 'vt1:om';
+let omSt = { sizeBy: 'risk', sizeVal: '', fees: false, stopBy: 'dist', stopVal: '', stops: 'one', split: 'even',
+  t: [{ on: true, by: 'r', val: '1' }, { on: false, by: 'r', val: '2' }, { on: false, by: 'r', val: '3' }, { on: false, by: 'trail', val: '' }] };
+let omPv = null; // side whose plan is on the chart ('long' | 'short'), null in Manual mode (set at every frame)
+// Risk & targets OFF = 'manual' (Trade commands use the % size, nothing on the chart); ON = 'live' (LONG / SHORT / LIMIT / STOP
+// go with the plan size and its SL / TP). ('view' is no longer offered.) ON is never kept: after a reload it is OFF.
+let omMode = 'manual';
+let omSide = 'long';
+let omBv = null; // bars of the last frame (previous candle, ATR) for the plan sent by LONG / SHORT
+// Plan entry on the chart: price where ENTRY was dropped (null = follows the market price, or the pending LIMIT of that side)
+let omAnchor = null; // { side, symbol, price, type: 'lm' | 'st' }
+let omFill = () => {}; // writes omSt back into the section fields (set in omSetup)
+let moves = []; // [element, placeholder]
+const readJson = (k, def) => {
+  try {
+    const v = JSON.parse(localStorage.getItem(k) || 'null');
+    return v && typeof v === 'object' ? v : def;
+  } catch {
+    return def;
+  }
+};
+const writeJson = (k, v) => {
+  try {
+    localStorage.setItem(k, JSON.stringify(v));
+  } catch {
+    /* storage blocked: kept for this page only */
+  }
+};
+
+function colSetup() {
+  const c = readJson(CMD_KEY, {});
+  cmdSt = {
+    float: c.float === true,
+    x: Number.isFinite(c.x) ? c.x : null,
+    y: Number.isFinite(c.y) ? c.y : null,
+    w: Number.isFinite(c.w) ? Math.max(CMD_W_MIN, c.w) : CMD_W_DEF,
+    h: Number.isFinite(c.h) && c.h >= 120 ? c.h : null, // null = as tall as its content
+  };
+  secFold = readJson(SEC_KEY, {});
+  omSetup();
+  // small arrows next to a number: target values ±0.25 (ticks ±1), chart space ±10 px
+  els.colw.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-sp]');
+    if (!b) return;
+    const inp = b.closest('.omsp').querySelector('input');
+    if (!inp || inp.disabled) return;
+    const m = /^val(\d)$/.exec(inp.dataset.om || '');
+    const by = m && els.sOm.querySelector(`[data-om="by${m[1]}"]`);
+    const step = +inp.dataset.step || (by && by.value === 'ticks' ? 1 : 0.25);
+    const cur = parseFloat(String(inp.value).replace(',', '.'));
+    const lo = inp === els.roomIn ? 50 : step,
+      hi = inp === els.roomIn ? 900 : Infinity;
+    const base = Number.isFinite(cur) ? cur : inp === els.roomIn ? 360 : 0;
+    const v = Math.min(hi, Math.max(lo, Math.round((base + +b.dataset.sp * step) / step) * step));
+    inp.value = String(+v.toFixed(2));
+    inp.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  // chart space: the same setting as "label space" in the panel (Chart display)
+  els.roomIn.addEventListener('input', () => {
+    const v = parseInt(els.roomIn.value, 10);
+    if (v >= 50 && v <= 900 && actions.setSetting) actions.setSetting('roomPx', v);
+  });
+  // Trailing & breakeven: the panel keeps the settings (same keys); here they are only shown and changed
+  const tbSet = (e) => {
+    const k = e.target.dataset && e.target.dataset.tb;
+    if (!k || !actions.setSetting) return;
+    actions.setSetting(k, e.target.type === 'checkbox' ? e.target.checked : e.target.value.trim().replace(',', '.'));
+  };
+  els.sTb.addEventListener('input', (e) => e.target.type !== 'checkbox' && e.target.tagName !== 'SELECT' && tbSet(e));
+  els.sTb.addEventListener('change', (e) => (e.target.type === 'checkbox' || e.target.tagName === 'SELECT') && tbSet(e));
+  for (const sec of els.colw.querySelectorAll('.csec')) sec.classList.toggle('folded', !!secFold[sec.dataset.sec]);
+  // where each moved element lives on the chart
+  const list = [els.ordl, els.ordc, els.cpl, els.cpc, els.flatB, els.cpBox, els.closeB, els.closeAllB, els.msg, els.card, els.card2, els.card3, els.card4, els.card5];
+  moves = list.map((el) => {
+    const ph = document.createComment('vt');
+    el.before(ph);
+    return [el, ph];
+  });
+  // floating panel: dragged by its title bar
+  els.cmdh.addEventListener('pointerdown', (e) => {
+    if (!cmdSt.float || e.button !== 0 || e.target.closest('button')) return;
+    e.preventDefault();
+    const r = els.cmd.getBoundingClientRect();
+    const dx = e.clientX - r.left,
+      dy = e.clientY - r.top;
+    try {
+      els.cmdh.setPointerCapture(e.pointerId);
+    } catch {
+      /* nothing */
+    }
+    const move = (ev) => {
+      cmdSt.x = ev.clientX - dx;
+      cmdSt.y = ev.clientY - dy;
+      placeCmd();
+    };
+    const up = () => {
+      els.cmdh.removeEventListener('pointermove', move);
+      els.cmdh.removeEventListener('pointerup', up);
+      els.cmdh.removeEventListener('pointercancel', up);
+      writeJson(CMD_KEY, cmdSt);
+    };
+    els.cmdh.addEventListener('pointermove', move);
+    els.cmdh.addEventListener('pointerup', up);
+    els.cmdh.addEventListener('pointercancel', up);
+  });
+  // width of the floating panel (CSS resize handle): kept when the drag of the corner ends
+  if (typeof ResizeObserver === 'function') {
+    let t = null;
+    new ResizeObserver(() => {
+      if (!cmdSt.float || !colOn) return;
+      const w = Math.round(els.cmd.offsetWidth);
+      // height only once dragged from the corner (the browser then sets it inline); otherwise it follows the content
+      const h = els.cmd.style.height ? Math.round(els.cmd.offsetHeight) : null;
+      if (!(w >= CMD_W_MIN) || (w === cmdSt.w && h === cmdSt.h)) return;
+      cmdSt.w = w;
+      cmdSt.h = h;
+      clearTimeout(t);
+      t = setTimeout(() => writeJson(CMD_KEY, cmdSt), 400);
+    }).observe(els.cmd);
+  }
+  syncFloat();
+}
+
+const OM_SZ_LABEL = { risk: 'Risk ($)', pct: 'Size (%)', qty: 'Quantity' };
+const OM_ST_LABEL = { dist: 'Points', ticks: 'Ticks', bar: 'Beyond it (ticks)', atr: 'ATR multiple' };
+function omSetup() {
+  const o = readJson(OM_KEY, {});
+  const str = (v, d) => (typeof v === 'string' || typeof v === 'number' ? String(v) : d);
+  const pick = (v, list, d) => (list.includes(v) ? v : d);
+  omSt.sizeBy = pick(o.sizeBy, OM.SIZE_BY, 'risk');
+  omSt.sizeVal = str(o.sizeVal ?? o.risk, ''); // o.risk / o.dist / t[].rr: v0.10.70
+  omSt.fees = o.fees === true;
+  omSt.stopBy = pick(o.stopBy, OM.STOP_BY, 'dist');
+  omSt.stopVal = str(o.stopVal ?? o.dist, '');
+  omSt.stops = pick(o.stops, ['one', 'each'], 'one');
+  omSt.split = pick(o.split, OM.SPLITS, 'even');
+  omMode = 'manual'; // Risk & targets ON is never restored after a reload (it drives real orders)
+  omSide = pick(o.side, ['long', 'short'], 'long');
+  if (Array.isArray(o.t))
+    omSt.t = omSt.t.map((d, i) => {
+      const x = o.t[i];
+      return x ? { on: !!x.on, by: pick(x.by, OM.TGT_BY, 'r'), val: str(x.val ?? x.rr, d.val) } : d;
+    });
+  const f = (k) => els.sOm.querySelector(`[data-om="${k}"]`);
+  const labels = () => {
+    els.omSzL.textContent = OM_SZ_LABEL[omSt.sizeBy];
+    els.omStL.textContent = OM_ST_LABEL[omSt.stopBy];
+    omSt.t.forEach((t, i) => (f('val' + i).disabled = t.by === 'trail'));
+  };
+  omFill = () => {
+    for (const k of ['sizeBy', 'sizeVal', 'stopBy', 'stopVal', 'stops', 'split']) f(k).value = omSt[k];
+    f('fees').checked = omSt.fees;
+    omSt.t.forEach((t, i) => {
+      f('on' + i).checked = t.on;
+      f('by' + i).value = t.by;
+      f('val' + i).value = t.val;
+    });
+    labels();
+  };
+  omFill();
+  const read = (e) => {
+    const k = e.target.dataset && e.target.dataset.om;
+    if (!k) return;
+    const v = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
+    const m = /^(on|by|val)(\d)$/.exec(k);
+    if (m) omSt.t[+m[2]][m[1]] = v;
+    else omSt[k] = v;
+    labels();
+    omSave();
+  };
+  els.sOm.addEventListener('input', read);
+  els.sOm.addEventListener('change', read);
+}
+
+const omNum = (v) => parseFloat(String(v).replace(',', '.'));
+const omSave = () => writeJson(OM_KEY, { ...omSt, mode: omMode === 'live' ? 'view' : omMode, side: omSide });
+
+/** Plan to send for a side and entry (Active mode), or an Error with the reason. */
+function omOrderPlan(m, side, entry) {
+  const x = omPlan(m, side, omBv, entry);
+  if (!(x.qty > 0)) return new Error('Risk plan: ' + (x.why || 'no size'));
+  if (x.targets.some((t) => t.by !== 'trail' && !Number.isFinite(t.price))) return new Error('Risk plan: ' + (x.why || 'a target has no price'));
+  if (x.targets.some((t) => !(t.qty > 0))) return new Error('Risk plan: size too small to split among the targets');
+  return { qty: x.qty, sl: x.sl, targets: x.targets.map((t) => ({ price: t.price, qty: t.qty })), each: omSt.stops === 'each' };
+}
+const omLive = () => colOn && omMode === 'live'; // LONG / SHORT at market with the plan
+const omLim = () => colOn && omMode !== 'manual'; // LIMIT placed / moved with the plan (PLAN and READY)
+// LIMIT being placed again with the plan: no plan lines until it is on the chart (otherwise they jump to the market price)
+let omBusy = null; // { side, price, done, until }
+function omRun(p, okText, side, price) {
+  const b = { side, price, done: false, until: Infinity };
+  omBusy = b;
+  run(p, okText);
+  p.then(
+    () => {
+      b.done = true;
+      b.until = Date.now() + 4000;
+    },
+    () => omBusy === b && (omBusy = null),
+  );
+}
+// mode words (internal values kept: 'view' = PLAN, 'live' = READY); ACTIVE is the word of labels of an order really placed
+const OM_PHASE = { manual: 'MANUAL', view: 'RISK PLAN', live: 'RISK PLAN' }; // next to Trade commands and on the plan labels (RISK ACTIVE: order really there)
+let omActNow = false; // the plan lines shown belong to a pending LIMIT / armed STOP (labels say ACTIVE)
+let btnColKey = '';
+/** Pending entry LIMIT of that side on this market (the closest to the price), or null. */
+function omLimit(m, side) {
+  const mark = m.market.mark;
+  let best = null;
+  for (const o of m.pendings || [])
+    if (o.kind === 'lm' && o.label !== 'CLOSE' && !o.local && o.side === side && o.price > 0)
+      if (!best || Math.abs(o.price - mark) < Math.abs(best.price - mark)) best = o;
+  return best;
+}
+
+/** Entry of the plan: ENTRY being dragged > where it was dropped > pending LIMIT of that side > market price. */
+/** Side of a NEW LIMIT being dragged from Trade commands (the plan follows it while it moves), or null. */
+function omNewLimitSide(m) {
+  if (!(drag && !drag.existing && (drag.kind === 'lm' || drag.kind === 'st') && drag.moved && colOn && omMode !== 'manual' && m && m.market)) return null;
+  return entrySide(drag.kind, drag.price, m.market.mark) || null;
+}
+/** Local STOP armed with the plan on the chart's market for that side (one at most). */
+function omStop(m, side) {
+  return (m.pendings || []).find((o) => o.kind === 'st' && o.local && o.plan && o.side === side) || null;
+}
+/** Type of the plan entry being shown: 'st' for a STOP (new one dragged, ENTRY set from STOP, armed plan STOP), else 'lm'. */
+function omType(e) {
+  if (!e) return 'lm';
+  if (e.src === 'stop') return 'st';
+  if (e.src === 'newlm') return drag && drag.kind === 'st' ? 'st' : 'lm';
+  if (e.src === 'set') return omAnchor && omAnchor.type === 'st' ? 'st' : 'lm';
+  return 'lm';
+}
+
+function omEntry(m, side) {
+  if (drag && drag.from === 'plan' && drag.kind === 'lm' && drag.moved && omPv === side) return { price: drag.price, src: 'drag' };
+  if (omNewLimitSide(m) === side) return { price: drag.price, src: 'newlm' }; // its own label is the LIMIT being dragged
+  if (omAnchor && omAnchor.side === side && omAnchor.symbol === m.market.symbol) return { price: omAnchor.price, src: 'set' };
+  const lm = omLimit(m, side);
+  if (lm) return { price: drag && drag.from === 'order' && drag.moved && drag.existing.order.id === lm.id ? drag.price : lm.price, src: 'limit', order: lm }; // the plan follows the LIMIT while it is dragged
+  const sp = omStop(m, side);
+  if (sp) return { price: drag && drag.from === 'order' && drag.moved && drag.existing.order.id === sp.id ? drag.price : sp.price, src: 'stop', order: sp };
+  return { price: m.market.mark, src: 'mark' };
+}
+
+/** While plan SL is dragged: the size stays, the stop becomes that distance (the risk follows). */
+function omSlDrag(side) {
+  if (!(drag && drag.from === 'plan' && drag.kind === 'sl' && drag.moved && drag.ok && omPv === side)) return null; // wrong side: plan as before, label marked
+  return { stopBy: 'dist', stopVal: Math.abs(drag.existing.entry - drag.price) }; // same risk: the size follows
+}
+
+function omPlan(m, side, bv, entry, over) {
+  const mk = m.market;
+  const o = over || {};
+  return OM.plan({
+    side,
+    entry: entry > 0 ? entry : mk.mark,
+    step: mk.step,
+    tick: mk.tick,
+    maxQty: m.size && m.size.max,
+    capPct: o.noCap ? 0 : m.capPct,
+    fee: mk.fee,
+    sizeBy: o.sizeBy || omSt.sizeBy,
+    sizeVal: o.sizeVal ?? omNum(omSt.sizeVal),
+    fees: omSt.fees,
+    stopBy: o.stopBy || omSt.stopBy,
+    stopVal: o.stopVal ?? omNum(omSt.stopVal),
+    bar: bv && bv.prev,
+    atr: bv && bv.atr14,
+    targets: omSt.t.map((t) => ({ on: t.on, by: t.by, val: omNum(t.val) })),
+    split: omSt.split,
+  });
+}
+
+function foldSec(sec) {
+  if (!sec || !sec.dataset.sec) return;
+  const k = sec.dataset.sec;
+  secFold[k] = !secFold[k];
+  sec.classList.toggle('folded', secFold[k]);
+  writeJson(SEC_KEY, secFold);
+}
+
+// moves the elements into the column (on) or back to their places on the chart (off)
+function setCol(on) {
+  if (on === colOn) return;
+  colOn = on;
+  els.layer.classList.toggle('col', on);
+  if (on) {
+    els.cmdTg.append(els.ordl, els.ordc, els.cpl, els.cpc);
+    els.cmdb.prepend(els.card2);
+    els.cmdx.append(els.cpBox, els.closeB, els.closeAllB, els.flatB);
+    show(els.msg, false); // messages go to the panel header
+    els.sPos.append(els.card);
+    els.sLim.append(els.card3);
+    els.sCopy.append(els.card4);
+    els.cmd.append(els.sCopy); // copier accounts under Trade commands (they float with it)
+    els.sVol.append(els.card5);
+    syncFloat();
+  } else {
+    for (const [el, ph] of moves) ph.after(el);
+    show(els.msg, true);
+    show(els.colw, false);
+    show(els.cmd, false);
+  }
+}
+
+function syncFloat() {
+  els.cmd.classList.toggle('float', cmdSt.float);
+  els.cmdDet.textContent = cmdSt.float ? '⇥' : '⇱';
+  els.cmdDet.setAttribute('aria-label', cmdSt.float ? 'Put back in the column' : 'Detach and float');
+  if (cmdSt.float) {
+    els.layer.append(els.cmd);
+    els.cmd.style.width = cmdSt.w + 'px';
+    els.cmd.style.height = cmdSt.h ? cmdSt.h + 'px' : '';
+    placeCmd();
+  } else {
+    els.colw.prepend(els.cmd);
+    els.cmd.style.width = els.cmd.style.height = els.cmd.style.left = els.cmd.style.top = '';
+  }
+}
+
+function setFloat(on) {
+  cmdSt.float = !!on;
+  if (on && cmdSt.x == null) {
+    // first time: next to the column, at the top of the chart
+    const r = els.cmd.getBoundingClientRect();
+    cmdSt.x = Math.max(0, r.left - cmdSt.w - 16);
+    cmdSt.y = Math.max(0, r.top);
+  }
+  syncFloat();
+  writeJson(CMD_KEY, cmdSt);
+}
+
+// floating panel inside the window (also after a resize of the browser)
+function placeCmd() {
+  if (!cmdSt.float) return;
+  const w = els.cmd.offsetWidth || cmdSt.w;
+  const x = Math.round(Math.min(Math.max(0, cmdSt.x || 0), Math.max(0, window.innerWidth - w)));
+  const y = Math.round(Math.min(Math.max(0, cmdSt.y || 0), Math.max(0, window.innerHeight - 40)));
+  els.cmd.style.left = x + 'px';
+  els.cmd.style.top = y + 'px';
+}
+
 // CANCEL menu of the second card: closes on a choice, on Esc and on a click elsewhere
 function cxMenu(open) {
   if (!els.cxm) return;
@@ -256,6 +682,7 @@ function cxMenu(open) {
 }
 
 function say(text, kind) {
+  if (colOn && actions.say) return actions.say(text, kind); // docked: in the panel header, nothing moves below
   if (!els.msg) return;
   els.msg.textContent = text;
   els.msg.className = 'msg ' + (kind || '');
@@ -365,7 +792,7 @@ let chipW = 0,
   chipKey = '',
   chipShrinkAt = 0;
 const CHIP_SHRINK_MS = 30000;
-function manageRoom(g, show, needPx) {
+function manageRoom(g, show, needPx, minPx = CANDLE_RIGHT) {
   if (!g || !g.ts) return;
   const { ts, bs, ro } = g.ts;
   const idle = !drag && Date.now() - lastTouch > ROOM_IDLE_MS;
@@ -373,7 +800,7 @@ function manageRoom(g, show, needPx) {
     if (show) {
       // margin (in bars) that puts the last candle exactly at the wanted distance: set in BOTH directions
       // (even if it had been left wider), only while the chart is still and the last candle is on screen
-      const px = Math.max(CANDLE_RIGHT, needPx || 0);
+      const px = Math.max(minPx, needPx || 0);
       const want = Math.max(0, (px / (g.ts.k || 1) - 1) / bs - 0.5);
       if (!idle || ro < 0 || Math.abs(ro - want) < 0.3) return;
       if (!room) room = { orig: ro, set: want };
@@ -431,6 +858,8 @@ function hideAll() {
   show(els.card3, false);
   show(els.card4, false);
   show(els.card5, false);
+  if (els.colw) show(els.colw, false);
+  if (els.cmd) show(els.cmd, false);
   show(els.dragLine, false);
   show(els.dragChip, false);
   for (const k of ['trS', 'trA', 'trN', 'trB', 'trT', 'hlH', 'hlL']) show(els[k], false);
@@ -449,6 +878,9 @@ function setState(s) {
 }
 
 const heat = (f) => (f >= 1 ? 'hot' : f >= 0.8 ? 'warn' : ''); // same as the main panel
+// why no size, in the few characters next to the % box (the full reason is in the panel's Trade section)
+const shortWhy = (why) =>
+  !why ? '' : /minimum/.test(why) ? 'too low' : /margin/.test(why) ? 'no margin' : /leverage/.test(why) ? 'no leverage' : /not read/.test(why) ? 'reading…' : 'n/a';
 const sideWord = (side) => (side === 'long' ? 'BUY' : 'SELL');
 
 let idleAt = 0;
@@ -486,6 +918,13 @@ function draw() {
   };
   const inside = (y) => y >= 0 && y <= g.height;
   lineStyles = m.lineStyles || null;
+  if (m.btnColors) {
+    const k = JSON.stringify(m.btnColors);
+    if (k !== btnColKey) {
+      btnColKey = k;
+      for (const [n, v] of Object.entries(m.btnColors)) els.layer.style.setProperty(n, v);
+    }
+  }
   const qs = m.qtyStyle || { c: '#ffb402', s: 11, b: true };
   if (els.layer.dataset.qs !== qs.c + qs.s + qs.b) {
     els.layer.dataset.qs = qs.c + qs.s + qs.b;
@@ -493,17 +932,34 @@ function draw() {
     els.layer.style.setProperty('--qs', qs.s + 'px');
     els.layer.style.setProperty('--qw', qs.b ? 800 : 400);
   }
-  // card style from the panel: 'sonar' only changes colours and fonts (overlay.css), never positions
-  const sonar = m.theme === 'sonar';
-  if (els.layer.classList.contains('sonar') !== sonar) els.layer.classList.toggle('sonar', sonar);
-  const SCALE = scaleOf(m.blockPct, 125),
-    CS = scaleOf(m.chipPct, 100);
+  // cards in the docked column (m.cardsCol = part of the column under the folded panel; hidden while the panel is open):
+  // fluid sections at the panel's size, no scale. Otherwise next to the price axis at the panel's scale.
+  const col = m.cardsCol && m.cardsCol.width > 0 ? m.cardsCol : null;
+  setCol(!!col);
+  // card style from the panel: 'sonar' / 'console' only change colours and fonts (overlay.css), never positions;
+  // in the column they also colour the section frames
+  for (const t of ['sonar', 'console']) if (els.layer.classList.contains(t) !== (m.theme === t)) els.layer.classList.toggle(t, m.theme === t);
+  const SCALE = col ? 1 : scaleOf(m.blockPct, 125);
+  if (col) {
+    const cw = els.colw.style;
+    if (cw.left !== col.left + 'px') cw.left = col.left + 'px';
+    if (cw.top !== col.top + 'px') cw.top = col.top + 'px';
+    if (cw.width !== col.width + 'px') cw.width = col.width + 'px';
+    if (cw.height !== col.height + 'px') cw.height = col.height + 'px';
+    show(els.colw, !col.hidden);
+    show(els.cmd, cmdSt.float || !col.hidden); // floating: stays on the screen while the panel is open
+    if (cmdSt.float) placeCmd();
+  }
+  const CS = scaleOf(m.chipPct, 100);
   if (els.layer.dataset.sc !== SCALE + '/' + CS) {
     els.layer.dataset.sc = SCALE + '/' + CS;
     els.layer.style.setProperty('--bs', SCALE);
     els.layer.style.setProperty('--cs', CS);
   }
-  const areaX = g.left + g.width - CARD_RIGHT - CARD_W * SCALE; // card column, fixed on the right
+  // cardX: left edge of the cards. areaX: right edge of the labels' column (the cards' left edge, or the chart's edge
+  // minus the swing-line gap when the cards are in the docked column)
+  const cardX = col ? 0 : g.left + g.width - CARD_RIGHT - CARD_W * SCALE;
+  const areaX = col ? g.left + g.width - CARD_RIGHT : cardX;
   // widest label width kept: it grows at once, shrinks only after 30 s or when the market/position changes
   const key = market.symbol + '|' + (pos ? pos.id : '');
   if (key !== chipKey) {
@@ -522,8 +978,8 @@ function draw() {
   // FIXED right margin: cards + space chosen in the panel, independent of the label width (otherwise the chart jumps
   // left and right). Labels wider than the space cover the last candles.
   const room = +m.roomPx >= ROOM_MIN && +m.roomPx <= ROOM_MAX ? +m.roomPx : ROOM_DEF;
-  const needPx = Math.round(CARD_RIGHT + CARD_W * SCALE + room);
-  manageRoom(g, true, needPx);
+  const needPx = Math.round(CARD_RIGHT + (col ? 0 : CARD_W * SCALE) + room);
+  manageRoom(g, true, needPx, col ? 0 : CANDLE_RIGHT); // in the column no cards on the chart: only the chosen space
 
   const eb = m.eqBar || {};
   els.acc.textContent = eb.account || '';
@@ -586,6 +1042,29 @@ function draw() {
     els.qty.textContent = 'flat';
     els.entry.textContent = ''; // when flat no leverage
   }
+  // docked column: the position data go to the panel header (Position section no longer shown)
+  if (actions.head) {
+    actions.head(
+      col
+        ? {
+            tf: els.sym.textContent,
+            cd: els.cd.textContent,
+            clk: els.clk.textContent,
+            acc: els.acc.textContent,
+            side: pos ? pos.side : 'flat',
+            qty: pos ? els.qty.textContent : '',
+            entry: els.entry.textContent,
+            gap: els.gap.textContent,
+            gapC: els.gap.className.replace('gap', '').trim(),
+            pnl: els.pnl.textContent,
+            pnlC: els.pnl.className.replace(/\b(pnl|xs)\b/g, '').trim(),
+            mic: els.mic.textContent,
+            dpt: els.dpt.textContent,
+            dptC: els.dpt.className.replace('dpt', '').trim(),
+          }
+        : null,
+    );
+  }
   els.ordc.textContent = m.ordersOn ? 'ON' : 'OFF';
   els.ordc.classList.toggle('on', !!m.ordersOn);
   // COPY under ORDERS: only when a master and at least one copy are assigned
@@ -596,13 +1075,13 @@ function draw() {
     els.cpc.classList.toggle('on', !!m.copy.armed);
   }
   const busy = !!m.busy;
-  els.card.querySelector('[data-a="flat"]').disabled = busy; // FLAT always active: it also cancels pending orders
-  els.card3.querySelector('[data-a="close"]').disabled = busy || !pos || !(m.closePct > 0);
+  els.flatB.disabled = busy; // FLAT always active: it also cancels pending orders
+  els.closeB.disabled = busy || !pos || !(m.closePct > 0);
   if (root.activeElement !== els.cpIn) {
     const want = m.closePct > 0 ? String(m.closePct) : '';
     if (els.cpIn.value !== want) els.cpIn.value = want;
   }
-  els.card3.querySelector('[data-a="closeall"]').disabled = busy || !pos;
+  els.closeAllB.disabled = busy || !pos;
   for (const k of ['tp', 'sl', 'be']) els.card2.querySelector(`[data-a="${k}"]`).disabled = busy || !pos;
   const beB = els.card2.querySelector('[data-a="be"]'),
     beT = m.bePlus ? 'BE+' : 'BE';
@@ -702,43 +1181,55 @@ function draw() {
     }
     h5 = ((els.card5.offsetHeight || 80) + CARD2_GAP) * SCALE;
   }
-  const by = Math.max(0, Math.round((g.height - (2 * CARD2_GAP * SCALE + ch + h2 + h3 + h4 + h5)) / 2));
+  // on the chart: centred on the pane; in the column: from its top (y relative to g.top like the rest)
+  const by = col ? 0 : Math.max(0, Math.round((g.height - (2 * CARD2_GAP * SCALE + ch + h2 + h3 + h4 + h5)) / 2));
   const cy = by,
     c2y = cy + ch + CARD2_GAP * SCALE,
     c3y = c2y + h2 + CARD2_GAP * SCALE;
-  els.card.style.left = areaX + 'px';
+  els.card.style.left = cardX + 'px';
   els.card.style.top = g.top + cy + 'px';
-  els.card2.style.left = areaX + 'px';
+  els.card2.style.left = cardX + 'px';
   els.card2.style.top = g.top + c2y + 'px';
-  els.card3.style.left = areaX + 'px';
+  els.card3.style.left = cardX + 'px';
   els.card3.style.top = g.top + c3y + 'px';
-  els.card4.style.left = areaX + 'px';
+  els.card4.style.left = cardX + 'px';
   els.card4.style.top = g.top + c3y + h3 + CARD2_GAP * SCALE + 'px';
-  els.card5.style.left = areaX + 'px';
+  els.card5.style.left = cardX + 'px';
   els.card5.style.top = g.top + c3y + h3 + CARD2_GAP * SCALE + h4 + 'px';
+  if (col) {
+    // column sections follow their cards (copier and volatility only when on)
+    show(els.sCopy, !!cp);
+    show(els.sVol, c5);
+  }
   if (root.activeElement !== els.pctIn) {
     const want = m.pct > 0 ? String(m.pct) : '';
     if (els.pctIn.value !== want) els.pctIn.value = want;
   }
   const sz = m.size || {};
-  els.sz.textContent = sz.qty > 0 ? F.qty(sz.qty) : sz.why || ''; // no text without an account; .sz: quantity style, without the symbol
+  els.sz.textContent = sz.qty > 0 ? F.qty(sz.qty) : shortWhy(sz.why); // no text without an account; .sz: quantity style, without the symbol
   els.sz.className = 'sz' + (sz.qty > 0 ? '' : ' why');
-  // without "%" and in ascending order
+  // with "%" and in ascending order
   [...(m.presets || PRESETS)].sort((a, b) => a - b).forEach((p, i) => {
     const b = els.card2.querySelector('button.p' + i);
     if (!b || b.dataset.p === String(p)) return;
     b.dataset.p = String(p);
-    b.textContent = String(p);
+    b.textContent = p + '%';
     b.classList.toggle('sm', String(p).length > 2); // "2.5", "100": smaller font to fit the button
   });
   for (const b of els.card2.querySelectorAll('button.pp')) b.classList.toggle('on', +b.dataset.p === +m.pct);
-  els.card2.querySelector('[data-a="lm"]').disabled = busy || !(sz.qty > 0);
-  els.card2.querySelector('[data-a="st"]').disabled = busy || !(sz.qty > 0);
+  // Risk & targets PLAN / READY: the % size is not used; LIMIT / STOP set the plan ENTRY,
+  // LONG / SHORT at market only in ACTIVE (with the plan)
+  const omOn = !!col && omMode !== 'manual';
+  for (const b of els.card2.querySelectorAll('button.pp')) b.disabled = omOn;
+  els.pctIn.disabled = omOn;
+  els.card2.querySelector('[data-a="lm"]').disabled = busy || (!omOn && !(sz.qty > 0));
+  els.card2.querySelector('[data-a="st"]').disabled = busy || (!omOn && !(sz.qty > 0));
   // LONG / SHORT: add in the position's direction, CUT in the opposite one (never beyond the position: no reversal)
   for (const s of ['long', 'short']) {
     const b = els.card2.querySelector(`[data-a="${s}"]`);
     const cut = pos && pos.side !== s;
-    b.disabled = busy || !(sz.qty > 0);
+    b.disabled = busy || omOn || !(sz.qty > 0); // Risk ON: market entries only from START on the MARKET label
+    if (b.disabled && hoverSide === s) hoverSide = null;
   }
   const pend = m.pendings || [];
   const nLm = pend.filter((x) => !x.local).length,
@@ -771,8 +1262,126 @@ function draw() {
   if (pvRes) items.push({ id: 'pv:mfp', kind: 'mfp', price: pvRes.ko.price, pv: pvRes, ghost: !okPv(pv) });
   if (pv && pv.adding) items.push({ id: 'pv:avg', kind: 'avgn', price: pv.avg, pv, pvAvg: true });
   if (pos) for (const t of pos.triggers) items.push({ id: t.id, kind: t.kind, price: t.price, leg: t });
+  if (col && root.activeElement !== els.roomIn) {
+    const rv = String(m.roomPx ?? '');
+    if (els.roomIn.value !== rv) els.roomIn.value = rv;
+  }
+  // Trailing & breakeven: fields follow the panel's settings (not while typing in them)
+  if (col && m.tb) {
+    for (const el of els.sTb.querySelectorAll('[data-tb]')) {
+      if (root.activeElement === el) continue;
+      const v = m.tb[el.dataset.tb];
+      if (el.type === 'checkbox') {
+        if (el.checked !== !!v) el.checked = !!v;
+      } else if (el.value !== String(v ?? '')) el.value = String(v ?? '');
+    }
+    const n = m.tb.note || {};
+    if (els.tbNote.textContent !== (n.text || '')) els.tbNote.textContent = n.text || '';
+    els.tbNote.classList.toggle('warn', !!n.warn);
+  }
+  // Risk & targets: plan for both sides in the column section, lines only for the side being shown (no orders)
+  if (col) {
+    omBv = bv;
+    omPv = omMode === 'manual' ? null : omNewLimitSide(m) || omSide;
+    const tg = omMode === 'manual' ? 'OFF' : 'ON';
+    if (els.omTgl.textContent !== tg) {
+      els.omTgl.textContent = tg;
+      els.omTgl.classList.toggle('on', tg === 'ON');
+    }
+    els.cmd.classList.toggle('plan', omMode !== 'manual');
+    const en = { long: omEntry(m, 'long'), short: omEntry(m, 'short') };
+    // ACTIVE: an order of the plan is really there (pending LIMIT / armed local STOP) or the position is open
+    const evNow = omPv && en[omPv];
+    const actNow = omMode !== 'manual' && (!!pos || !!(evNow && (evNow.src === 'limit' || evNow.src === 'stop')));
+    // next to Trade commands: MANUAL, RISK PLAN (plan drives the orders, nothing placed yet) or RISK ACTIVE
+    const ph = omMode === 'manual' ? 'MANUAL' : actNow ? 'RISK ACTIVE' : 'RISK PLAN';
+    if (els.cmdPh.textContent !== ph) {
+      els.cmdPh.textContent = ph;
+      els.cmdPh.className = 'cph ' + (omMode === 'manual' ? 'manual' : actNow ? 'act' : 'view');
+    }
+    const pl = { long: omPlan(m, 'long', bv, en.long.price, omSlDrag('long')), short: omPlan(m, 'short', bv, en.short.price, omSlDrag('short')) };
+    const fp = (v) => F.price(v, priceDec);
+    const tgTxt = (t) => (t.by === 'trail' ? `T${t.n} trailing ×${F.qty(t.qty)}` : Number.isFinite(t.price) ? `T${t.n} <b>${fp(t.price)}</b> ×${F.qty(t.qty)}` : `T${t.n} —`);
+    const sideTxt = (s) => {
+      const x = pl[s];
+      if (!(x.qty > 0)) return `<div><i class="${s === 'long' ? 'up' : 'down'}">${s.toUpperCase()}</i> <span class="warn">${F.esc(x.why || '')}</span></div>`;
+      const t = x.targets.map(tgTxt).join(' · ');
+      const e = en[s];
+      const from = e.src === 'limit' ? `LIMIT <b>${fp(e.price)}</b>` : e.src === 'stop' ? `local STOP <b>${fp(e.price)}</b>` : e.src === 'mark' ? 'market' : `${omType(e) === 'st' ? 'STOP ' : ''}entry <b>${fp(e.price)}</b>`;
+      return `<div><i class="${s === 'long' ? 'up' : 'down'}">${s.toUpperCase()}</i> ${from} · size <b class="q">${F.qty(x.qty)}</b> · SL <b>${fp(x.sl)}</b> · risk <b class="down">${F.usd(x.riskUsd)}</b>${t ? '<br>' + t : ''}</div>`;
+    };
+    const L = pl.long, S2 = pl.short;
+    const notes = [];
+    if (L.capped || S2.capped) notes.push(`<div class="warn">size cut to the size cap (${m.capPct}%)</div>`);
+    const w = (L.qty > 0 && L.why) || (S2.qty > 0 && S2.why);
+    if (w) notes.push(`<div class="warn">${F.esc(w)}</div>`);
+    const nT = L.targets.length || S2.targets.length;
+    if (omSt.stops === 'each' && nT > 1) notes.push(`<div class="note">Stops: one per target (${nT}), each with its target's size.</div>`);
+    const ev = omPv && en[omPv];
+    const mk = m.market.mark;
+    const evSt = omType(ev) === 'st';
+    if (ev && ev.src !== 'mark' && mk > 0 && !evSt && (omPv === 'long' ? ev.price > mk : ev.price < mk))
+      notes.push(`<div class="warn">${omPv.toUpperCase()} entry ${omPv === 'long' ? 'above' : 'below'} the price: a LIMIT there fills at once (it would be a STOP entry)</div>`);
+    if (ev && ev.src !== 'mark' && mk > 0 && evSt && (omPv === 'long' ? ev.price < mk : ev.price > mk))
+      notes.push(`<div class="warn">${omPv.toUpperCase()} STOP entry ${omPv === 'long' ? 'below' : 'above'} the price: it would trigger at once (it would be a LIMIT entry)</div>`);
+    if (ev && ev.src === 'stop')
+      notes.push('<div class="note">Plan STOP is LOCAL: it lives in this browser tab. When the price touches it, it sends a market order with the plan size, SL and TP. Reload, tab closed or Orders off = gone.</div>');
+    const pq = omPv && pl[omPv].qty;
+    if (ev && ev.src === 'limit' && pq > 0 && Math.abs(ev.order.qty - pq) > 1e-9)
+      notes.push(`<div class="warn">The LIMIT on the chart has size ${F.qty(ev.order.qty)}, the plan ${F.qty(pq)}: move the LIMIT or plan SL and it is placed again with the plan.</div>`);
+    else if (ev && ev.src === 'limit' && pq > 0) notes.push('<div class="note">The LIMIT on the chart has the plan size.</div>');
+    if (ev && ev.src === 'limit') {
+      // SL / TP read from Vest (size-0 position Vest keeps for the pending LIMIT), not the plan lines
+      const lg = m.phLegs;
+      const one = (l) => `${l.kind.toUpperCase()} <b>${fp(l.price)}</b>${l.qty > 0 ? ' ×' + F.qty(l.qty) : ''}`;
+      if (lg && lg.length)
+        notes.push(`<div class="note">On Vest this LIMIT holds: ${lg.filter((l) => l.kind === 'sl').map(one).join(', ') || '<b class="warn">no SL</b>'} · ${lg.filter((l) => l.kind === 'tp').map(one).join(', ') || 'no TP'}</div>`);
+      else if (lg) notes.push('<div class="warn">The data Vest sends shows no SL / TP for this LIMIT (they may appear only when it fills): check the order on Vest. The plan lines are drawn here.</div>');
+      else notes.push('<div class="note">Vest does not say which SL / TP this LIMIT holds: the plan lines are drawn here from the plan.</div>');
+    }
+    if (omBusy) notes.push('<div class="note">Placing the LIMIT with the new plan…</div>');
+    if (ev && ev.src === 'set') {
+      const what = evSt ? 'arm the local STOP' : 'place the LIMIT';
+      notes.push(`<div class="note">Press START on its label to ${what} with this plan.</div>`);
+    }
+    const modeTxt =
+      omMode === 'manual'
+        ? 'Manual: Trade commands use the % size, nothing on the chart.'
+        : omMode === 'view'
+          ? 'PLAN: a LIMIT or STOP dragged from Trade commands only sets the plan ENTRY (nothing is sent): READY on its label, then START, places it with the plan size, SL and TP; its lines then say ACTIVE. A pending LIMIT moved (or its plan SL) is placed again with the plan. LONG / SHORT at market still use the % size.'
+          : '<b class="act">RISK ON</b>: the % size and the LONG / SHORT buttons are off. START on the MARKET label sends the plan size WITH its SL and TP at market (real order, Orders ON); a dragged LIMIT or STOP moves the entry there, START on its label places it (the STOP is local, in this tab). Only on a market with no position and no pending order.';
+    const html = (omMode === 'manual' ? '' : sideTxt('long') + sideTxt('short') + notes.join('')) + `<div class="note">${modeTxt}</div>`;
+    if (els.omOut.dataset.h !== html) {
+      els.omOut.dataset.h = html;
+      els.omOut.innerHTML = html;
+    }
+    const lev = m.size && m.size.lev > 0 ? m.size.lev + '×' : '—';
+    if (els.omLev.textContent !== lev) els.omLev.textContent = lev;
+    els.omL.classList.toggle('on', omSide === 'long');
+    els.omS.classList.toggle('on', omSide === 'short');
+    if (omBusy && omBusy.done) {
+      const lmNow = omLimit(m, omBusy.side);
+      if ((lmNow && Math.abs(lmNow.price - omBusy.price) < tick / 2) || pos || Date.now() > omBusy.until) omBusy = null;
+    }
+    const hideLines = !!pos || !!omBusy; // after the entry the real SL / TP are on the chart; while the LIMIT is placed again, nothing
+    const x = !hideLines && omPv && pl[omPv];
+    const e = !hideLines && omPv && en[omPv];
+    omActNow = !!(e && (e.src === 'limit' || e.src === 'stop'));
+    // ENTRY: only when the entry is not already a LIMIT on the chart (then the LIMIT line is the entry)
+    if (e && e.src !== 'limit' && e.src !== 'stop' && e.src !== 'newlm' && e.price > 0)
+      items.push({ id: 'om:entry', kind: 'lm', price: e.price, om: { k: `${e.src === 'mark' ? 'MARKET' : omType(e) === 'st' ? 'STOP' : 'LIMIT'} ${omPv === 'long' ? 'LONG' : 'SHORT'}`, qty: x && x.qty > 0 ? x.qty : NaN, usd: NaN, drag: true, entry: true, go: e.src === 'set' || e.src === 'mark', back: e.src === 'set' } });
+    if (x && x.qty > 0) {
+      items.push({ id: 'om:sl', kind: 'sl', price: drag && drag.from === 'plan' && drag.kind === 'sl' && drag.moved ? drag.price : x.sl, om: { k: `${omPv === 'long' ? 'LONG' : 'SHORT'} SL`, qty: x.qty, usd: -x.riskUsd, drag: true, entry: e.price } });
+      for (const t of x.targets)
+        if (Number.isFinite(t.price)) {
+          const name = t.by === 'r' ? `${t.val}R` : t.by === 'atr' ? `${t.val}×ATR` : t.by === 'ticks' ? `${t.val}t` : '';
+          items.push({ id: 'om:t' + t.n, kind: 'tp', price: t.price, om: { k: `T${t.n}${name ? ' ' + name : ''}`, qty: t.qty, usd: t.reward } });
+        }
+    }
+  }
   for (const o of m.pendings || []) items.push({ id: 'o:' + o.id, kind: o.kind, price: o.price, order: o });
   const seen = new Set();
+  planNow.clear();
   items.sort((a, b) => b.price - a.price); // top to bottom: labels stack without overlapping
   const placed = []; // [top, bottom] of the labels already placed
   for (const it of items) {
@@ -780,14 +1389,31 @@ function draw() {
     let le = legEls.get(it.id);
     if (!le) {
       le = { line: document.createElement('div'), chip: document.createElement('div'), html: '' };
-      const ro = it.entry || it.ko || it.dd50 || it.avgL || it.pv; // (also AVG NEXT and the FAIL NEW preview) read-only: no drag, no X
+      const omDrag = !!(it.om && it.om.drag); // ENTRY and plan SL: dragged, nothing sent
+      const ro = it.entry || it.ko || it.dd50 || it.avgL || it.pv || (it.om && !omDrag); // (also AVG NEXT, the FAIL NEW preview, the plan targets) read-only: no drag, no X
       le.line.className = ro ? 'hl entry' : 'hl grab';
-      le.chip.className = 'chip ' + it.kind + (ro ? ' pos' : '');
+      le.chip.className = 'chip ' + it.kind + (ro ? ' pos' : '') + (it.om ? ' plan' : '');
       const id = it.id;
       // label and line are grabbed the same way: dragging moves the level, the X cancels/removes
       const grab = (el) => (e) => {
         const cur = getModel();
         if (!cur) return;
+        if (id === 'om:entry' && e.target.closest('.x')) {
+          e.preventDefault();
+          e.stopPropagation();
+          omAnchor = null;
+          return say('Plan ENTRY back to the market price', '');
+        }
+        if (id === 'om:entry' && e.target.closest('.go')) {
+          e.preventDefault();
+          e.stopPropagation();
+          return omSend();
+        }
+        if (id === 'om:entry' || id === 'om:sl') {
+          const p = planNow.get(id);
+          if (!p) return;
+          return startDrag(e, el, id === 'om:sl' ? 'sl' : 'lm', { id, price: p.price, entry: p.entry, qty: p.qty }, 'plan');
+        }
         if (id.startsWith('o:')) {
           const o = (cur.pendings || []).find((x) => 'o:' + x.id === id);
           if (!o) return;
@@ -835,7 +1461,17 @@ function draw() {
       continue;
     }
     let html, price;
-    if (it.pvAvg) {
+    if (it.om) {
+      price = it.price;
+      const om = it.om;
+      if (om.drag) planNow.set(it.id, { price, entry: om.entry === true ? price : om.entry, qty: om.qty });
+      const dragging = !!(drag && drag.from === 'plan' && drag.existing.id === it.id && drag.moved);
+      html = `<span class="ph ${omActNow ? 'act' : 'view'}">${omActNow ? 'RISK ACTIVE' : 'RISK PLAN'}</span><span class="k">${om.k}</span><b>${F.price(price, priceDec)}</b>${om.qty > 0 ? `<span>${F.qty(om.qty)}</span>` : ''}${Number.isFinite(om.usd) ? `<span class="${F.cls(om.usd)}">${F.usd(om.usd, true)}</span>` : ''}` +
+        (om.go ? `<span class="go live">START</span>${om.back ? '<span class="x">✕</span>' : ''}` : '');
+      le.chip.classList.toggle('drag', dragging);
+      le.chip.classList.toggle('bad', !!(dragging && !drag.ok));
+      le.chip.classList.toggle('act', omActNow); // order of the plan really there: black label
+    } else if (it.pvAvg) {
       const P = it.pv;
       price = P.avg;
       html = `<span class="k">AVG NEW</span><b>${F.price(price, priceDec)}</b><span class="qy">${F.qty(P.qty)}</span>`;
@@ -1009,7 +1645,10 @@ function draw() {
     let txt;
     if (drag.kind === 'lm' || drag.kind === 'st') {
       const side = entrySide(drag.kind, drag.price, mark);
-      txt = `<span class="k">${NAME[drag.kind]}</span>${side ? `<span class="${side === 'long' ? 'up' : 'down'}">${sideWord(side)}</span>` : ''}<b>${F.price(drag.price, priceDec)}</b><span>${sz.qty > 0 ? F.qty(sz.qty) : ''}</span>`;
+      // ACTIVE: the LIMIT goes with the plan size at this price (recalculated at every move); otherwise the % size
+      const pq = (drag.kind === 'lm' || drag.kind === 'st') && side && col && omMode !== 'manual' ? omPlan(m, side, bv, drag.price).qty : NaN;
+      const q = omMode !== 'manual' && col && (drag.kind === 'lm' || drag.kind === 'st') ? pq : sz.qty;
+      txt = `<span class="k">${NAME[drag.kind]}</span>${side ? `<span class="${side === 'long' ? 'up' : 'down'}">${sideWord(side)}</span>` : ''}<b>${F.price(drag.price, priceDec)}</b><span>${q > 0 ? F.qty(q) : ''}</span>`;
     } else {
       const usd = pos ? pnlUsd(pos.side, pos.qty, pos.openPrice, drag.price) : NaN;
       txt = `<span class="k">${NAME[drag.kind]}</span><b>${F.price(drag.price, priceDec)}</b><span class="${F.cls(usd)}">${F.usd(usd, true)}</span>${pos ? sumAll(drag.price) : ''}`;
@@ -1032,6 +1671,7 @@ function draw() {
 // ── removing a stop/target. The target goes on the first click; the STOP needs a second click within 3 s
 // (removing the stop increases the risk: hence two clicks).
 let removeArm = null; // { id, until }
+const planNow = new Map(); // 'om:entry' | 'om:sl' -> { price, entry, qty } as drawn in the last frame (start of a plan drag)
 const removing = new Map(); // id -> wait deadline
 function askRemove(leg) {
   const now = Date.now();
@@ -1076,7 +1716,7 @@ function askCancel(o) {
 function startDrag(e, el, kind, existing, from) {
   const m = getModel();
   if (!m || !state.visible || !m.market) return;
-  if ((kind === 'tp' || kind === 'sl') && !m.pos) return;
+  if ((kind === 'tp' || kind === 'sl') && !m.pos && from !== 'plan') return;
   e.preventDefault();
   e.stopPropagation();
   try {
@@ -1093,7 +1733,8 @@ function startDrag(e, el, kind, existing, from) {
     if (!drag.moved || !drag.g || !cur || !cur.market) return;
     const { tick, mark } = cur.market;
     drag.price = roundToTick(G.yToPrice(ev.clientY - drag.g.top, drag.g.vr, drag.g.height), tick);
-    if (drag.from === 'order') drag.ok = entrySide(drag.kind, drag.price, mark) === drag.existing.order.side && !tooClose(drag.price, mark, tick);
+    if (drag.from === 'plan') drag.ok = drag.kind === 'lm' || (drag.price - drag.existing.entry) * (omPv === 'long' ? -1 : 1) > 0; // plan SL on the stop side of the entry
+    else if (drag.from === 'order') drag.ok = entrySide(drag.kind, drag.price, mark) === drag.existing.order.side && !tooClose(drag.price, mark, tick);
     else if (drag.kind === 'lm' || drag.kind === 'st') drag.ok = !!entrySide(drag.kind, drag.price, mark) && !tooClose(drag.price, mark, tick);
     else drag.ok = !!cur.pos && !checkLeg({ kind: drag.kind, side: cur.pos.side, price: drag.price, mark, tick });
   };
@@ -1108,10 +1749,85 @@ function startDrag(e, el, kind, existing, from) {
   el.addEventListener('pointercancel', up);
 }
 
+/** Plan line dropped (nothing is sent). ENTRY: the plan starts there. SL: stop = that distance, size unchanged, risk follows. */
+function omDrop(d) {
+  const m = getModel();
+  if (!m || !m.market || !omPv) return;
+  if (d.kind === 'lm') {
+    omAnchor = { side: omPv, symbol: m.market.symbol, price: d.price, type: (omAnchor && omAnchor.type) || 'lm' };
+    return;
+  }
+  if (!d.ok) return say(`plan SL must be ${omPv === 'long' ? 'below' : 'above'} the entry`, 'err');
+  const dist = Math.abs(d.existing.entry - d.price);
+  const dec = Math.max(0, Math.ceil(-Math.log10(m.market.tick || 1)) + 1);
+  const before = omSt.stopBy;
+  omSt.stopBy = 'dist';
+  omSt.stopVal = String(+dist.toFixed(dec));
+  omFill();
+  omSave();
+  const side = omPv;
+  const en = omEntry(m, side);
+  const x = omPlan(m, side, omBv, en.price);
+  const what = `stop ${omSt.stopVal} points${before !== 'dist' ? ' (stop rule now Points)' : ''}, size ${x.qty > 0 ? F.qty(x.qty) : '—'}`;
+  // plan on a pending LIMIT: that order is placed again with the new size, SL and TP
+  if (omLim() && en.src === 'limit') {
+    const pl = omOrderPlan(m, side, en.order.price);
+    if (pl instanceof Error) return say(pl.message, 'err');
+    omRun(actions.planMove(en.order, en.order.price, pl), `PLAN LIMIT updated: ${pl.qty} with SL ${pl.sl}`, side, en.order.price);
+    return;
+  }
+  if (omLim() && en.src === 'stop') {
+    const pl = omOrderPlan(m, side, en.order.price);
+    if (pl instanceof Error) return say(pl.message, 'err');
+    run(actions.planStopMove(en.order, en.order.price, pl), `PLAN STOP updated: ${pl.qty} with SL ${pl.sl} (local)`);
+    return;
+  }
+  say('Plan: ' + what, '');
+}
+
+/** Button on ENTRY: READY (in PLAN) switches to READY, START (in READY) places the LIMIT (or arms the local STOP) with the plan. */
+function omSend() {
+  const m = getModel();
+  if (!m || !m.market || !omLim()) return;
+  if (omMode === 'view') {
+    omMode = 'live';
+    omSave();
+    return say('READY: press START on ENTRY to place the order with the plan', '');
+  }
+  const side = omSide;
+  const en = omEntry(m, side);
+  if (en.src === 'mark') {
+    // START on the MARKET label: market entry with the plan size, SL and TP
+    const pl = omOrderPlan(m, side, m.market.mark);
+    if (pl instanceof Error) return say(pl.message, 'err');
+    run(actions.planEntry('market', side, null, pl), `PLAN ${side.toUpperCase()} sent at market: ${pl.qty} with SL ${pl.sl}`);
+    return;
+  }
+  if (en.src !== 'set') return;
+  if (omType(en) === 'st') {
+    if (entrySide('st', en.price, m.market.mark) !== side)
+      return say(`a ${side === 'long' ? 'BUY' : 'SELL'} stop goes ${side === 'long' ? 'above' : 'below'} the price: move ENTRY`, 'err');
+    const pl = omOrderPlan(m, side, en.price);
+    if (pl instanceof Error) return say(pl.message, 'err');
+    const p = actions.planStop(side, en.price, pl);
+    run(p, `PLAN STOP ${side === 'long' ? 'BUY' : 'SELL'} ${pl.qty} at ${en.price} with SL ${pl.sl} armed (LOCAL, in this tab)`);
+    p.then(() => (omAnchor = null), () => {}); // then the plan follows the STOP on the chart
+    return;
+  }
+  if (entrySide('lm', en.price, m.market.mark) !== side)
+    return say(`a ${side === 'long' ? 'BUY' : 'SELL'} limit goes ${side === 'long' ? 'below' : 'above'} the price: move ENTRY`, 'err');
+  const pl = omOrderPlan(m, side, en.price);
+  if (pl instanceof Error) return say(pl.message, 'err');
+  const p = actions.planEntry('limit', side, en.price, pl);
+  omRun(p, `PLAN LIMIT ${side === 'long' ? 'BUY' : 'SELL'} ${pl.qty} @ ${en.price} with SL ${pl.sl}`, side, en.price);
+  p.then(() => (omAnchor = null), () => {}); // then the plan follows the LIMIT on the chart
+}
+
 function endDrag(commit) {
   const d = drag;
   drag = null;
   if (!d || !commit) return;
+  if (d.from === 'plan') return d.moved && omDrop(d);
   if (!d.moved) {
     if (d.from !== 'leg' && d.from !== 'order') say(`Hold ${NAME[d.kind]} and drag it to the level you want`, '');
     return;
@@ -1122,10 +1838,43 @@ function endDrag(commit) {
     if (Math.abs(d.price - o.price) < 1e-9) return;
     if (!d.ok) return say(`${NAME[d.kind]}: invalid level (wrong side or too close to the price)`, 'err');
     pending = { kind: d.kind, legId: 'o:' + o.id, price: d.price, until: Date.now() + 6000 };
+    if (omLim() && o.local && o.plan) {
+      const pl = omOrderPlan(getModel(), o.side, d.price);
+      if (pl instanceof Error) {
+        pending = null;
+        return say(pl.message, 'err');
+      }
+      const p = actions.planStopMove(o, d.price, pl);
+      run(p, `PLAN STOP moved to ${d.price}: ${pl.qty} with SL ${pl.sl} (local)`);
+      p.catch(() => (pending = null));
+      return;
+    }
+    if (omLim() && !o.local && o.kind === 'lm') {
+      // plan: cancelled and placed again with SL / TP recalculated at the new price
+      const pl = omOrderPlan(getModel(), o.side, d.price);
+      if (pl instanceof Error) {
+        pending = null;
+        return say(pl.message, 'err');
+      }
+      const p = actions.planMove(o, d.price, pl);
+      omRun(p, `PLAN LIMIT moved to ${d.price}: ${pl.qty} with SL ${pl.sl}`, o.side, d.price);
+      p.catch(() => (pending = null));
+      return;
+    }
     const p = actions.movePending(o, d.price);
     run(p, `${NAME[d.kind]} moved to ${d.price}${o.local ? ' (local)' : ''}`);
     p.catch(() => (pending = null));
     return;
+  }
+  if ((d.kind === 'lm' || d.kind === 'st') && omLim()) {
+    const m = getModel();
+    const side = m && m.market && entrySide(d.kind, d.price, m.market.mark);
+    if (!side) return say('current price not available', 'err');
+    // nothing is sent on release: the plan stays at that price, its label has READY (in PLAN) / START (in READY)
+    omSide = side;
+    omAnchor = { side, symbol: m.market.symbol, price: d.price, type: d.kind };
+    omSave();
+    return say(`Plan ${d.kind === 'st' ? 'STOP ' : ''}ENTRY ${side === 'long' ? 'LONG' : 'SHORT'} at ${d.price}: press ${omMode === 'live' ? 'START' : 'READY, then START,'} on its label to ${d.kind === 'st' ? 'arm the local STOP' : 'place the LIMIT'}`, '');
   }
   if (d.kind === 'lm' || d.kind === 'st') {
     // order on release, no confirmation: the real checks are in entry.js / stops.js

@@ -61,10 +61,14 @@ function followerOrderId(f, l) {
   const o = ((S.state[f] || {}).orders || []).find((x) => x.symbol === l.symbol && +x.price === l.price);
   return o ? o.id : null;
 }
+// copy orders just cancelled, per copy: their empty placeholder can still be there for a moment (see leftoverPh)
+const justCancelled = new Map(); // follower -> { symbol, ids: Set, at }
 async function cancelLinked(l, why) {
+  const sent = {};
   const res = await Promise.allSettled(
     st.followers.map((f) => {
       const id = followerOrderId(f, l);
+      sent[f] = id;
       if (!id) {
         log.warn(`COPY ${label(f)}: pending order to cancel not found (${why})`);
         return Promise.reject(new Error('not found'));
@@ -72,7 +76,21 @@ async function cancelLinked(l, why) {
       return orders.send(f, { method: 'POST', path: '/v3/positions/cancel-order', body: { orderId: id } }, `COPY ${label(f)}: cancel pending order (${why})`, null);
     }),
   );
+  st.followers.forEach((f, i) => {
+    if (res[i].status !== 'fulfilled') return;
+    const jc = justCancelled.get(f);
+    const ids = jc && jc.symbol === l.symbol && Date.now() - jc.at < 10000 ? jc.ids : new Set();
+    ids.add(sent[f]);
+    justCancelled.set(f, { symbol: l.symbol, ids, at: Date.now() });
+  });
   return res.filter((r) => r.status === 'fulfilled').length;
+}
+/** Before copying a new /open: waits (max 5 s) until the copies' placeholders left by a cancel just made are gone. */
+async function leftoversGone(symbol) {
+  const left = (f) => C.leftoverPh(S.state[f], justCancelled.get(f), symbol, Date.now());
+  for (let i = 0; i < 25 && st.followers.some(left); i++) await new Promise((r) => setTimeout(r, 200));
+  const still = st.followers.filter(left);
+  if (still.length) log.warn(`Copy: ${still.map(label).join(', ')} still have the empty placeholder of the order just cancelled: the new order goes onto it (Vest may reject it)`);
 }
 // links of orders the master no longer has (filled or cancelled elsewhere): dropped after 15 s, time for the state to update
 function pruneLinks() {
@@ -246,6 +264,7 @@ async function mirror({ accountId, order, before, via, res: mRes }) {
   const m = symbol && S.symbols[symbol];
   const src = via === 'page' ? 'Vest ticket' : 'tool';
   if (!m) return log.warn(`MASTER ${action} (${src}): market ${symbol || '?'} not recognised, not copied`);
+  if (action === 'open') await leftoversGone(symbol); // e.g. LIMIT moved by the plan: cancel + new /open on the master
   const mEq = (store.values(st.master) || {}).equity;
   const t0 = performance.now();
   const plans = st.followers.map((f) => {
