@@ -77,7 +77,6 @@
   .sign { margin: 26px 0 0; color: var(--acc); font-weight: 600; }
   h2.toolh { font-size: 34px; line-height: 1.15; }
   h2.toolh em { font-style: normal; color: var(--acc); }
-  /* screenshot of the chart cards */
   .mock { background: var(--bg2); border: 1px solid var(--line); border-radius: 12px; padding: 14px; box-shadow: 0 20px 50px rgba(0,0,0,.45); }
   .mock { margin: 0; }
   .mock img { display: block; width: 100%; height: auto; border-radius: 6px; }
@@ -156,8 +155,8 @@
     <span class="tag">Free · open source · unofficial</span>
     <h2 class="toolh">The tool: trade on <em>Vest</em> from the chart, with your risk in dollars.</h2>
     <p class="lead">A userscript for Vest Markets prop accounts: P&amp;L and drawdown room in dollars, drag-and-drop stop loss and
-      take profit, breakeven, trailing stop, a copier between your accounts, swing levels, a candle countdown and a
-      multi-timeframe volatility heatmap on the chart.</p>
+      take profit, breakeven, trailing stop, size from your dollar risk with up to four take profits, a copier between your
+      accounts, swing levels, a candle countdown and a multi-timeframe volatility heatmap.</p>
     <div class="btns">
       <a class="btn main" data-gh="releases" href="#install">Download</a>
       <a class="btn" data-gh="guide" href="#install">Step-by-step guide</a>
@@ -186,7 +185,7 @@
     <div class="f"><div class="ic" style="background:#10291f;color:#3ecf8e">$</div><h3>Accounts in dollars</h3>
       <p>Equity, balance, today's P&amp;L from the start of the Vest day, open and total P&amp;L, and the dollars left before each drawdown limit, for every account.</p></div>
     <div class="f"><div class="ic" style="background:#13264a;color:#9fc2ff">↕</div><h3>Orders from the chart</h3>
-      <p>Drag SL, TP, limit and stop orders to the price you want. Breakeven, BE+, partial close, close and flat with one click.</p></div>
+      <p>Drag SL, TP, limit and stop orders to the price you want. Breakeven, BE+, partial close, close and flat with one click. Risk &amp; targets sizes the order from your dollar risk, with up to four take profits.</p></div>
     <div class="f"><div class="ic" style="background:#2e1517;color:#ff6b61">!</div><h3>Fail price</h3>
       <p>Lines at the price where the account would reach its drawdown limit, and where half the room is gone, counting your pending entries.</p></div>
     <div class="f"><div class="ic" style="background:#2f2610;color:#e8b84a">≋</div><h3>Trailing stop and auto BE</h3>
@@ -222,7 +221,7 @@
       On Chrome and Edge, allow userscripts if Tampermonkey asks (Developer mode or "Allow User Scripts").</li>
     <li>Download <code>vest-tool.user.js</code> from the <a data-gh="releases" href="#">latest release</a>.</li>
     <li>Tampermonkey → <b>Create a new script</b>, replace everything with the content of the file, <b>Save</b>.</li>
-    <li>Open <code>next.vestmarkets.com</code>, log in, reload. The panel appears at the top right; the cards on the chart.</li>
+    <li>Open <code>next.vestmarkets.com</code>, log in, reload. The panel appears as a column on the right of the page, with Trade commands under it.</li>
     <li>Click any <b>?</b> in the panel to learn what each part does. Switch <b>Orders</b> on only when you are ready, and start at minimum size.</li>
   </ol>
 </div></section>
@@ -281,7 +280,7 @@
 
   // ── fill in when ready
   const VIDEO = ''; // full YouTube link of the demo video (empty = box hidden). It opens on YouTube: this page embeds nothing.
-  const TOUR = true; // false hides the link to tour.html
+  const TOUR = false; // true once docs/tour.html exists again
   const vid = document.querySelector('[data-video]');
   if (/^https:\/\/(www\.)?(youtube\.com|youtu\.be)\//.test(VIDEO)) { vid.href = VIDEO; vid.hidden = false; }
   if (TOUR) document.querySelector('[data-tour]').hidden = false;
