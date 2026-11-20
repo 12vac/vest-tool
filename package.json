@@ -1,6 +1,6 @@
 {
   "name": "vest-tool",
-  "version": "0.10.98",
+  "version": "0.10.99",
   "private": true,
   "description": "Tampermonkey userscript for Vest Markets: account status, P&L in dollars, trade overlay on the chart, order tools and copier.",
   "type": "commonjs",

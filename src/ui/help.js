@@ -13,7 +13,7 @@ const HELP = {
       <li><b>Session</b>: equity now minus the first value read today on this computer (reset it in Diagnostics).</li>
     </ul>
     If one account has no value, the total shows "—", never a partial total.
-    Click an account to <b>select</b> it: the chart cards and the Trade section follow the selected account.`,
+    Click an account to <b>select</b> it: the column and the Trade section follow the selected account.`,
   ],
   flatall: [
     'FLATTEN ALL',
@@ -57,7 +57,7 @@ const HELP = {
   ],
   size: [
     'Order size and daily goal',
-    `Sizes on the second chart card are a <b>percentage of the maximum size</b> the account can open with its leverage
+    `Sizes in Trade commands are a <b>percentage of the maximum size</b> the account can open with its leverage
     (100% = all the free margin). Example: 2% on an account that can open 50 NQ = 1 NQ.`,
   ],
   stops: [
@@ -93,25 +93,34 @@ const HELP = {
     <b>Manual</b> lets you choose side, quantity and entry (empty entry = mark price).`,
   ],
   guide: [
-    'Chart cards: what everything does',
+    'Column and Trade commands: what everything does',
     `<ul>
-      <li><b>First card</b>: chart timeframe, time left before the candle closes, clock, side, size, entry, P&L and points of the trade, micro contracts and $ per point.
+      <li><b>Panel header</b> (top of the column): chart timeframe, time left before the candle closes, clock and account; under them the
+      open position: side, size, entry price and P&L, then points from the entry, micro contracts and $ per point, and today's points
+      (FLAT when there is no position). Alt+Shift+V or – unfolds the panel for the settings and folds it back.</li>
+      <li><b>Trade commands</b> (under the panel; ⇱ floats it as a window you can drag and resize, ⇥ puts it back):
+      top rows = size in % of the maximum size (fractions and your six presets) or typed in the % box.
       <b>ORDERS</b> switches order sending on/off (off after every reload). <b>COPY</b> switches the copier on/off.
-      <b>FLAT</b> cancels the local stops and every pending order on this market, then closes the position (works with ORDERS off).</li>
-      <li><b>Second card</b>: top rows = size in % of the maximum size (0.1-0.9 and your presets) or typed in the box.
       <b>LIMIT</b> / <b>STOP</b>: press and drag to a price, the order is sent on release.
       LIMIT below the price buys, above sells. STOP above the price buys, below sells.
       A STOP is <b>local</b>: it lives in this browser tab and sends a market order when the price touches it; reloading or closing the tab removes it.
       <b>CANCEL</b> opens a menu: pending limits, local stops or all orders on this market (works with ORDERS off).
-      <b>TP</b> / <b>SL</b>: press and drag to the level. <b>BE</b> moves the stop to the entry (BE+ = entry plus the profit set in the panel).
-      <b>LONG</b> / <b>SHORT</b>: market order with the chosen size; on the opposite side of an open position it reduces it (never reverses).</li>
-      <li><b>Third card</b>: <b>PARTIAL CLOSE</b> closes the % in the box, <b>CLOSE</b> closes everything; both leave the pending orders in place.
-      <b>MARGIN USED</b>: margin of the open positions as a % of equity. <b>MARGIN + ORDERS</b>: including pending orders, and the contracts you can still open.
-      <b>DAILY GOAL</b>: today's P&L against the goal set below. <b>OPEN LOSS</b>: loss of the open trade out of what you can lose before Vest's daily limit.
+      <b>TP</b> / <b>SL</b>: press and drag to the level. <b>BE</b> moves the stop to the entry (BE+ = entry plus the profit set in Trailing &amp; breakeven).
+      <b>LONG</b> / <b>SHORT</b>: market order with the chosen size; on the opposite side of an open position it reduces it (never reverses).
+      <b>PARTIAL CLOSE</b> closes the % in its box, <b>CLOSE</b> closes everything; both leave the pending orders in place.
+      <b>FLAT</b> cancels the local stops and every pending order on this market, then closes the position (works with ORDERS off).
+      The word next to the title says how orders are sized: <b>MANUAL</b> (the % size), <b>RISK PLAN</b> or <b>RISK ACTIVE</b> (Risk &amp; targets ON).
+      The <b>Copier accounts</b> table sits under it: master (M) and copies with their size on this market, open, today's and total P&L.</li>
+      <li><b>Risk &amp; targets</b>: size from the risk in $, stop and up to four targets, drawn on the chart; ON next to the title lets
+      Trade commands send the plan. The <b>?</b> next to <i>column width</i> in Panel layout explains every field.</li>
+      <li><b>Trailing &amp; breakeven</b>: the same settings as the panel's "Trailing stop and breakeven".</li>
+      <li><b>Account limits</b>: <b>MARGIN USED</b>: margin of the open positions as a % of equity. <b>MARGIN + ORDERS</b>: including pending orders, and the contracts you can still open.
+      <b>DAILY GOAL</b>: today's P&L against the goal set in Order size and daily goal. <b>OPEN LOSS</b>: loss of the open trade out of what you can lose before Vest's daily limit.
       <b>DAILY LOSS LEFT</b> / <b>DRAWDOWN LEFT</b>: dollars left before the daily / total limit (the limit in brackets), as on Vest's page.
       <b>PROFIT TARGET</b>: total P&L against the evaluation target. Bars: green in profit, yellow up to 50% used, orange up to 75%, red beyond.</li>
-      <li><b>Swing and volatility card</b>: SWING RANGE = points between the last swing high and low; VOLATILITY = the heatmap described in Chart display.</li>
-      <li><b>Copier card</b>: master (M) and copies with their size on this market, open, today's and total P&L.</li>
+      <li><b>Swing range and volatility</b>: SWING RANGE = points between the last swing high and low; VOLATILITY = the heatmap described in Chart display.</li>
+      <li><b>Chart space</b>: room in pixels between the last candle and the price axis, for the labels.</li>
+      <li>Click a section title to fold it.</li>
       <li><b>Labels on the chart</b>: drag SL, TP, LIMIT and STOP labels (or their line) to move them; ✕ cancels. On the position label ✕ closes 100% at market (two clicks).</li>
     </ul>`,
   ],
@@ -137,9 +146,9 @@ const HELP = {
   ],
   presets: [
     'Size presets',
-    'The values of the six % buttons on the second card, in % of the maximum size. They are shown in ascending order. The size cap still applies.',
+    'The values of the six % buttons in Trade commands, in % of the maximum size. They are shown in ascending order. The size cap still applies.',
   ],
-  dailyGoal: ['Daily goal', 'Your profit target for the day, in dollars. The DAILY GOAL bar on the third card compares today\'s P&L with it.'],
+  dailyGoal: ['Daily goal', 'Your profit target for the day, in dollars. The DAILY GOAL bar in Account limits compares today\'s P&L with it.'],
   trailing: [
     'Trailing stop',
     `<ul>
@@ -161,22 +170,22 @@ const HELP = {
     After a BE (button or automatic), changing the profit field moves the stop to the new level, unless trailing has taken over the stop.`,
   ],
   lines: ['Lines on the chart', 'Draws the tool\'s own lines and labels on the chart (position, SL/TP, orders, averages, fail price).'],
-  overlay: ['Trade overlay', 'Shows the cards on the right of the chart. Off = no cards and no buttons on the chart.'],
+  overlay: ['Trade overlay', 'Shows the sections and Trade commands in the column. Off = no sections and no trade buttons.'],
   dd50: ['50% drawdown label', 'Shows the 50% DRAWDOWN label: the price where the position (plus the entry limits that fill first) loses half of the drawdown still available.'],
   hideVest: [
     'Hide Vest lines',
-    `Hides the position line and the SL/TP lines that Vest draws, because the tool draws its own. If the cards show a different
+    `Hides the position line and the SL/TP lines that Vest draws, because the tool draws its own. If the column shows a different
     account from the one open on Vest, all of Vest's order lines are hidden so they cannot be confused.`,
   ],
-  blockPct: ['Card scale', 'Size of the cards on the chart, everything in proportion. 100 = original design, 50-250.'],
+  blockPct: ['Card scale', 'Size of the cards when they were drawn on the chart. The panel is now always docked and the sections in the column use the column size, so this value has no effect there.'],
   chipPct: ['Label scale', 'Size of the labels on the chart (SL, TP, LIMIT, STOP, position...). 50-250.'],
   roomPx: [
     'Label space',
-    'Fixed space in pixels between the last candle and the cards (in the docked column: the price axis), for the labels and the trailing/BE segments (50-900, empty = 360). The chart does not shift when the labels change width.',
+    'Fixed space in pixels between the last candle and the price axis, for the labels and the trailing/BE segments (50-900, empty = 360). The chart does not shift when the labels change width.',
   ],
   countdown: [
     'Candle countdown',
-    'Time left before the current candle of the chart\'s timeframe closes, shown on the first card between the instrument and the clock. It follows the timeframe you choose on the chart.',
+    'Time left before the current candle of the chart\'s timeframe closes, shown in the panel header next to the timeframe and the clock. It follows the timeframe you choose on the chart.',
   ],
   btncol: [
     'Button and mode colours',
@@ -192,10 +201,11 @@ const HELP = {
     'Dock as a column',
     `The panel becomes a full-height column on the right and Vest's page is narrowed to leave room for it, so the panel no longer covers
     the chart. Width 320-900 px. It always stays docked; only the Trade commands panel can float (⇱ in its title, ⇥ puts it back).
-    <br><b>Chart cards</b>: the cards are sections under the folded panel (position, account limits, copier,
-    volatility; a click on a section title folds it) and puts every button in the <b>Trade commands</b> panel at the top of the column.
+    <br>Under the folded panel the column holds <b>Trade commands</b> (every trade button) and the sections Risk &amp; targets,
+    Trailing &amp; breakeven, Account limits, Swing range and volatility, Chart space (a click on a section title folds it);
+    the position is shown in the panel header.
     The <b>Trailing &amp; breakeven</b> section holds the same settings as the panel's "Trailing stop and breakeven" (that section
-    is hidden from the panel while the cards are in the column).
+    is hidden from the panel while the column shows its sections).
     The <b>Risk &amp; targets</b> section computes a trade plan: <b>size by</b> risk in $ (size = risk ÷ stop distance, with
     <i>count fees</i> also the entry and exit fee), % of the maximum size or a fixed quantity, never above the size cap;
     <b>stop by</b> points, ticks, the previous closed candle's low (LONG) / high (SHORT) plus the ticks you set beyond it, or a multiple
@@ -222,9 +232,8 @@ const HELP = {
     The Trade commands ⇱ button detaches it as a floating window you drag by the title bar and resize (width and height) from the bottom-right corner, with the copier accounts inside; ⇥ puts it back.
     Unfolding the panel (– or Alt+Shift+V) fills the column for the settings and hides the sections until you fold it again; a floating
     Trade commands panel stays on the screen.
-    <i>On the chart</i> keeps the cards next to the price axis, as before.
     The lines and labels always stay on the chart.
-    <br>If a Vest window or menu ends up hidden or cut, switch it off and report it with the diagnostics.`,
+    <br>If a Vest window or menu ends up hidden or cut, fold the panel or narrow the column, and report it with the diagnostics.`,
   ],
   pstyle: [
     'Panel style',
@@ -233,12 +242,12 @@ const HELP = {
   theme: [
     'Card style',
     `<b>Console</b>: the same look as the Console panel. <b>Classic</b>: the original design. <b>Sonar</b>: amber on black, square cards with cut corners, segmented bars and a
-    monospaced font. Applies to the cards on the chart and to the sections in the docked column. Only colours and fonts change: every button stays in the same place and does the same thing.
+    monospaced font. Applies to the sections in the docked column and to Trade commands. Only colours and fonts change: every button stays in the same place and does the same thing.
     Green and red keep their meaning (profit / loss, buy / sell). Your line and quantity colours are kept.`,
   ],
   hilo: [
     'Last swing high / low',
-    `Two short lines between the cards and the price axis: the <b>last swing high</b> and the <b>last swing low</b> on the chart's timeframe.
+    `Two short lines next to the price axis: the <b>last swing high</b> and the <b>last swing low</b> on the chart's timeframe.
     A swing high is a candle whose high is above the K candles before it and not below the K candles after it (the swing low the other way round).
     K = the number in the field (1-50, default 2; a value outside is taken as the nearest limit). Higher K = only bigger swings, but a swing
     is confirmed only after K more candles: with K = 45 on 1m a swing appears 45 minutes after its high or low, and it must be the highest
@@ -250,7 +259,7 @@ const HELP = {
   ],
   atr: [
     'Volatility heatmap',
-    `A card under the others with five boxes: <b>1h, 30m, 15m, 5m, 1m</b>. Each box compares the volatility of the last few candles of that
+    `In the Swing range and volatility section, five boxes: <b>1h, 30m, 15m, 5m, 1m</b>. Each box compares the volatility of the last few candles of that
     timeframe with its volatility over the <b>same span of hours</b> for all five (e.g. 14 hours = 14 candles of 1h, 168 of 5m, 840 of 1m).
     <ul>
       <li>Big number: ATR of the last N candles ÷ ATR over the hours. Above 1 = that timeframe is moving more than usual.</li>
@@ -260,9 +269,9 @@ const HELP = {
     A burst usually lights up 1m first, then 5m, 15m... Reading the row from right to left shows how far it has spread.
     ATR = average true range: average of max(high − low, |high − previous close|, |low − previous close|), closed candles only.
     The candles come from Vest's chart: timeframes shorter than the chart's show — (put the chart on 1m to see all five).
-    The top line of the card shows the points between the last swing high and low (the two lines next to the price axis).`,
+    The top line of the section shows the points between the last swing high and low (the two lines next to the price axis).`,
   ],
-  qty: ['Quantities on the chart', 'Colour, size and bold of the trade size shown on the first card, the second card and the position label.'],
+  qty: ['Quantities on the chart', 'Colour, size and bold of the trade size shown in the panel header, in Trade commands and on the position label.'],
 };
 
 module.exports = { HELP };

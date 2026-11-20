@@ -57,7 +57,7 @@ Building it yourself lets you read every line before it touches your account. Th
    Risk & targets, Trailing & breakeven, Account limits, Copier accounts, Volatility and Chart space. Click a section title
    to fold it.
 5. Every section and every setting in the panel has a **?** button: click it for an explanation.
-   **Settings → Chart cards: what everything does** explains every button and bar.
+   **Settings → Column and Trade commands: what everything does** explains every button and bar.
 
 Do not run two copies of the script at the same time (for example an old and a new version), and switch off other scripts
 or extensions that change the Vest page: they hook into the same places.
