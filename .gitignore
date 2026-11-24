@@ -4,3 +4,6 @@ docs/captures/*.har
 internal/
 CLAUDE.md
 .claude/
+
+# videos (not published)
+*.mp4

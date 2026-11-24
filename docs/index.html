@@ -134,8 +134,8 @@
       the candle, before the finger moves.</li>
     <li><b>Speed without sight is gambling.</b> The active trader moves stops, takes partials, flips. The tool must be as fast
       as the hand, and the limits of the account must never leave the eye.</li>
-    <li><b>Volatility decides size and distance, not mood.</b> The same hours, seen from 1h down to 1m. When 1m burns red,
-      the stop goes wider and the size goes smaller. Not the other way round.</li>
+    <li><b>Volatility decides size and distance, not mood.</b> When the market speeds up, the stop goes wider and the size
+      goes smaller. Not the other way round.</li>
     <li><b>The revenge trade has a shape.</b> After a loss the next order comes bigger and faster. Here it has a form: the
       drawdown left shrinks, the fail line walks towards the price, the daily loss left turns red.
       You see the step longer than the leg while you are taking it.</li>
@@ -155,8 +155,8 @@
     <span class="tag">Free · open source · unofficial</span>
     <h2 class="toolh">The tool: trade on <em>Vest</em> from the chart, with your risk in dollars.</h2>
     <p class="lead">A userscript for Vest Markets prop accounts: P&amp;L and drawdown room in dollars, drag-and-drop stop loss and
-      take profit, breakeven, trailing stop, size from your dollar risk with up to four take profits, a copier between your
-      accounts, swing levels, a candle countdown and a multi-timeframe volatility heatmap.</p>
+      take profit, breakeven, trailing stop, size from your dollar risk with up to four take profits, a fixed SL / TP bracket on
+      every entry, entry grids, OCO entries, a copier between your accounts, swing levels and a candle countdown.</p>
     <div class="btns">
       <a class="btn main" data-gh="releases" href="#install">Download</a>
       <a class="btn" data-gh="guide" href="#install">Step-by-step guide</a>
@@ -187,14 +187,17 @@
     <div class="f"><div class="ic" style="background:#13264a;color:#9fc2ff">↕</div><h3>Orders from the chart</h3>
       <p>Drag SL, TP, limit and stop orders to the price you want. Breakeven, BE+, partial close, close and flat with one click. Risk &amp; targets sizes the order from your dollar risk, with up to four take profits.</p></div>
     <div class="f"><div class="ic" style="background:#2e1517;color:#ff6b61">!</div><h3>Fail price</h3>
-      <p>Lines at the price where the account would reach its drawdown limit, and where half the room is gone, counting your pending entries.</p></div>
+      <p>Lines at the price where the account would reach its drawdown limit, and where 25%, 50% and 75% of the room is gone, counting your pending entries.</p></div>
     <div class="f"><div class="ic" style="background:#2f2610;color:#e8b84a">≋</div><h3>Trailing stop and auto BE</h3>
       <p>Moves Vest's real stop behind the price, in points or dollars, with a start level and a minimum step.</p></div>
     <div class="f"><div class="ic" style="background:#251a36;color:#c58cff">⇉</div><h3>Copier</h3>
-      <p>Mirrors one account's orders onto your other accounts, 1:1 or scaled to their equity, including orders placed with Vest's own ticket.</p></div>
+      <p>Mirrors one account's orders onto your other accounts, 1:1, scaled to their equity or to their drawdown left, including orders placed with Vest's own ticket.</p></div>
+    <div class="f"><div class="ic" style="background:#2a1a0e;color:#f97316">⊞</div><h3>Bracket, grid and OCO</h3>
+      <p>Fixed SL / TP on every new entry, kept at the same distance from the average while you add. Ladders of entry limits,
+        targets and stops (experimental). One-cancels-the-other on pending entries.</p></div>
     <div class="f"><div class="ic" style="background:#102a30;color:#5ad1e6">◷</div><h3>Chart extras</h3>
-      <p>Countdown to the candle close on Vest's clock, last swing high and low with the range in points, a volatility heatmap
-        from 1h to 1m over the same hours, average entry if your limits fill.</p></div>
+      <p>Countdown to the candle close on Vest's clock, last swing high and low with the range in points, average entry if
+        your limits fill, and the size each SL / TP closes on its label.</p></div>
   </div>
 </div></section>
 
