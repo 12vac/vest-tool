@@ -109,10 +109,12 @@ const HELP = {
     `<ul>
       <li><b>Panel header</b> (top of the column): chart timeframe, time left before the candle closes, clock and account; under them the
       open position: side, size, entry price and P&L, then points from the entry, micro contracts and $ per point, and today's points
-      (FLAT when there is no position). Alt+Shift+V or – unfolds the panel for the settings and folds it back.</li>
+      (FLAT when there is no position) and, on the right, the trades of the day (<i>N trades W▲ L▼</i>, positions closed in the Vest day).
+      <b>ORDERS</b> (top right) switches order sending on / off: off after every reload, nothing is sent while it is off.
+      <b>COPY</b> switches the copier on / off (shown when a master and copies are set). Until Vest's data are in, the header says
+      <i>WAITING FOR VEST DATA</i> and the sections appear only after that. Alt+Shift+V or – unfolds the panel for the settings and folds it back.</li>
       <li><b>Trade commands</b> (under the panel; ⇱ floats it as a window you can drag and resize, ⇥ puts it back):
       top rows = size in % of the maximum size (fractions and your six presets) or typed in the % box.
-      <b>ORDERS</b> switches order sending on/off (off after every reload). <b>COPY</b> switches the copier on/off.
       <b>LIMIT</b> / <b>STOP</b>: press and drag to a price, the order is sent on release.
       LIMIT below the price buys, above sells. STOP above the price buys, below sells.
       A STOP is <b>local</b>: it lives in this browser tab and sends a market order when the price touches it; reloading or closing the tab removes it.
@@ -122,16 +124,43 @@ const HELP = {
       <b>PARTIAL CLOSE</b> closes the % in its box, <b>CLOSE</b> closes everything; both leave the pending orders in place.
       <b>FLAT</b> cancels the local stops and every pending order on this market, then closes the position (works with ORDERS off).
       The word next to the title says how orders are sized: <b>MANUAL</b> (the % size), <b>RISK PLAN</b> or <b>RISK ACTIVE</b> (Risk &amp; targets ON).
-      The <b>Copier accounts</b> table sits under it: master (M) and copies with their size on this market, open, today's and total P&L.</li>
+      The <b>Copier accounts</b> table sits under it: master (M) and copies with their size on this market, open, today's and total P&L;
+      its title says <i>ACTIVE</i> when the copier is on, <i>COPY OFF: accounts not copied</i> when it is off.</li>
+      <li><b>Bracket (SL / TP on every new entry)</b>: SL and TP in points (sliders in steps of 5 pt) on every new entry sent from the tool.
+      <i>SL / TP follow adds (DCA)</i>: with a position open, SL / TP are kept at those distances from <b>AVG ALL</b> (position + entry LIMITs
+      waiting on the same side), recalculated after an add, a LIMIT filled, placed or cancelled; the SL never sits between two entries
+      (if it reaches a LIMIT it goes beyond the farthest one); a SL at breakeven or in profit stays. With only LIMITs and no position nothing is moved.
+      With Risk &amp; targets ON the plan's own SL / TP are used instead.</li>
+      <li><b>Grid (experimental)</b>: entry LIMITs from the current price plus SL / TP ladders. OFF / <b>PLAN</b> (lines only, nothing sent) /
+      <b>ACTIVE</b> after <b>START</b> (entries placed once, SL / TP follow every change; never kept after a reload). Per block (Entries, Targets,
+      Stops): nearest / farthest distance in points, levels in between, distance and size curves (Manual / Custom with sliders), AVG eye
+      (average line on the chart). <b>FIX</b> freezes the price the levels are measured from (TP / SL: only when nothing is open or waiting).
+      Drag the nearest or farthest level on the chart: the others follow the curve. With Grid on and Entries ticked, the % buttons of
+      Trade commands also set the entries' total size. Not together with Bracket <i>follow adds</i>. Try it at minimum size.</li>
+      <li><b>OCO (one cancels the other)</b>: on the pending entries of a market, when one fills the others are cancelled.</li>
+      <li><b>Safe runner (experimental)</b>: manages the exit of an open position in tranches (tight stop + runner, 1h trend badge in the title);
+      OFF / VIEW (lines only) / LIVE. The <b>?</b> in its title explains it.</li>
       <li><b>Risk &amp; targets</b>: size from the risk in $, stop and up to four targets, drawn on the chart; ON next to the title lets
-      Trade commands send the plan. The <b>?</b> next to <i>column width</i> in Panel layout explains every field.</li>
+      Trade commands send the plan. The <b>?</b> next to <i>column width</i> in <i>Panel and column</i> (main panel, Layout) explains every field.</li>
       <li><b>Trailing &amp; breakeven</b>: the same settings as the panel's "Trailing stop and breakeven".</li>
       <li><b>Account limits</b>: <b>MARGIN USED</b>: margin of the open positions as a % of equity. <b>MARGIN USED + ORDERS</b>: including pending orders, and the contracts you can still open.
-      <b>DAILY PROFIT TARGET</b>: today's P&L against the goal set in Order size and daily profit target. <b>DAILY LOSS LIMIT</b>: today's loss against the level you set. <b>MAX OPEN PROFIT</b> / <b>MAX OPEN LOSS</b>: profit / loss of the open trade (loss out of what you can lose before Vest's daily limit).
+      <b>DAILY PROFIT TARGET</b>: today's P&L against the goal typed on its row. <b>DAILY LOSS LIMIT</b>: today's loss against the level you set. <b>MAX OPEN PROFIT</b> / <b>MAX OPEN LOSS</b>: profit / loss of the open trade (loss out of what you can lose before Vest's daily limit).
       <b>DAILY DRAWDOWN BUFFER</b> / <b>MAX DRAWDOWN BUFFER</b>: dollars left before the daily / total limit (the limit in brackets), as on Vest's page.
       <b>ACCOUNT PROFIT TARGET</b>: total P&L against the evaluation target. A row switched ON draws its level on the chart as a <b>USER</b> line (the price where it closes everything). Bars: green in profit, yellow up to 50% used, orange up to 75%, red beyond.</li>
       <li>Click a section title to fold it.</li>
-      <li><b>Labels on the chart</b>: drag SL, TP, LIMIT and STOP labels (or their line) to move them; ✕ cancels. On the position label ✕ closes 100% at market (two clicks).</li>
+      <li><b>Labels on the chart</b> (no tooltips there: what each one means is here): drag SL, TP, LIMIT and STOP labels (or their line)
+      to move them; ✕ cancels. Position label: side and average entry, points from the entry, P&L of the selected account,
+      <b>Σn</b> = P&L at that price of all n accounts holding the position; ✕ closes 100% at market WITHOUT cancelling pending orders (two clicks).
+      SL / TP: the size they close (<b>ALL</b> = the whole position, it follows every add). <b>AVG ALL</b>: average entry if all entry LIMITs fill
+      (with the position); <b>AVG NEXT</b>: if only the next LIMIT fills; <b>AVG NEW</b> / LONG-SHORT preview (hovering LONG / SHORT): the new
+      average and size, nothing sent. <b>FAIL</b>: where the equity reaches the drawdown limit; <b>X% DRAWDOWN</b>: that share of the
+      drawdown available; <b>USER</b>: an Account limits row switched ON, everything is closed (FLAT) at that price. SL / TP of a pending
+      entry: <i>on Vest</i> = drag it and the LIMIT is placed again with the new leg; <i>bracket</i> / <i>this entry</i> = drag to set a
+      distance for that entry only; several partial legs cannot be moved from here. <b>SR</b> labels: Safe runner tranche exits (local,
+      closed at market) or where it takes over. Short segments next to the labels: orange trailing stop, light blue trailing start,
+      green next step, violet BE+ / Auto BE. In Account limits: ON = FLAT at that level (OFF after a reload), the eye shows / hides its
+      USER line. In Copier accounts: TEST MODE = nothing is sent to the copies; a red ◀ ACTIVE = Vest is on a copy while the copier is ON
+      (new entries refused: select the master).</li>
     </ul>`,
   ],
   diag: [
@@ -223,7 +252,6 @@ const HELP = {
     `Hides the position line and the SL/TP lines that Vest draws, because the tool draws its own. If the column shows a different
     account from the one open on Vest, all of Vest's order lines are hidden so they cannot be confused.`,
   ],
-  blockPct: ['Card scale', 'Size of the cards when they were drawn on the chart. The panel is now always docked and the sections in the column use the column size, so this value has no effect there.'],
   chipPct: ['Label scale', 'Size of the labels on the chart (SL, TP, LIMIT, STOP, position...). 50-250.'],
   roomPx: [
     'Chart space',
@@ -286,9 +314,9 @@ const HELP = {
     '<b>Console</b>: larger text and fields, section titles with a coloured bar, bigger buttons. <b>Classic</b>: compact. Only the look changes.',
   ],
   theme: [
-    'Card style',
+    'Column style',
     `<b>Console</b>: the same look as the Console panel. <b>Classic</b>: the original design. <b>Sonar</b>: amber on black, square cards with cut corners, segmented bars and a
-    monospaced font. Applies to the sections in the docked column and to Trade commands. Only colours and fonts change: every button stays in the same place and does the same thing.
+    monospaced font. Applies to the sections of the column and to Trade commands. Only colours and fonts change: every button stays in the same place and does the same thing.
     Green and red keep their meaning (profit / loss, buy / sell). Your line and quantity colours are kept.`,
   ],
   hilo: [
@@ -300,23 +328,9 @@ const HELP = {
     (lowest) of 91 candles. The candles read go back 300 candles: with a big K there may be no confirmed swing in them (the line then
     is missing on that side).
     If the price goes past the last swing, the line follows the price until a new swing is confirmed.
-    The <b>Swing range</b> section of the panel switches the lines on / off and shows the points between the last swing high and low.
+    The <i>swing range</i> option in <i>Chart display</i> switches the lines on / off; under it the points between the last swing high and low.
     Colours in Line colours. The candles (the last 300) are read from Vest's chart once a second; if the chart does not provide them the lines
     are not shown (see the log).`,
-  ],
-  atr: [
-    'Volatility heatmap',
-    `In the Swing range and volatility section, five boxes: <b>1h, 30m, 15m, 5m, 1m</b>. Each box compares the volatility of the last few candles of that
-    timeframe with its volatility over the <b>same span of hours</b> for all five (e.g. 14 hours = 14 candles of 1h, 168 of 5m, 840 of 1m).
-    <ul>
-      <li>Big number: ATR of the last N candles ÷ ATR over the hours. Above 1 = that timeframe is moving more than usual.</li>
-      <li>Colour: blue below 0.75 (quiet), grey normal, orange from 1.25, red from 1.75.</li>
-      <li>Small number: ATR in points over the hours. * = fewer hours of candles than asked.</li>
-    </ul>
-    A burst usually lights up 1m first, then 5m, 15m... Reading the row from right to left shows how far it has spread.
-    ATR = average true range: average of max(high − low, |high − previous close|, |low − previous close|), closed candles only.
-    The candles come from Vest's chart: timeframes shorter than the chart's show — (put the chart on 1m to see all five).
-    The top line of the section shows the points between the last swing high and low (the two lines next to the price axis).`,
   ],
   qty: ['Quantities on the chart', 'Colour, size and bold of the trade size shown in the panel header, in Trade commands and on the position label.'],
 };

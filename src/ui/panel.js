@@ -124,14 +124,13 @@ const SKELETON = `
       </div>`)}
     ${sec('display', 'Chart display', `
       <div class="row">
-        ${opt('overlay', chk('overlay', 'trade overlay (cards)'))}
+        ${opt('overlay', chk('overlay', 'trade overlay (column sections)'))}
         ${opt('lines', chk('lines', 'lines on the chart'))}
         ${opt('hideVest', chk('hideVest', 'hide Vest lines'))}
         ${opt('countdown', chk('cdOn', 'candle countdown'))}
       </div>
       <div class="row">
-        ${opt('theme', `card style <select data-in="theme" style="width:88px"><option value="console">Console</option><option value="classic">Classic</option><option value="sonar">Sonar</option></select>`)}
-        ${opt('blockPct', `card scale ${num('blockPct', 40)}%`)}
+        ${opt('theme', `column style <select data-in="theme" style="width:88px"><option value="console">Console</option><option value="classic">Classic</option><option value="sonar">Sonar</option></select>`)}
         ${opt('chipPct', `label scale ${num('chipPct', 40)}%`)}
       </div>
       <div class="row">

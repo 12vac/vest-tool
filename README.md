@@ -93,7 +93,7 @@ Do not run two copies of this script at the same time (for example an old and a 
   auto BE off and comes back as VIEW after a reload. It reads the chart's candles from Vest. Minimum size first.
 - **Button and mode colours** (Settings): background, text and size of LIMIT, STOP, LONG, SHORT, FLAT and the colour of
   MANUAL / RISK PLAN / RISK ACTIVE.
-- **Card style** (*Chart display*): *Console* (default, same look as the panel), *Classic* or *Sonar* (amber on black, cut
+- **Column style** (*Chart display*): *Console* (default, same look as the panel), *Classic* or *Sonar* (amber on black, cut
   corners, segmented bars, monospaced font). Only colours and fonts change; buttons stay where they are.
 - **TP / SL**: press the button in Trade commands and drag to the level; releasing sends the order. Existing labels can be dragged to
   move them. A yellow border means the level is not valid (wrong side of the price or closer than 2 ticks) and nothing is sent.
@@ -107,8 +107,9 @@ Do not run two copies of this script at the same time (for example an old and a 
 - **FLATTEN ALL** (panel): on every account cancels every pending order and closes every position at market, then checks
   again. Asks for confirmation. Works with Orders OFF.
 - **Labels on the chart**: AVG ALL (average entry if all entry limits fill), AVG NEXT (if only the next one fills), FAIL (price
-  where the equity reaches the drawdown limit, counting the limits that fill on the way), 50% DRAWDOWN, and while the mouse is
-  on LONG / SHORT the previews AVG NEW and FAIL NEW; trailing / BE segments.
+  where the equity reaches the drawdown limit, counting the limits that fill on the way), X% DRAWDOWN (25, 50, 75 by default), and while the mouse is
+  on LONG / SHORT the previews AVG NEW and FAIL NEW; trailing / BE segments. Labels have no hover tooltips: what each one means is in
+  *Settings → Column and Trade commands: what everything does*, under "Labels on the chart".
 - **Copy diagnostics** (panel): copies to the clipboard only the *shapes* of Vest's responses (field names and types), the
   startup check results and the log. No tokens, ids or amounts.
 

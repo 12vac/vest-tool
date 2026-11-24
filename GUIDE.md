@@ -103,7 +103,7 @@ Check every step on Vest's own positions page.
 - **Panel and column**: column width and panel style. If a Vest window or menu ends up hidden behind the column, fold the
   panel or narrow the column.
 - **Button and mode colours**: colours of LIMIT, STOP, LONG, SHORT, FLAT and of the words MANUAL / RISK PLAN / RISK ACTIVE.
-- **Chart display**: card style (Console, Classic or Sonar), label size, space between the last candle and the price axis,
+- **Chart display**: column style (Console, Classic or Sonar), label size, space between the last candle and the price axis,
   candle countdown, last swing high/low lines (K = candles on each side, 1-50) with the swing range in points.
   Each has a **?** that explains it.
 - **Chart lines and labels**: colour, dash, width and label style of every line and label the tool draws.

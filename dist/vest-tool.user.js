@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         VestTool
 // @namespace    vest-tool
-// @version      0.20.63
+// @version      0.20.65
 // @description  Account status and P&L in dollars, trade overlay on the chart (BE, draggable SL/TP, FLAT) for Vest Markets. Unofficial: not made, endorsed or supported by Vest Markets.
 // @match        https://next.vestmarkets.com/*
 // @run-at       document-start
@@ -529,11 +529,11 @@ function mount(opts) {
   root = host.attachShadow({ mode: 'closed' });
   root.innerHTML = `<style>${css}</style><div class="root">
     <div class="hl" data-el="dragLine" style="display:none"></div>
-    <div class="tseg stop" data-el="trS" style="display:none" title="Trailing: stop"></div>
-    <div class="tseg act" data-el="trA" style="display:none" title="Trailing: start level"></div>
-    <div class="tseg next" data-el="trN" style="display:none" title="Trailing: next step"></div>
-    <div class="tseg be" data-el="trB" style="display:none" title="BE+"></div>
-    <div class="tseg bet" data-el="trT" style="display:none" title="Auto BE"></div>
+    <div class="tseg stop" data-el="trS" style="display:none"></div>
+    <div class="tseg act" data-el="trA" style="display:none"></div>
+    <div class="tseg next" data-el="trN" style="display:none"></div>
+    <div class="tseg be" data-el="trB" style="display:none"></div>
+    <div class="tseg bet" data-el="trT" style="display:none"></div>
     <div class="tseg hl" data-el="hlH" style="display:none"></div>
     <div class="tseg hl" data-el="hlL" style="display:none"></div>
     <div class="chip" data-el="dragChip" style="display:none"></div>
@@ -577,13 +577,13 @@ function mount(opts) {
       <div class="bars">
         <div class="bar"><div class="bl"><span>MARGIN USED</span><span data-el="m1t"></span></div><div class="track"><i data-el="m1f"></i></div></div>
         <div class="bar"><div class="bl"><span>MARGIN USED + ORDERS</span><span data-el="m2t"></span></div><div class="track"><i data-el="m2f"></i></div></div>
-        <div class="bar" data-g="dg"><div class="bl"><span>DAILY PROFIT TARGET</span><span data-el="dgt"></span></div><div class="track"><i data-el="dgf"></i></div><div class="gl"><button class="gon" data-gk="dg">OFF</button><button class="geye" data-ek="dg" title="Show / hide this level on the chart (USER line)"><svg viewBox="0 0 24 24" width="15" height="15"><path d="M1.5 12S5.5 5 12 5s10.5 7 10.5 7-4 7-10.5 7S1.5 12 1.5 12z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/><line class="sl" x1="3" y1="21" x2="21" y2="3" stroke="currentColor" stroke-width="2.2"/></svg></button><label class="gn">FLAT at ≥ $<input class="gv" data-gk="dg" inputmode="decimal" autocomplete="off"></label><span class="gt"></span></div></div>
-        <div class="bar" data-g="dl"><div class="bl"><span>DAILY LOSS LIMIT</span><span data-el="dlt"></span></div><div class="track"><i data-el="dlf"></i></div><div class="gl"><button class="gon" data-gk="dl">OFF</button><button class="geye" data-ek="dl" title="Show / hide this level on the chart (USER line)"><svg viewBox="0 0 24 24" width="15" height="15"><path d="M1.5 12S5.5 5 12 5s10.5 7 10.5 7-4 7-10.5 7S1.5 12 1.5 12z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/><line class="sl" x1="3" y1="21" x2="21" y2="3" stroke="currentColor" stroke-width="2.2"/></svg></button><label class="gn">FLAT at loss ≥ $<input class="gv" data-gk="dl" inputmode="decimal" autocomplete="off"></label><span class="gt"></span></div></div>
-        <div class="bar" data-g="cp"><div class="bl"><span>MAX OPEN PROFIT</span><span data-el="cpt2"></span></div><div class="track gs"><i data-el="cpf"></i><input type="range" class="gr" data-gk="cp" min="0" aria-label="FLAT level"></div><div class="gl"><button class="gon" data-gk="cp">OFF</button><button class="geye" data-ek="cp" title="Show / hide this level on the chart (USER line)"><svg viewBox="0 0 24 24" width="15" height="15"><path d="M1.5 12S5.5 5 12 5s10.5 7 10.5 7-4 7-10.5 7S1.5 12 1.5 12z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/><line class="sl" x1="3" y1="21" x2="21" y2="3" stroke="currentColor" stroke-width="2.2"/></svg></button><span class="gt"></span></div></div>
-        <div class="bar" data-g="rk"><div class="bl"><span>MAX OPEN LOSS</span><span data-el="rkt"></span></div><div class="track gs"><i data-el="rkf"></i><input type="range" class="gr" data-gk="rk" min="0" aria-label="FLAT level"></div><div class="gl"><button class="gon" data-gk="rk">OFF</button><button class="geye" data-ek="rk" title="Show / hide this level on the chart (USER line)"><svg viewBox="0 0 24 24" width="15" height="15"><path d="M1.5 12S5.5 5 12 5s10.5 7 10.5 7-4 7-10.5 7S1.5 12 1.5 12z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/><line class="sl" x1="3" y1="21" x2="21" y2="3" stroke="currentColor" stroke-width="2.2"/></svg></button><span class="gt"></span></div></div>
-        <div class="bar" data-g="dd"><div class="bl"><span data-el="ddl">DAILY DRAWDOWN BUFFER</span><span data-el="ddt"></span></div><div class="track"><i data-el="ddf"></i></div><div class="gl"><button class="gon" data-gk="dd">OFF</button><button class="geye" data-ek="dd" title="Show / hide this level on the chart (USER line)"><svg viewBox="0 0 24 24" width="15" height="15"><path d="M1.5 12S5.5 5 12 5s10.5 7 10.5 7-4 7-10.5 7S1.5 12 1.5 12z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/><line class="sl" x1="3" y1="21" x2="21" y2="3" stroke="currentColor" stroke-width="2.2"/></svg></button><label class="gn">FLAT at ≤ $<input class="gv" data-gk="dd" inputmode="decimal" autocomplete="off"></label><span class="gt"></span></div></div>
-        <div class="bar" data-g="dm"><div class="bl"><span data-el="dml">MAX DRAWDOWN BUFFER</span><span data-el="dmt"></span></div><div class="track"><i data-el="dmf"></i></div><div class="gl"><button class="gon" data-gk="dm">OFF</button><button class="geye" data-ek="dm" title="Show / hide this level on the chart (USER line)"><svg viewBox="0 0 24 24" width="15" height="15"><path d="M1.5 12S5.5 5 12 5s10.5 7 10.5 7-4 7-10.5 7S1.5 12 1.5 12z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/><line class="sl" x1="3" y1="21" x2="21" y2="3" stroke="currentColor" stroke-width="2.2"/></svg></button><label class="gn">FLAT at ≤ $<input class="gv" data-gk="dm" inputmode="decimal" autocomplete="off"></label><span class="gt"></span></div></div>
-        <div class="bar" data-g="tg"><div class="bl"><span data-el="tgl">ACCOUNT PROFIT TARGET</span><span data-el="tgt"></span></div><div class="track"><i data-el="tgf" class="goal"></i></div><div class="gl"><button class="gon" data-gk="tg">OFF</button><button class="geye" data-ek="tg" title="Show / hide this level on the chart (USER line)"><svg viewBox="0 0 24 24" width="15" height="15"><path d="M1.5 12S5.5 5 12 5s10.5 7 10.5 7-4 7-10.5 7S1.5 12 1.5 12z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/><line class="sl" x1="3" y1="21" x2="21" y2="3" stroke="currentColor" stroke-width="2.2"/></svg></button><span class="gt"></span></div></div>
+        <div class="bar" data-g="dg"><div class="bl"><span>DAILY PROFIT TARGET</span><span data-el="dgt"></span></div><div class="track"><i data-el="dgf"></i></div><div class="gl"><button class="gon" data-gk="dg">OFF</button><button class="geye" data-ek="dg"><svg viewBox="0 0 24 24" width="15" height="15"><path d="M1.5 12S5.5 5 12 5s10.5 7 10.5 7-4 7-10.5 7S1.5 12 1.5 12z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/><line class="sl" x1="3" y1="21" x2="21" y2="3" stroke="currentColor" stroke-width="2.2"/></svg></button><label class="gn">FLAT at ≥ $<input class="gv" data-gk="dg" inputmode="decimal" autocomplete="off"></label><span class="gt"></span></div></div>
+        <div class="bar" data-g="dl"><div class="bl"><span>DAILY LOSS LIMIT</span><span data-el="dlt"></span></div><div class="track"><i data-el="dlf"></i></div><div class="gl"><button class="gon" data-gk="dl">OFF</button><button class="geye" data-ek="dl"><svg viewBox="0 0 24 24" width="15" height="15"><path d="M1.5 12S5.5 5 12 5s10.5 7 10.5 7-4 7-10.5 7S1.5 12 1.5 12z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/><line class="sl" x1="3" y1="21" x2="21" y2="3" stroke="currentColor" stroke-width="2.2"/></svg></button><label class="gn">FLAT at loss ≥ $<input class="gv" data-gk="dl" inputmode="decimal" autocomplete="off"></label><span class="gt"></span></div></div>
+        <div class="bar" data-g="cp"><div class="bl"><span>MAX OPEN PROFIT</span><span data-el="cpt2"></span></div><div class="track gs"><i data-el="cpf"></i><input type="range" class="gr" data-gk="cp" min="0" aria-label="FLAT level"></div><div class="gl"><button class="gon" data-gk="cp">OFF</button><button class="geye" data-ek="cp"><svg viewBox="0 0 24 24" width="15" height="15"><path d="M1.5 12S5.5 5 12 5s10.5 7 10.5 7-4 7-10.5 7S1.5 12 1.5 12z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/><line class="sl" x1="3" y1="21" x2="21" y2="3" stroke="currentColor" stroke-width="2.2"/></svg></button><span class="gt"></span></div></div>
+        <div class="bar" data-g="rk"><div class="bl"><span>MAX OPEN LOSS</span><span data-el="rkt"></span></div><div class="track gs"><i data-el="rkf"></i><input type="range" class="gr" data-gk="rk" min="0" aria-label="FLAT level"></div><div class="gl"><button class="gon" data-gk="rk">OFF</button><button class="geye" data-ek="rk"><svg viewBox="0 0 24 24" width="15" height="15"><path d="M1.5 12S5.5 5 12 5s10.5 7 10.5 7-4 7-10.5 7S1.5 12 1.5 12z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/><line class="sl" x1="3" y1="21" x2="21" y2="3" stroke="currentColor" stroke-width="2.2"/></svg></button><span class="gt"></span></div></div>
+        <div class="bar" data-g="dd"><div class="bl"><span data-el="ddl">DAILY DRAWDOWN BUFFER</span><span data-el="ddt"></span></div><div class="track"><i data-el="ddf"></i></div><div class="gl"><button class="gon" data-gk="dd">OFF</button><button class="geye" data-ek="dd"><svg viewBox="0 0 24 24" width="15" height="15"><path d="M1.5 12S5.5 5 12 5s10.5 7 10.5 7-4 7-10.5 7S1.5 12 1.5 12z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/><line class="sl" x1="3" y1="21" x2="21" y2="3" stroke="currentColor" stroke-width="2.2"/></svg></button><label class="gn">FLAT at ≤ $<input class="gv" data-gk="dd" inputmode="decimal" autocomplete="off"></label><span class="gt"></span></div></div>
+        <div class="bar" data-g="dm"><div class="bl"><span data-el="dml">MAX DRAWDOWN BUFFER</span><span data-el="dmt"></span></div><div class="track"><i data-el="dmf"></i></div><div class="gl"><button class="gon" data-gk="dm">OFF</button><button class="geye" data-ek="dm"><svg viewBox="0 0 24 24" width="15" height="15"><path d="M1.5 12S5.5 5 12 5s10.5 7 10.5 7-4 7-10.5 7S1.5 12 1.5 12z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/><line class="sl" x1="3" y1="21" x2="21" y2="3" stroke="currentColor" stroke-width="2.2"/></svg></button><label class="gn">FLAT at ≤ $<input class="gv" data-gk="dm" inputmode="decimal" autocomplete="off"></label><span class="gt"></span></div></div>
+        <div class="bar" data-g="tg"><div class="bl"><span data-el="tgl">ACCOUNT PROFIT TARGET</span><span data-el="tgt"></span></div><div class="track"><i data-el="tgf" class="goal"></i></div><div class="gl"><button class="gon" data-gk="tg">OFF</button><button class="geye" data-ek="tg"><svg viewBox="0 0 24 24" width="15" height="15"><path d="M1.5 12S5.5 5 12 5s10.5 7 10.5 7-4 7-10.5 7S1.5 12 1.5 12z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/><line class="sl" x1="3" y1="21" x2="21" y2="3" stroke="currentColor" stroke-width="2.2"/></svg></button><span class="gt"></span></div></div>
       </div>
       <div class="msg" data-el="msg"></div>
     </div>
@@ -643,9 +643,9 @@ function mount(opts) {
       </div>
       <div class="csec tb" data-el="sGd" data-sec="gd"><div class="csh">Grid (experimental)<button class="omtgl gdtgl" data-a="gdmode" data-el="gdTgl">OFF</button><b class="sact" data-el="actGd" style="display:none">ACTIVE</b></div>
         <div class="tbb gdb">
-                    <label class="omf gdw"><span>Side (entries, or SL / TP at the market price)</span><select data-tb="gdEnSide"><option value="long">LONG</option><option value="short">SHORT</option></select></label><button class="gdgo" data-a="gdstart" data-el="gdStart">START</button><div class="gdsec en"><div class="gdh"><label><input type="checkbox" data-tb="gdEnOn"> Entries</label><span>LIMIT orders from the current price</span><button type="button" class="gdfixb" data-gdfix="En" data-el="gdFixEn" title="Entries measured from the price frozen now instead of the live price">FIX</button><button type="button" class="gdeye" data-gdeye="En" aria-label="Average line on the chart">AVG <svg viewBox="0 0 24 24" width="15" height="15"><path d="M1.5 12S5.5 5 12 5s10.5 7 10.5 7-4 7-10.5 7S1.5 12 1.5 12z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/><line class="sl" x1="3" y1="21" x2="21" y2="3" stroke="currentColor" stroke-width="2.2"/></svg></button></div><label class="omf"><span>Nearest (pt)</span><input data-tb="gdEnNear" inputmode="decimal" autocomplete="off" placeholder="empty"></label><label class="omf"><span>Farthest (pt)</span><input data-tb="gdEnFar" inputmode="decimal" autocomplete="off" placeholder="= nearest"></label><label class="omf"><span>Levels between</span><input data-tb="gdEnMid" inputmode="decimal" autocomplete="off" placeholder="0"></label><label class="omf"><span>Total size % of max</span><input data-tb="gdEnPct" inputmode="decimal" autocomplete="off" placeholder="empty"></label><label class="omf"><span>Distances</span><select data-tb="gdEnDist"><option value="equal">All equal</option><option value="linear">Linear (growing)</option><option value="invlin">Inverse linear (shrinking)</option><option value="hyper">Hyperbolic (faster at the far end)</option><option value="inv">Inverse hyperbolic (faster at the near end)</option><option value="manual">Manual (slider)</option></select></label><div class="gsl" data-gsl="En" data-gk="Man"><div class="gslh"><span>Levels from nearest ▸ to farthest (5 % steps of the way)</span><button type="button" data-gslinv>⇄ invert</button></div><div class="gbar"></div></div><label class="omf gdw"><span>Sizes</span><select data-tb="gdEnSize"><option value="equal">All equal</option><option value="linear">Linear (growing)</option><option value="invlin">Inverse linear (shrinking)</option><option value="hyper">Hyperbolic (faster at the far end)</option><option value="inv">Inverse hyperbolic (faster at the near end)</option><option value="custom">Custom %</option></select></label><label class="omf gdc" data-gdc="En"><span>Custom % of each level, nearest to farthest</span><input data-tb="gdEnCustom" autocomplete="off" placeholder="e.g. 20, 30, 50"></label><div class="gsl" data-gsl="En" data-gk="Custom"><div class="gslh"><span>Size of each level, nearest ▸ farthest (5 % steps)</span><button type="button" data-gslinv>⇄ invert</button></div><div class="gbar"></div></div></div>
-          <div class="gdsec tp"><div class="gdh"><label><input type="checkbox" data-tb="gdTpOn"> Targets (TP)</label><span>on the position, or on the entries waiting</span><button type="button" class="gdfixb" data-gdfix="Tp" data-el="gdFixTp" title="Only with nothing open or waiting (TP at the market price): TP measured from the price frozen now">FIX</button><button type="button" class="gdeye" data-gdeye="Tp" aria-label="Average line on the chart">AVG <svg viewBox="0 0 24 24" width="15" height="15"><path d="M1.5 12S5.5 5 12 5s10.5 7 10.5 7-4 7-10.5 7S1.5 12 1.5 12z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/><line class="sl" x1="3" y1="21" x2="21" y2="3" stroke="currentColor" stroke-width="2.2"/></svg></button></div><label class="omf"><span>Nearest (pt)</span><input data-tb="gdTpNear" inputmode="decimal" autocomplete="off" placeholder="empty"></label><label class="omf"><span>Farthest (pt)</span><input data-tb="gdTpFar" inputmode="decimal" autocomplete="off" placeholder="= nearest"></label><label class="omf"><span>Levels between</span><input data-tb="gdTpMid" inputmode="decimal" autocomplete="off" placeholder="0"></label><label class="omf"><span>Share of position %</span><input data-tb="gdTpPct" inputmode="decimal" autocomplete="off" placeholder="100"></label><label class="omf gdw"><span>Distances</span><select data-tb="gdTpDist"><option value="equal">All equal</option><option value="linear">Linear (growing)</option><option value="invlin">Inverse linear (shrinking)</option><option value="hyper">Hyperbolic (faster at the far end)</option><option value="inv">Inverse hyperbolic (faster at the near end)</option><option value="manual">Manual (slider)</option></select></label><div class="gsl" data-gsl="Tp" data-gk="Man"><div class="gslh"><span>Levels from nearest ▸ to farthest (5 % steps of the way)</span><button type="button" data-gslinv>⇄ invert</button></div><div class="gbar"></div></div><label class="omf gdw"><span>Sizes</span><select data-tb="gdTpSize"><option value="equal">All equal</option><option value="linear">Linear (growing)</option><option value="invlin">Inverse linear (shrinking)</option><option value="hyper">Hyperbolic (faster at the far end)</option><option value="inv">Inverse hyperbolic (faster at the near end)</option><option value="custom">Custom %</option></select></label><label class="omf gdc" data-gdc="Tp"><span>Custom % of each level, nearest to farthest</span><input data-tb="gdTpCustom" autocomplete="off" placeholder="e.g. 50, 30, 20"></label><div class="gsl" data-gsl="Tp" data-gk="Custom"><div class="gslh"><span>Size of each level, nearest ▸ farthest (5 % steps)</span><button type="button" data-gslinv>⇄ invert</button></div><div class="gbar"></div></div></div>
-          <div class="gdsec sl"><div class="gdh"><label><input type="checkbox" data-tb="gdSlOn"> Stops (SL)</label><span>idem</span><button type="button" class="gdfixb" data-gdfix="Sl" data-el="gdFixSl" title="Only with nothing open or waiting (SL at the market price): SL measured from the price frozen now">FIX</button><button type="button" class="gdeye" data-gdeye="Sl" aria-label="Average line on the chart">AVG <svg viewBox="0 0 24 24" width="15" height="15"><path d="M1.5 12S5.5 5 12 5s10.5 7 10.5 7-4 7-10.5 7S1.5 12 1.5 12z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/><line class="sl" x1="3" y1="21" x2="21" y2="3" stroke="currentColor" stroke-width="2.2"/></svg></button></div><label class="omf"><span>Nearest (pt)</span><input data-tb="gdSlNear" inputmode="decimal" autocomplete="off" placeholder="empty"></label><label class="omf"><span>Farthest (pt)</span><input data-tb="gdSlFar" inputmode="decimal" autocomplete="off" placeholder="= nearest"></label><label class="omf"><span>Levels between</span><input data-tb="gdSlMid" inputmode="decimal" autocomplete="off" placeholder="0"></label><span></span><label class="omf gdw"><span>Distances</span><select data-tb="gdSlDist"><option value="equal">All equal</option><option value="linear">Linear (growing)</option><option value="invlin">Inverse linear (shrinking)</option><option value="hyper">Hyperbolic (faster at the far end)</option><option value="inv">Inverse hyperbolic (faster at the near end)</option><option value="manual">Manual (slider)</option></select></label><div class="gsl" data-gsl="Sl" data-gk="Man"><div class="gslh"><span>Levels from nearest ▸ to farthest (5 % steps of the way)</span><button type="button" data-gslinv>⇄ invert</button></div><div class="gbar"></div></div><label class="omf gdw"><span>Sizes</span><select data-tb="gdSlSize"><option value="equal">All equal</option><option value="linear">Linear (growing)</option><option value="invlin">Inverse linear (shrinking)</option><option value="hyper">Hyperbolic (faster at the far end)</option><option value="inv">Inverse hyperbolic (faster at the near end)</option><option value="custom">Custom %</option></select></label><label class="omf gdc" data-gdc="Sl"><span>Custom % of each level, nearest to farthest</span><input data-tb="gdSlCustom" autocomplete="off" placeholder="e.g. 50, 30, 20"></label><div class="gsl" data-gsl="Sl" data-gk="Custom"><div class="gslh"><span>Size of each level, nearest ▸ farthest (5 % steps)</span><button type="button" data-gslinv>⇄ invert</button></div><div class="gbar"></div></div></div>
+                    <label class="omf gdw"><span>Side (entries, or SL / TP at the market price)</span><select data-tb="gdEnSide"><option value="long">LONG</option><option value="short">SHORT</option></select></label><button class="gdgo" data-a="gdstart" data-el="gdStart">START</button><div class="gdsec en"><div class="gdh"><label><input type="checkbox" data-tb="gdEnOn"> Entries</label><span>LIMIT orders from the current price</span><button type="button" class="gdfixb" data-gdfix="En" data-el="gdFixEn">FIX</button><button type="button" class="gdeye" data-gdeye="En" aria-label="Average line on the chart">AVG <svg viewBox="0 0 24 24" width="15" height="15"><path d="M1.5 12S5.5 5 12 5s10.5 7 10.5 7-4 7-10.5 7S1.5 12 1.5 12z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/><line class="sl" x1="3" y1="21" x2="21" y2="3" stroke="currentColor" stroke-width="2.2"/></svg></button></div><label class="omf"><span>Nearest (pt)</span><input data-tb="gdEnNear" inputmode="decimal" autocomplete="off" placeholder="empty"></label><label class="omf"><span>Farthest (pt)</span><input data-tb="gdEnFar" inputmode="decimal" autocomplete="off" placeholder="= nearest"></label><label class="omf"><span>Levels between</span><input data-tb="gdEnMid" inputmode="decimal" autocomplete="off" placeholder="0"></label><label class="omf"><span>Total size % of max</span><input data-tb="gdEnPct" inputmode="decimal" autocomplete="off" placeholder="empty"></label><label class="omf"><span>Distances</span><select data-tb="gdEnDist"><option value="equal">All equal</option><option value="linear">Linear (growing)</option><option value="invlin">Inverse linear (shrinking)</option><option value="hyper">Hyperbolic (faster at the far end)</option><option value="inv">Inverse hyperbolic (faster at the near end)</option><option value="manual">Manual (slider)</option></select></label><div class="gsl" data-gsl="En" data-gk="Man"><div class="gslh"><span>Levels from nearest ▸ to farthest (5 % steps of the way)</span><button type="button" data-gslinv>⇄ invert</button></div><div class="gbar"></div></div><label class="omf gdw"><span>Sizes</span><select data-tb="gdEnSize"><option value="equal">All equal</option><option value="linear">Linear (growing)</option><option value="invlin">Inverse linear (shrinking)</option><option value="hyper">Hyperbolic (faster at the far end)</option><option value="inv">Inverse hyperbolic (faster at the near end)</option><option value="custom">Custom %</option></select></label><label class="omf gdc" data-gdc="En"><span>Custom % of each level, nearest to farthest</span><input data-tb="gdEnCustom" autocomplete="off" placeholder="e.g. 20, 30, 50"></label><div class="gsl" data-gsl="En" data-gk="Custom"><div class="gslh"><span>Size of each level, nearest ▸ farthest (5 % steps)</span><button type="button" data-gslinv>⇄ invert</button></div><div class="gbar"></div></div></div>
+          <div class="gdsec tp"><div class="gdh"><label><input type="checkbox" data-tb="gdTpOn"> Targets (TP)</label><span>on the position, or on the entries waiting</span><button type="button" class="gdfixb" data-gdfix="Tp" data-el="gdFixTp">FIX</button><button type="button" class="gdeye" data-gdeye="Tp" aria-label="Average line on the chart">AVG <svg viewBox="0 0 24 24" width="15" height="15"><path d="M1.5 12S5.5 5 12 5s10.5 7 10.5 7-4 7-10.5 7S1.5 12 1.5 12z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/><line class="sl" x1="3" y1="21" x2="21" y2="3" stroke="currentColor" stroke-width="2.2"/></svg></button></div><label class="omf"><span>Nearest (pt)</span><input data-tb="gdTpNear" inputmode="decimal" autocomplete="off" placeholder="empty"></label><label class="omf"><span>Farthest (pt)</span><input data-tb="gdTpFar" inputmode="decimal" autocomplete="off" placeholder="= nearest"></label><label class="omf"><span>Levels between</span><input data-tb="gdTpMid" inputmode="decimal" autocomplete="off" placeholder="0"></label><label class="omf"><span>Share of position %</span><input data-tb="gdTpPct" inputmode="decimal" autocomplete="off" placeholder="100"></label><label class="omf gdw"><span>Distances</span><select data-tb="gdTpDist"><option value="equal">All equal</option><option value="linear">Linear (growing)</option><option value="invlin">Inverse linear (shrinking)</option><option value="hyper">Hyperbolic (faster at the far end)</option><option value="inv">Inverse hyperbolic (faster at the near end)</option><option value="manual">Manual (slider)</option></select></label><div class="gsl" data-gsl="Tp" data-gk="Man"><div class="gslh"><span>Levels from nearest ▸ to farthest (5 % steps of the way)</span><button type="button" data-gslinv>⇄ invert</button></div><div class="gbar"></div></div><label class="omf gdw"><span>Sizes</span><select data-tb="gdTpSize"><option value="equal">All equal</option><option value="linear">Linear (growing)</option><option value="invlin">Inverse linear (shrinking)</option><option value="hyper">Hyperbolic (faster at the far end)</option><option value="inv">Inverse hyperbolic (faster at the near end)</option><option value="custom">Custom %</option></select></label><label class="omf gdc" data-gdc="Tp"><span>Custom % of each level, nearest to farthest</span><input data-tb="gdTpCustom" autocomplete="off" placeholder="e.g. 50, 30, 20"></label><div class="gsl" data-gsl="Tp" data-gk="Custom"><div class="gslh"><span>Size of each level, nearest ▸ farthest (5 % steps)</span><button type="button" data-gslinv>⇄ invert</button></div><div class="gbar"></div></div></div>
+          <div class="gdsec sl"><div class="gdh"><label><input type="checkbox" data-tb="gdSlOn"> Stops (SL)</label><span>idem</span><button type="button" class="gdfixb" data-gdfix="Sl" data-el="gdFixSl">FIX</button><button type="button" class="gdeye" data-gdeye="Sl" aria-label="Average line on the chart">AVG <svg viewBox="0 0 24 24" width="15" height="15"><path d="M1.5 12S5.5 5 12 5s10.5 7 10.5 7-4 7-10.5 7S1.5 12 1.5 12z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/><line class="sl" x1="3" y1="21" x2="21" y2="3" stroke="currentColor" stroke-width="2.2"/></svg></button></div><label class="omf"><span>Nearest (pt)</span><input data-tb="gdSlNear" inputmode="decimal" autocomplete="off" placeholder="empty"></label><label class="omf"><span>Farthest (pt)</span><input data-tb="gdSlFar" inputmode="decimal" autocomplete="off" placeholder="= nearest"></label><label class="omf"><span>Levels between</span><input data-tb="gdSlMid" inputmode="decimal" autocomplete="off" placeholder="0"></label><span></span><label class="omf gdw"><span>Distances</span><select data-tb="gdSlDist"><option value="equal">All equal</option><option value="linear">Linear (growing)</option><option value="invlin">Inverse linear (shrinking)</option><option value="hyper">Hyperbolic (faster at the far end)</option><option value="inv">Inverse hyperbolic (faster at the near end)</option><option value="manual">Manual (slider)</option></select></label><div class="gsl" data-gsl="Sl" data-gk="Man"><div class="gslh"><span>Levels from nearest ▸ to farthest (5 % steps of the way)</span><button type="button" data-gslinv>⇄ invert</button></div><div class="gbar"></div></div><label class="omf gdw"><span>Sizes</span><select data-tb="gdSlSize"><option value="equal">All equal</option><option value="linear">Linear (growing)</option><option value="invlin">Inverse linear (shrinking)</option><option value="hyper">Hyperbolic (faster at the far end)</option><option value="inv">Inverse hyperbolic (faster at the near end)</option><option value="custom">Custom %</option></select></label><label class="omf gdc" data-gdc="Sl"><span>Custom % of each level, nearest to farthest</span><input data-tb="gdSlCustom" autocomplete="off" placeholder="e.g. 50, 30, 20"></label><div class="gsl" data-gsl="Sl" data-gk="Custom"><div class="gslh"><span>Size of each level, nearest ▸ farthest (5 % steps)</span><button type="button" data-gslinv>⇄ invert</button></div><div class="gbar"></div></div></div>
           <div class="tbnote" data-note="gd"></div>
         </div>
       </div>
@@ -691,8 +691,8 @@ function mount(opts) {
   root.addEventListener('pointerdown', (ev) => {
     if (menuOpen() && !ev.composedPath().some((n) => n === els.cxm || (n.dataset && n.dataset.a === 'cxmenu'))) cxMenu(false);
   }, true);
-  // no tooltips on the cards (they cover the rest of the page); the chart labels keep theirs.
-  // An observer removes any that draw() might set.
+  // no tooltips anywhere in the column or on the chart (Gerry 2026-11-24: explanations only in the settings panel's ? and guide).
+  // None is set in the code any more; the observer removes any that might come back.
   const noTips = (el) => {
     if (el.hasAttribute && el.hasAttribute('title')) el.removeAttribute('title');
     if (el.querySelectorAll) for (const t of el.querySelectorAll('[title]')) t.removeAttribute('title');
@@ -700,10 +700,8 @@ function mount(opts) {
   const tipObs = new MutationObserver((list) => {
     for (const r of list) if (r.type === 'attributes' ? r.target.hasAttribute('title') : r.addedNodes.length) noTips(r.target);
   });
-  for (const k of ['card', 'card2', 'card3', 'card4', 'card5']) {
-    noTips(els[k]);
-    tipObs.observe(els[k], { subtree: true, childList: true, attributes: true, attributeFilter: ['title'] });
-  }
+  noTips(root);
+  tipObs.observe(root, { subtree: true, childList: true, attributes: true, attributeFilter: ['title'] });
 
   // preview while hovering LONG / SHORT (no orders: lines only)
   for (const side of ['long', 'short']) {
@@ -1570,7 +1568,7 @@ function draw() {
   const sumAll = (price) => {
     if (allPos.length < 2) return '';
     const v = allPos.reduce((t, p) => t + pnlUsd(p.side, p.qty, p.openPrice, price), 0);
-    return `<span class="sig" title="P&L at this price of all ${allPos.length} accounts holding the position (each one's full size and own entry)">Σ${allPos.length} <b class="${F.cls(v)}">${F.usd(v, true)}</b></span>`;
+    return `<span class="sig">Σ${allPos.length} <b class="${F.cls(v)}">${F.usd(v, true)}</b></span>`;
   };
   const inside = (y) => y >= 0 && y <= g.height;
   lineStyles = m.lineStyles || null;
@@ -1840,12 +1838,12 @@ function draw() {
     const selTag = (r) => {
       if (r.id !== m.selected) return '';
       const bad = cp.armed && !r.master;
-      return ` <b class="act${bad ? ' bad' : ''}" title="${bad ? 'Active on Vest, but the copier is ON and this is not the master: the tool refuses new entries here. Select the master on Vest.' : 'Active on Vest: the buttons of the tool trade on this account'}">◀ ACTIVE</b>`;
+      return ` <b class="act${bad ? ' bad' : ''}">◀ ACTIVE</b>`;
     };
-    const row = (r) => `<tr data-id="${F.esc(r.id)}" class="${r.id === m.selected ? 'sel' + (cp.armed && !r.master ? ' bad' : '') : ''}"><td><i class="adot ${r.act || 'unk'}"></i>${F.esc(r.num || r.label)}${r.master ? ' <i>M</i>' : ''}${r.mult > 0 && !r.master ? ` <b class="cmx" title="Copy size = master size x ${+r.mult}">x${F.mult(r.mult)}</b>` : ''}${sy(r)}${selTag(r)}</td>${tq(r.qty, r.side)}${td(r.upnl)}${td(r.dayPnl)}${td(r.totalPnl)}</tr>`;
+    const row = (r) => `<tr data-id="${F.esc(r.id)}" class="${r.id === m.selected ? 'sel' + (cp.armed && !r.master ? ' bad' : '') : ''}"><td><i class="adot ${r.act || 'unk'}"></i>${F.esc(r.num || r.label)}${r.master ? ' <i>M</i>' : ''}${r.mult > 0 && !r.master ? ` <b class="cmx">x${F.mult(r.mult)}</b>` : ''}${sy(r)}${selTag(r)}</td>${tq(r.qty, r.side)}${td(r.upnl)}${td(r.dayPnl)}${td(r.totalPnl)}</tr>`;
     const html =
       '<colgroup><col class="c0"><col class="c1"><col class="c2"><col class="c3"><col class="c4"></colgroup>' +
-      `<tr class="h"><th><span class="cpt">${cp.dry ? '<b class="sy test" title="Copier in TEST MODE: nothing is sent to the copies">TEST MODE</b>' : 'ACCOUNT'}</span></th><th>Qty</th><th>Open</th><th>Today</th><th>Total</th></tr>` +
+      `<tr class="h"><th><span class="cpt">${cp.dry ? '<b class="sy test">TEST MODE</b>' : 'ACCOUNT'}</span></th><th>Qty</th><th>Open</th><th>Today</th><th>Total</th></tr>` +
       cp.rows.map(row).join('') +
       `<tr class="t"><td>Total</td>${tq(cp.tot.qty, null)}${td(cp.tot.upnl)}${td(cp.tot.dayPnl)}${td(cp.tot.totalPnl)}</tr>`;
     if (els.cpt.dataset.h !== html) {
@@ -2141,7 +2139,6 @@ function draw() {
     const tw = tr.dir === 'up' ? '1h ▲ LONG' : tr.dir === 'down' ? '1h ▼ SHORT' : '';
     if (els.srTr.textContent !== tw) els.srTr.textContent = tw;
     els.srTr.className = 'srtr ' + (tr.dir || '');
-    els.srTr.title = tr.text || '';
     for (const el of root.querySelectorAll('[data-note]')) {
       const x = (m.tb.notes && m.tb.notes[el.dataset.note]) || {};
       if (el.textContent !== (x.text || '')) el.textContent = x.text || '';
@@ -2362,32 +2359,24 @@ function draw() {
       const P = it.pv;
       price = P.avg;
       html = `<span class="k">AVG NEW</span><b>${F.price(price, priceDec)}</b><span class="qy">${F.qty(P.qty)}</span>`;
-      le.chip.title = `New average entry if ${P.side === 'long' ? 'LONG' : 'SHORT'} adds ${F.qty(P.add)} at market (about ${F.price(P.entry, priceDec)}): total size ${F.qty(P.qty)}.`;
     } else if (it.pv) {
       const P = it.pv,
         k = P.ko;
       price = k.price;
       const d = Math.abs(P.entry - price);
       html = `<span class="k">FAIL NEW</span><b>${F.price(price, priceDec)}</b><span class="qy">${F.qty(P.qty)}</span><span class="down">−${d.toFixed(priceDec)} pt</span><span class="down">${F.usd(k.loss, true)}</span>`;
-      le.chip.title = `${P.side === 'long' ? 'LONG' : 'SHORT'} preview (no order): ${P.adding ? 'adding ' + F.qty(P.add) + ' to the position, size ' : 'size '}${F.qty(P.qty)} at about ${F.price(P.entry, priceDec)}. ` +
-        `At ${F.price(price, priceDec)} the equity reaches the ${k.floorKind} drawdown limit (${F.usd(k.floor)}): ${d.toFixed(priceDec)} points from the current price. Excludes pending orders, local stops, SL/TP, spread, exit fee and funding.`;
     } else if (it.one) {
       const N = it.avgL.next;
       price = N.avg;
       html = `<span class="k">AVG NEXT</span><b>${F.price(price, priceDec)}</b><span>${F.qty(N.qty)}</span>`;
-      le.chip.title = `Average entry if ONLY the next limit (${F.price(N.price, priceDec)}) fills, on top of the open position: size ${F.qty(N.qty)}. Excludes the other limits, local stops and fees.`;
     } else if (it.avgL) {
       const L = it.avgL;
       price = L.avg;
       html = `<span class="k">AVG ALL</span><b>${F.price(price, priceDec)}</b><span>${F.qty(L.qty)}</span>`;
-      le.chip.title = `Average entry if all ${L.n} entry limits fill${pos ? ', on top of the open position' : ''}: total size ${F.qty(L.qty)}. Excludes local stops and fees.`;
     } else if (it.gdAvg) {
       const g = it.gdAvg;
       price = it.price;
       html = `<span class="k">GRID AVG ${g.k}</span><b>${F.price(price, priceDec)}</b><span class="qy">${F.qty(g.qty)}</span>${Number.isFinite(g.usd) ? `<span class="${F.cls(g.usd)}">${F.usd(g.usd, true)}</span>` : ''}`;
-      le.chip.title = g.k === 'ENTRY'
-        ? `Average price if all ${g.n} grid entries fill${g.withPos ? ', together with the open position' : ''}: total size ${F.qty(g.qty)}.`
-        : `Average price of the ${g.n} grid ${g.k} levels, weighted by their size: total ${F.qty(g.qty)}, ${F.usd(g.usd, true)} if all are hit.`;
     } else if (it.gd) {
       const l = it.gd;
       price = it.price;
@@ -2404,32 +2393,20 @@ function draw() {
       const u = it.usr;
       price = u.price;
       html = `<span class="k">USER</span><span class="un">· ${F.esc(u.name)}</span><b>${F.price(price, priceDec)}</b><span>$${(+u.level).toFixed(2)}</span>`;
-      le.chip.title = `Your Account limits row ${u.name} is ON: at this price (with the open position, everything else unchanged, fees excluded) it reaches $${(+u.level).toFixed(2)} and everything is closed (FLAT).`;
     } else if (it.dd50) {
       const h = it.dd50;
       price = h.price;
       html = `<span class="k">${+h.pct}% DRAWDOWN</span><b>${F.price(price, priceDec)}</b><span>${F.qty(h.qty)}</span><span class="down">${F.usd(h.loss, true)}</span>`;
-      le.chip.title = `${+h.pct}% of the available drawdown: ${F.usd(h.half)} of ${F.usd(h.avail)}` +
-        (Number.isFinite(h.ddInit) ? ` (initial drawdown ${F.usd(h.ddInit)} ${h.pl >= 0 ? '+' : '-'} total profit ${F.usd(Math.abs(h.pl))})` : '') +
-        `. At this price the position loses ${F.usd(-h.loss)} in total, ${F.usd(-h.fromNow)} from now.` +
-        (h.filled ? ` Counts ${h.filled} entry limit(s) that fill before it (size ${F.qty(h.qty)}, average entry ${F.price(h.avg, priceDec)}).` : ' With the current size.') +
-        (h.afterKo ? ' WARNING: the closer (daily) drawdown limit comes FIRST: see the fail price.' : '') +
-        ' Excludes local stops, fees and funding.';
     } else if (it.br) {
       // bracket leg of a pending entry (read-only): SL / TP, price, points from that entry
       const b = it.br;
       price = it.price;
       const gp = (b.side === 'long' ? 1 : -1) * (price - b.ref);
       html = `<span class="k">${b.k === 'sl' ? 'SL' : 'TP'}</span><b>${F.price(price, priceDec)}</b><span class="${F.cls(gp)}">${gp > 0 ? '+' : gp < 0 ? '−' : ''}${Math.abs(gp).toFixed(priceDec)} pt</span><span class="loc">${b.held ? 'sending' : b.vest ? 'on Vest' : b.own ? 'this entry' : 'bracket'}</span>`;
-      le.chip.title = b.vest
-        ? `${b.k.toUpperCase()} that Vest holds for the pending ${b.sub}: it becomes the position's ${b.k.toUpperCase()} when the order fills.`
-        : `Bracket ${b.k.toUpperCase()} of the pending ${b.sub}: placed with the entry when it fills (from the fill price for a local entry). Not on Vest yet.`;
       const bdrag = !!(drag && drag.from === 'br' && drag.moved && drag.existing.id === it.id);
       le.chip.classList.toggle('drag', bdrag);
       le.chip.classList.toggle('bad', bdrag && !drag.ok);
       le.chip.classList.toggle('pending', !!b.held);
-      if (b.held) le.chip.title = `${b.k.toUpperCase()} just moved: being sent / waiting for the feed.`;
-      le.chip.title += b.fixed ? ' Several partial legs: not movable from here.' : b.vest ? ' Drag it to move it: the LIMIT is placed again with the new SL / TP.' : ' Drag it to set a different distance for this entry only.';
     } else if (it.sr) {
       // safe runner level (read-only): name, price, size of the tranche(s), P&L of that size if it exits there
       const r = it.sr;
@@ -2438,14 +2415,10 @@ function draw() {
       const usd = q > 0 ? pnlUsd(pos.side, q, pos.openPrice, price) : NaN;
       const gp = (pos.side === 'long' ? 1 : -1) * (price - pos.openPrice);
       html = `<span class="k">${r.text.toUpperCase()}</span><b>${F.price(price, priceDec)}</b>` + (q > 0 ? `<span>${F.qty(q)}</span><span class="${F.cls(usd)}">${F.usd(usd, true)}</span>` : `<span class="${F.cls(gp)}">${gp > 0 ? '+' : gp < 0 ? '−' : ''}${Math.abs(gp).toFixed(priceDec)} pt</span>`);
-      le.chip.title = q > 0 ? 'Safe runner: local exit level of this tranche (closed at market when the price touches it)' : 'Safe runner: it takes over when the price reaches this level';
     } else if (it.ko) {
       const k = it.ko;
       price = k.price;
       html = `<span class="k">FAIL</span><b>${F.price(price, priceDec)}</b><span>${F.qty(k.qty)}</span><span class="down">${F.usd(k.loss, true)}</span>`;
-      le.chip.title = `Account fail price: here the equity reaches the ${k.floorKind} drawdown limit (${F.usd(k.floor)}), losing ${F.usd(-k.loss)} from now.` +
-        (k.filled ? ` Counts ${k.filled} entry limit(s) that fill before it (size ${F.qty(k.qty)}, average entry ${F.price(k.avg, priceDec)}).` : ' With the current size.') +
-        ' Excludes local stops, SL/TP, fees and funding.';
     } else if (it.entry) {
       price = pos.openPrice;
       const usd = mark > 0 ? pnlUsd(pos.side, pos.qty, pos.openPrice, mark) : NaN;
@@ -2454,12 +2427,12 @@ function draw() {
       // one row: side, entry, size, points for/against, account P&L, X
       const gp = mark > 0 ? (pos.side === 'long' ? 1 : -1) * (mark - pos.openPrice) : NaN;
       html =
-        `<span class="k" title="${pos.side === 'long' ? 'LONG' : 'SHORT'}: average entry price of the position">${pos.side === 'long' ? 'L' + ARROW_UP : 'S' + ARROW_DOWN}</span><b>${F.price(price, priceDec)}</b>` +
+        `<span class="k">${pos.side === 'long' ? 'L' + ARROW_UP : 'S' + ARROW_DOWN}</span><b>${F.price(price, priceDec)}</b>` +
         `<span class="qy">${F.qty(pos.qty)}</span>` +
-        `<span class="pt ${F.cls(gp)}" title="Points from the entry to the current price">${Number.isFinite(gp) ? (gp > 0 ? '+' : gp < 0 ? '−' : '') + Math.abs(gp).toFixed(priceDec) + ' pt' : '—'}</span>` +
-        `<span class="pl ${F.cls(usd)}" title="P&L of the selected account">${F.usd(usd, true)}</span>` +
+        `<span class="pt ${F.cls(gp)}">${Number.isFinite(gp) ? (gp > 0 ? '+' : gp < 0 ? '−' : '') + Math.abs(gp).toFixed(priceDec) + ' pt' : '—'}</span>` +
+        `<span class="pl ${F.cls(usd)}">${F.usd(usd, true)}</span>` +
         (mark > 0 ? sumAll(mark) : '') + // Σ all accounts holding the trade at the current price, as on the SL / TP labels
-        `<span class="x${armed ? ' arm' : ''}${off ? ' off' : ''}" title="${off ? 'Orders off or sending in progress' : 'Closes 100% of the position at market, WITHOUT cancelling pending orders (two clicks)'}">${armed ? 'close?' : '✕'}</span>`;
+        `<span class="x${armed ? ' arm' : ''}${off ? ' off' : ''}">${armed ? 'close?' : '✕'}</span>`;
     } else if (it.leg) {
       const t = it.leg;
       const dragging = drag && drag.existing && drag.existing.id === t.id;
@@ -2470,8 +2443,8 @@ function draw() {
       // size it closes (Gerry 2026-11-23, DCA): a leg without quantity closes the WHOLE position, so it grows with every add
       const full = !(t.qty > 0) || t.qty >= pos.qty - 1e-12;
       const cq = full ? pos.qty : t.qty;
-      const sz = `<span class="qy" title="${full ? `Closes the whole position: ${F.qty(pos.qty)} now (it follows every add / DCA)` : `Closes ${F.qty(t.qty)} of ${F.qty(pos.qty)} (partial)`}">${full ? 'ALL ' : ''}${F.qty(cq)}${full ? '' : ` <i class="pc">${Math.round((cq / pos.qty) * 100)}%</i>`}</span>`;
-      html = `<span class="k">${t.kind.toUpperCase()}</span><b>${F.price(price, priceDec)}</b>${sz}<span class="${F.cls(usd)}">${F.usd(usd, true)}</span>${sumAll(price)}<span class="x${armed ? ' arm' : ''}" title="${t.kind === 'sl' ? 'Remove the stop (two clicks)' : 'Remove the target'}">${armed ? 'remove?' : '✕'}</span>`;
+      const sz = `<span class="qy">${full ? 'ALL ' : ''}${F.qty(cq)}${full ? '' : ` <i class="pc">${Math.round((cq / pos.qty) * 100)}%</i>`}</span>`;
+      html = `<span class="k">${t.kind.toUpperCase()}</span><b>${F.price(price, priceDec)}</b>${sz}<span class="${F.cls(usd)}">${F.usd(usd, true)}</span>${sumAll(price)}<span class="x${armed ? ' arm' : ''}">${armed ? 'remove?' : '✕'}</span>`;
       le.chip.classList.toggle('pending', !!isPending);
       le.chip.classList.toggle('drag', !!dragging);
       le.chip.classList.toggle('bad', !!(dragging && !drag.ok));
@@ -2483,7 +2456,7 @@ function draw() {
       le.chip.classList.toggle('pending', !!isPending || !!it.held);
       le.chip.classList.toggle('drag', !!dragging);
       le.chip.classList.toggle('bad', !!(dragging && !drag.ok));
-      html = `<span class="k" title="${o.label === 'CLOSE' ? 'Closing limit: reduces the position' : o.local ? 'Local entry stop' : 'Entry limit'}">${o.label || NAME[o.kind]}</span><span class="${o.side === 'long' ? 'up' : 'down'}">${sideWord(o.side)}</span><b>${F.price(price, priceDec)}</b><span>${F.qty(o.qty)}</span>${o.local ? `<span class="loc" title="${o.lim ? 'Local LIMIT (OCO, Vest keeps one pending side per market): lives in this browser tab, sent at market when the price gets there' : 'Local stop: lives in this browser tab and triggers at market'}">local</span>` : ''}${it.held ? '<span class="loc">sending</span>' : '<span class="x" title="Cancel">✕</span>'}`;
+      html = `<span class="k">${o.label || NAME[o.kind]}</span><span class="${o.side === 'long' ? 'up' : 'down'}">${sideWord(o.side)}</span><b>${F.price(price, priceDec)}</b><span>${F.qty(o.qty)}</span>${o.local ? `<span class="loc">local</span>` : ''}${it.held ? '<span class="loc">sending</span>' : '<span class="x">✕</span>'}`;
     }
     const y = yOf(price);
     // FAIL NEW preview off scale: label on the chart edge with an arrow, no line
@@ -2555,7 +2528,6 @@ function draw() {
       els[k].style.left = sx0 + 'px';
       els[k].style.width = x1 - sx0 + 'px';
       els[k].style.top = g.top + y - Math.floor(w / 2) + 'px';
-      els[k].title = { trT: 'Auto BE: triggers when the price gets here', trB: 'BE+: the BE button puts the stop here', trS: 'Trailing: stop', trA: 'Trailing: first stop when the price gets here', trN: 'Trailing: the stop moves up when the price gets here' }[k] + ' (' + F.price(p, priceDec) + ')';
     }
   }
 
@@ -2742,7 +2714,6 @@ function guardRows(m) {
     const btn = bx.querySelector('.gon');
     const bt = r.on ? 'ON' : 'OFF';
     if (btn.textContent !== bt) btn.textContent = bt;
-    btn.title = r.on ? 'ON: at the level everything open on this account is closed (FLAT). Click to switch it off.' : r.level > 0 ? 'OFF: click to switch the FLAT at this level on (back to OFF after a reload)' : k === 'tg' ? 'No profit target on Vest: set the manual one in Account limits settings' : 'Set the level first';
     const tx = bx.querySelector('.gt');
     if (r.kind === 'slider') {
       const rg = bx.querySelector('.gr');
@@ -10684,10 +10655,12 @@ const HELP = {
     `<ul>
       <li><b>Panel header</b> (top of the column): chart timeframe, time left before the candle closes, clock and account; under them the
       open position: side, size, entry price and P&L, then points from the entry, micro contracts and $ per point, and today's points
-      (FLAT when there is no position). Alt+Shift+V or – unfolds the panel for the settings and folds it back.</li>
+      (FLAT when there is no position) and, on the right, the trades of the day (<i>N trades W▲ L▼</i>, positions closed in the Vest day).
+      <b>ORDERS</b> (top right) switches order sending on / off: off after every reload, nothing is sent while it is off.
+      <b>COPY</b> switches the copier on / off (shown when a master and copies are set). Until Vest's data are in, the header says
+      <i>WAITING FOR VEST DATA</i> and the sections appear only after that. Alt+Shift+V or – unfolds the panel for the settings and folds it back.</li>
       <li><b>Trade commands</b> (under the panel; ⇱ floats it as a window you can drag and resize, ⇥ puts it back):
       top rows = size in % of the maximum size (fractions and your six presets) or typed in the % box.
-      <b>ORDERS</b> switches order sending on/off (off after every reload). <b>COPY</b> switches the copier on/off.
       <b>LIMIT</b> / <b>STOP</b>: press and drag to a price, the order is sent on release.
       LIMIT below the price buys, above sells. STOP above the price buys, below sells.
       A STOP is <b>local</b>: it lives in this browser tab and sends a market order when the price touches it; reloading or closing the tab removes it.
@@ -10697,16 +10670,43 @@ const HELP = {
       <b>PARTIAL CLOSE</b> closes the % in its box, <b>CLOSE</b> closes everything; both leave the pending orders in place.
       <b>FLAT</b> cancels the local stops and every pending order on this market, then closes the position (works with ORDERS off).
       The word next to the title says how orders are sized: <b>MANUAL</b> (the % size), <b>RISK PLAN</b> or <b>RISK ACTIVE</b> (Risk &amp; targets ON).
-      The <b>Copier accounts</b> table sits under it: master (M) and copies with their size on this market, open, today's and total P&L.</li>
+      The <b>Copier accounts</b> table sits under it: master (M) and copies with their size on this market, open, today's and total P&L;
+      its title says <i>ACTIVE</i> when the copier is on, <i>COPY OFF: accounts not copied</i> when it is off.</li>
+      <li><b>Bracket (SL / TP on every new entry)</b>: SL and TP in points (sliders in steps of 5 pt) on every new entry sent from the tool.
+      <i>SL / TP follow adds (DCA)</i>: with a position open, SL / TP are kept at those distances from <b>AVG ALL</b> (position + entry LIMITs
+      waiting on the same side), recalculated after an add, a LIMIT filled, placed or cancelled; the SL never sits between two entries
+      (if it reaches a LIMIT it goes beyond the farthest one); a SL at breakeven or in profit stays. With only LIMITs and no position nothing is moved.
+      With Risk &amp; targets ON the plan's own SL / TP are used instead.</li>
+      <li><b>Grid (experimental)</b>: entry LIMITs from the current price plus SL / TP ladders. OFF / <b>PLAN</b> (lines only, nothing sent) /
+      <b>ACTIVE</b> after <b>START</b> (entries placed once, SL / TP follow every change; never kept after a reload). Per block (Entries, Targets,
+      Stops): nearest / farthest distance in points, levels in between, distance and size curves (Manual / Custom with sliders), AVG eye
+      (average line on the chart). <b>FIX</b> freezes the price the levels are measured from (TP / SL: only when nothing is open or waiting).
+      Drag the nearest or farthest level on the chart: the others follow the curve. With Grid on and Entries ticked, the % buttons of
+      Trade commands also set the entries' total size. Not together with Bracket <i>follow adds</i>. Try it at minimum size.</li>
+      <li><b>OCO (one cancels the other)</b>: on the pending entries of a market, when one fills the others are cancelled.</li>
+      <li><b>Safe runner (experimental)</b>: manages the exit of an open position in tranches (tight stop + runner, 1h trend badge in the title);
+      OFF / VIEW (lines only) / LIVE. The <b>?</b> in its title explains it.</li>
       <li><b>Risk &amp; targets</b>: size from the risk in $, stop and up to four targets, drawn on the chart; ON next to the title lets
-      Trade commands send the plan. The <b>?</b> next to <i>column width</i> in Panel layout explains every field.</li>
+      Trade commands send the plan. The <b>?</b> next to <i>column width</i> in <i>Panel and column</i> (main panel, Layout) explains every field.</li>
       <li><b>Trailing &amp; breakeven</b>: the same settings as the panel's "Trailing stop and breakeven".</li>
       <li><b>Account limits</b>: <b>MARGIN USED</b>: margin of the open positions as a % of equity. <b>MARGIN USED + ORDERS</b>: including pending orders, and the contracts you can still open.
-      <b>DAILY PROFIT TARGET</b>: today's P&L against the goal set in Order size and daily profit target. <b>DAILY LOSS LIMIT</b>: today's loss against the level you set. <b>MAX OPEN PROFIT</b> / <b>MAX OPEN LOSS</b>: profit / loss of the open trade (loss out of what you can lose before Vest's daily limit).
+      <b>DAILY PROFIT TARGET</b>: today's P&L against the goal typed on its row. <b>DAILY LOSS LIMIT</b>: today's loss against the level you set. <b>MAX OPEN PROFIT</b> / <b>MAX OPEN LOSS</b>: profit / loss of the open trade (loss out of what you can lose before Vest's daily limit).
       <b>DAILY DRAWDOWN BUFFER</b> / <b>MAX DRAWDOWN BUFFER</b>: dollars left before the daily / total limit (the limit in brackets), as on Vest's page.
       <b>ACCOUNT PROFIT TARGET</b>: total P&L against the evaluation target. A row switched ON draws its level on the chart as a <b>USER</b> line (the price where it closes everything). Bars: green in profit, yellow up to 50% used, orange up to 75%, red beyond.</li>
       <li>Click a section title to fold it.</li>
-      <li><b>Labels on the chart</b>: drag SL, TP, LIMIT and STOP labels (or their line) to move them; ✕ cancels. On the position label ✕ closes 100% at market (two clicks).</li>
+      <li><b>Labels on the chart</b> (no tooltips there: what each one means is here): drag SL, TP, LIMIT and STOP labels (or their line)
+      to move them; ✕ cancels. Position label: side and average entry, points from the entry, P&L of the selected account,
+      <b>Σn</b> = P&L at that price of all n accounts holding the position; ✕ closes 100% at market WITHOUT cancelling pending orders (two clicks).
+      SL / TP: the size they close (<b>ALL</b> = the whole position, it follows every add). <b>AVG ALL</b>: average entry if all entry LIMITs fill
+      (with the position); <b>AVG NEXT</b>: if only the next LIMIT fills; <b>AVG NEW</b> / LONG-SHORT preview (hovering LONG / SHORT): the new
+      average and size, nothing sent. <b>FAIL</b>: where the equity reaches the drawdown limit; <b>X% DRAWDOWN</b>: that share of the
+      drawdown available; <b>USER</b>: an Account limits row switched ON, everything is closed (FLAT) at that price. SL / TP of a pending
+      entry: <i>on Vest</i> = drag it and the LIMIT is placed again with the new leg; <i>bracket</i> / <i>this entry</i> = drag to set a
+      distance for that entry only; several partial legs cannot be moved from here. <b>SR</b> labels: Safe runner tranche exits (local,
+      closed at market) or where it takes over. Short segments next to the labels: orange trailing stop, light blue trailing start,
+      green next step, violet BE+ / Auto BE. In Account limits: ON = FLAT at that level (OFF after a reload), the eye shows / hides its
+      USER line. In Copier accounts: TEST MODE = nothing is sent to the copies; a red ◀ ACTIVE = Vest is on a copy while the copier is ON
+      (new entries refused: select the master).</li>
     </ul>`,
   ],
   diag: [
@@ -10798,7 +10798,6 @@ const HELP = {
     `Hides the position line and the SL/TP lines that Vest draws, because the tool draws its own. If the column shows a different
     account from the one open on Vest, all of Vest's order lines are hidden so they cannot be confused.`,
   ],
-  blockPct: ['Card scale', 'Size of the cards when they were drawn on the chart. The panel is now always docked and the sections in the column use the column size, so this value has no effect there.'],
   chipPct: ['Label scale', 'Size of the labels on the chart (SL, TP, LIMIT, STOP, position...). 50-250.'],
   roomPx: [
     'Chart space',
@@ -10861,9 +10860,9 @@ const HELP = {
     '<b>Console</b>: larger text and fields, section titles with a coloured bar, bigger buttons. <b>Classic</b>: compact. Only the look changes.',
   ],
   theme: [
-    'Card style',
+    'Column style',
     `<b>Console</b>: the same look as the Console panel. <b>Classic</b>: the original design. <b>Sonar</b>: amber on black, square cards with cut corners, segmented bars and a
-    monospaced font. Applies to the sections in the docked column and to Trade commands. Only colours and fonts change: every button stays in the same place and does the same thing.
+    monospaced font. Applies to the sections of the column and to Trade commands. Only colours and fonts change: every button stays in the same place and does the same thing.
     Green and red keep their meaning (profit / loss, buy / sell). Your line and quantity colours are kept.`,
   ],
   hilo: [
@@ -10875,23 +10874,9 @@ const HELP = {
     (lowest) of 91 candles. The candles read go back 300 candles: with a big K there may be no confirmed swing in them (the line then
     is missing on that side).
     If the price goes past the last swing, the line follows the price until a new swing is confirmed.
-    The <b>Swing range</b> section of the panel switches the lines on / off and shows the points between the last swing high and low.
+    The <i>swing range</i> option in <i>Chart display</i> switches the lines on / off; under it the points between the last swing high and low.
     Colours in Line colours. The candles (the last 300) are read from Vest's chart once a second; if the chart does not provide them the lines
     are not shown (see the log).`,
-  ],
-  atr: [
-    'Volatility heatmap',
-    `In the Swing range and volatility section, five boxes: <b>1h, 30m, 15m, 5m, 1m</b>. Each box compares the volatility of the last few candles of that
-    timeframe with its volatility over the <b>same span of hours</b> for all five (e.g. 14 hours = 14 candles of 1h, 168 of 5m, 840 of 1m).
-    <ul>
-      <li>Big number: ATR of the last N candles ÷ ATR over the hours. Above 1 = that timeframe is moving more than usual.</li>
-      <li>Colour: blue below 0.75 (quiet), grey normal, orange from 1.25, red from 1.75.</li>
-      <li>Small number: ATR in points over the hours. * = fewer hours of candles than asked.</li>
-    </ul>
-    A burst usually lights up 1m first, then 5m, 15m... Reading the row from right to left shows how far it has spread.
-    ATR = average true range: average of max(high − low, |high − previous close|, |low − previous close|), closed candles only.
-    The candles come from Vest's chart: timeframes shorter than the chart's show — (put the chart on 1m to see all five).
-    The top line of the section shows the points between the last swing high and low (the two lines next to the price axis).`,
   ],
   qty: ['Quantities on the chart', 'Colour, size and bold of the trade size shown in the panel header, in Trade commands and on the position label.'],
 };
@@ -11029,14 +11014,13 @@ const SKELETON = `
       </div>`)}
     ${sec('display', 'Chart display', `
       <div class="row">
-        ${opt('overlay', chk('overlay', 'trade overlay (cards)'))}
+        ${opt('overlay', chk('overlay', 'trade overlay (column sections)'))}
         ${opt('lines', chk('lines', 'lines on the chart'))}
         ${opt('hideVest', chk('hideVest', 'hide Vest lines'))}
         ${opt('countdown', chk('cdOn', 'candle countdown'))}
       </div>
       <div class="row">
-        ${opt('theme', `card style <select data-in="theme" style="width:88px"><option value="console">Console</option><option value="classic">Classic</option><option value="sonar">Sonar</option></select>`)}
-        ${opt('blockPct', `card scale ${num('blockPct', 40)}%`)}
+        ${opt('theme', `column style <select data-in="theme" style="width:88px"><option value="console">Console</option><option value="classic">Classic</option><option value="sonar">Sonar</option></select>`)}
         ${opt('chipPct', `label scale ${num('chipPct', 40)}%`)}
       </div>
       <div class="row">
@@ -11928,5 +11912,5 @@ module.exports = {
     });
     return module.exports;
   };
-  __load("main.js").start("0.20.63");
+  __load("main.js").start("0.20.65");
 })();
