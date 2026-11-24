@@ -5,8 +5,9 @@
 
 A Tampermonkey userscript for [Vest Markets](https://next.vestmarkets.com) (prop trading on perpetuals).
 It adds a panel docked on the right with balances and P&L in dollars, trade commands with drag-and-drop SL/TP, breakeven,
-FLAT and entry orders, risk-based sizing with up to four take profits, trailing stop / auto breakeven, a copier that mirrors one account's orders onto others, a candle
-countdown, the last swing high / low and a volatility heatmap (ATR on 1h, 30m, 15m, 5m, 1m over the same hours).
+FLAT and entry orders, risk-based sizing with up to four take profits, a fixed SL / TP bracket on every entry, entry grids and
+OCO entries, trailing stop / auto breakeven, an experimental "safe runner" exit, a copier that mirrors one account's orders onto
+others, a candle countdown and the last swing high / low.
 
 **New here? Read the [step-by-step guide](GUIDE.md).** Independent project: not made, endorsed or supported by Vest Markets.
 
@@ -38,9 +39,11 @@ Do not run two copies of this script at the same time (for example an old and a 
   points, P&L, contracts, points of the day). Alt+Shift+V (or –) unfolds the panel to full height for the settings and folds
   it back. Click an account row to select that account. Every **?** button opens an explanation; Esc or a click elsewhere
   closes it.
-- **Panel sections**: Overview, Trade, Copier, Accounts and positions, then the Settings: Panel layout (column width and
-  style), Order size and daily goal, Trailing stop and breakeven, Chart display, Line colours, Button and mode colours,
-  SL/TP calculator, the guide to every button, Diagnostics.
+- **Panel sections**: Accounts overview, Copier accounts, Trade commands settings (size cap, presets, daily profit target),
+  Account limits settings (manual limits for accounts without them on Vest, e.g. Instant), Panel and column, Chart display,
+  Chart lines and labels (colour, dash, width and label style of everything drawn), Button and mode colours, SL/TP calculator,
+  the guide to every button, Diagnostics. The header also has the ORDERS / COPY switches and the trades of the day
+  (N trades, wins ▲, losses ▼). Until Vest's data are in, the column shows "WAITING FOR VEST DATA".
 - **Column under the folded panel** (for the chart's market and the selected account), each section foldable by its title:
   - *Trade commands*: size in % of the maximum size (never above the size cap), LIMIT and STOP (drag them onto the chart),
     LONG / SHORT (market), TP / SL / BE, the CANCEL menu (pending limits, local stops or all orders on the market),
@@ -48,19 +51,19 @@ Do not run two copies of this script at the same time (for example an old and a 
     ⇥ puts it back. The *Copier accounts* (master and copies with size and P&L) sit right under it and float with it.
   - *Risk & targets*: see below.
   - *Trailing & breakeven*: the same settings as in the panel.
-  - *Account limits*: MARGIN USED, MARGIN + ORDERS, DAILY GOAL, OPEN LOSS, DAILY LOSS LEFT, DRAWDOWN LEFT, PROFIT TARGET.
-  - *Volatility*: SWING RANGE (points between the last swing high and low) and the volatility heatmap.
-  - *Chart space*: room between the last candle and the price axis, for the labels.
+  - *Account limits*: MARGIN USED, MARGIN USED + ORDERS, DAILY PROFIT TARGET, DAILY LOSS LIMIT, MAX OPEN PROFIT / LOSS,
+    DAILY DRAWDOWN BUFFER, MAX DRAWDOWN BUFFER, ACCOUNT PROFIT TARGET (information only). Each row has its own eye button;
+    a row switched ON draws its level on the chart.
+  - *Bracket (SL / TP on every new entry)*: see below.
+  - *Grid (experimental)*, *OCO (one cancels the other)*, *Safe runner (experimental)*: see below.
+  - Section titles show **ACTIVE** while that section is on.
 - **Clock and countdown** follow Vest's clock, not the computer's: the offset is measured when a new candle appears on the
   chart. Until then the countdown starts with `~`. If the log says the PC clock is off, sync the Windows clock: the tool also
   relies on it for login token renewal.
 - **Last swing high / low**: two short lines next to the price axis. A swing high is a candle whose high is above the K
   candles before it and not below the K after it (K = 1-50 in *Chart display*, default 2); it is confirmed K candles later.
-  If the price goes past it, the line follows the price until a new swing is confirmed.
-- **Volatility heatmap**: for 1h, 30m, 15m, 5m and 1m, the ATR of the last N candles divided by the ATR over the same span
-  of hours (e.g. 14 h = 14 candles of 1h, 840 of 1m). Above 1 = that timeframe is speeding up; a burst usually lights up
-  1m first. Blue below 0.75, grey normal, orange from 1.25, red from 1.75. Built from the chart's own candles: timeframes
-  shorter than the chart's show "—" (put the chart on 1m to see all five).
+  If the price goes past it, the line follows the price until a new swing is confirmed. The swing range (points between the
+  two) is shown in *Chart display*.
 - **Risk & targets** (column section): size by risk in $, % of the maximum or fixed quantity (optionally counting fees,
   never above the size cap); stop by points, ticks, previous candle low/high ± ticks or ATR multiple; up to 4 targets T1-T4
   (× risk, ticks, points, × ATR or trailing without TP), split equally, mostly on T1 or mostly on the last.
@@ -70,6 +73,24 @@ Do not run two copies of this script at the same time (for example an old and a 
   order with the plan). Labels say RISK PLAN, then RISK ACTIVE once the order is really placed; the same word shows next to
   Trade commands (MANUAL when OFF). Drag ENTRY to plan from another price, drag the plan SL to change the stop (same risk in $,
   the size follows). Only on a market with no position and no pending order; always OFF after a reload.
+- **Bracket**: with it on, every new position opened from the tool goes to Vest with its own SL (and TP if set), in points
+  from the entry (sliders in steps of 5 pt): market LONG / SHORT, LIMIT, local STOP when it triggers. Adds have no legs (Vest
+  attaches them only to the first order). *SL / TP follow adds (DCA)*: while a position is open, SL / TP are kept at the bracket
+  distances from AVG ALL (the position plus the entry LIMITs waiting on the same side), recalculated after every add, fill,
+  LIMIT placed or cancelled; the SL never sits between two entries, and a SL already at breakeven or in profit is not moved.
+  With only pending LIMITs and no position it moves nothing.
+- **Grid (experimental)**: entry LIMITs plus TP and SL ladders, each with nearest / farthest distance, levels in between and
+  distance / size curves. OFF / PLAN (lines only, nothing sent) / ACTIVE (after START; never restored after a reload). FIX
+  measures from a price frozen now; dragging the nearest or farthest level reshapes the ladder; one average line per ladder.
+  The % buttons in Trade commands set the entry size. Not available while Bracket "follow adds" is on. Minimum size first.
+- **OCO**: on the pending entries of a market, when one entry fills (or a local STOP triggers) the other pending entries and
+  local stops of that market are cancelled. With OCO on a local STOP may be armed on the side opposite a pending LIMIT
+  (breakout both ways). Needs the tab open and Orders ON: a LIMIT filled while the tab is closed leaves the others in place.
+- **Safe runner (experimental)**: manages the exit of an open position. After a profit you set, the size is split into a tight
+  part, an optional pause-low part and a runner, each with a stop that follows the best price at a distance in ATR of the 1m
+  candles (the runner stays wide only when the 1h trend, EMA20 vs EMA50, agrees). The lowest stop (long) is the real stop on
+  Vest; the others live in this tab and close their part at market. OFF / VIEW (lines only) / LIVE; LIVE needs trailing and
+  auto BE off and comes back as VIEW after a reload. It reads the chart's candles from Vest. Minimum size first.
 - **Button and mode colours** (Settings): background, text and size of LIMIT, STOP, LONG, SHORT, FLAT and the colour of
   MANUAL / RISK PLAN / RISK ACTIVE.
 - **Card style** (*Chart display*): *Console* (default, same look as the panel), *Classic* or *Sonar* (amber on black, cut
@@ -93,7 +114,9 @@ Do not run two copies of this script at the same time (for example an old and a 
 
 ## Copier
 In the panel's Copier section each account is *—*, *Master* or *Copy*. Sizing is **1:1** (same size) or **Cap-to-fit**
-(proportional to equity, only scaling down, with a 5% margin). Every successful order of the master is mirrored on the copies,
+(proportional to equity, only scaling down, with a 5% margin) or **DD left** (a copy with less drawdown left than the master
+is scaled down in proportion, never up); a per-copy **multiplier** overrides them for that account. With the copier ON the tool
+trades only from the master. Every successful order of the master is mirrored on the copies,
 whether it comes from this tool or from Vest's own order ticket: market entries and adds, reductions, closes, FLAT, pending
 LIMIT/STOP orders and their cancellations, SL/TP. If the master's position disappears (SL/TP hit, closed on the site), the copies
 on that market are closed. FLATTEN ALL is not copied (it already closes everything).

@@ -49,7 +49,8 @@ async function request(path, opts = {}) {
     if (!isOrder) throw new Error(`blocked: ${op} (not allowed)`);
     if (!ordersEnabled && !(opts.emergency && EMERGENCY_WRITES.has(op))) throw new Error('orders off: switch them on in the panel');
   }
-  if (!path.startsWith('/v3/')) throw new Error('path not allowed: ' + bare);
+  // /v3/ API, plus the public candles of the chart (read-only, safe runner)
+  if (!path.startsWith('/v3/') && !(method === 'GET' && bare === '/v2/klines')) throw new Error('path not allowed: ' + bare);
   const headers = { Accept: 'application/json' };
   if (opts.token) headers.Authorization = 'Bearer ' + opts.token;
   if (opts.body !== undefined) headers['Content-Type'] = 'application/json';

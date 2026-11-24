@@ -22,6 +22,12 @@ test('Cap-to-fit only scales down', () => {
   // a few cents of difference: same size
   assert.deepStrictEqual(C.capQty({ mode: 'cap', masterQty: '2', mEq: 500.0, fEq: 499.99, step }), { qty: 2, scaled: false });
   assert.ok(C.capQty({ mode: 'cap', masterQty: '2', mEq: 50000, fEq: NaN, step }).skip);
+  // multiplier per copy: replaces 1:1 / Cap-to-fit, rounded down to the step
+  assert.deepStrictEqual(C.capQty({ mode: 'cap', masterQty: '2', mEq: 50000, fEq: 5000, step, mult: 0.5 }), { qty: 1, scaled: true });
+  assert.deepStrictEqual(C.capQty({ mode: '1:1', masterQty: '0.03', mEq: 1, fEq: 1, step: 0.01, mult: 1.25 }), { qty: 0.03, scaled: true });
+  assert.deepStrictEqual(C.capQty({ mode: '1:1', masterQty: '2', mEq: 1, fEq: 1, step, mult: 2 }), { qty: 4, scaled: true });
+  assert.deepStrictEqual(C.capQty({ mode: 'cap', masterQty: '2', mEq: 1, fEq: 1, step, mult: 1 }), { qty: 2, scaled: false });
+  assert.ok(C.capQty({ mode: '1:1', masterQty: '0.01', mEq: 1, fEq: 1, step: 0.01, mult: 0.5 }).skip);
 });
 
 test('market entry: open, or add if the copy is already on the same side', () => {
@@ -145,4 +151,27 @@ test('leftoverPh: empty placeholder left by a copy order just cancelled', () => 
   assert.strictEqual(C.leftoverPh({ placeholders: [], positions: [], orders: [] }, jc, 'NQ', 2000), false); // gone
   assert.strictEqual(C.leftoverPh({ placeholders: ph, positions: [], orders: [] }, jc, 'NQ', 12000), false); // too old
   assert.strictEqual(C.leftoverPh({ placeholders: ph, positions: [], orders: [] }, null, 'NQ', 2000), false); // nothing cancelled
+});
+
+test('DD left: same share of the drawdown left as the master, scaling down only', () => {
+  // copy with 600 $ left, master 2000 $: 30% of the size
+  assert.deepStrictEqual(C.capQty({ mode: 'dd', masterQty: '2', mRoom: 2000, fRoom: 600, step }), { qty: 0.6, scaled: true });
+  // copy with more left than the master: the master's size, never more
+  assert.deepStrictEqual(C.capQty({ mode: 'dd', masterQty: '2', mRoom: 600, fRoom: 2000, step }), { qty: 2, scaled: false });
+  // rounded down to the step (risk never above the master's share)
+  assert.deepStrictEqual(C.capQty({ mode: 'dd', masterQty: '1', mRoom: 3000, fRoom: 1000, step: 0.01 }), { qty: 0.33, scaled: true });
+  // unknown or used up: skipped, never the full size
+  assert.ok(C.capQty({ mode: 'dd', masterQty: '2', mRoom: 2000, fRoom: NaN, step }).skip);
+  assert.ok(C.capQty({ mode: 'dd', masterQty: '2', mRoom: 2000, fRoom: -5, step }).skip);
+  assert.ok(C.capQty({ mode: 'dd', masterQty: '2', mRoom: NaN, fRoom: 600, step }).skip);
+  // below the minimum size: skipped
+  assert.ok(C.capQty({ mode: 'dd', masterQty: '0.01', mRoom: 2000, fRoom: 10, step: 0.01 }).skip);
+  // the multiplier of a copy still wins
+  assert.deepStrictEqual(C.capQty({ mode: 'dd', masterQty: '2', mRoom: 2000, fRoom: 600, step, mult: 0.5 }), { qty: 1, scaled: true });
+  // through planFollower: an open on a flat copy gets the reduced size; an add keeps the copy's own proportion
+  const body = { symbol: 'NDX-USD-PERP', side: 'long', quantity: '2', orderType: 'market', leverage: '50' };
+  const a = C.planFollower({ action: 'open', body, mode: 'dd', mRoom: 2000, fRoom: 600, step, tick });
+  assert.strictEqual(+a.order.body.quantity, 0.6);
+  const add = C.planFollower({ action: 'append', body: { positionId: 'PM', quantity: '1', orderType: 'market', leverage: '50' }, mBefore: mPos, fPos: { ...fPos, qty: 0.6 }, mode: 'dd', mRoom: 2000, fRoom: 600, step, tick });
+  assert.strictEqual(+add.order.body.quantity, 0.3);
 });

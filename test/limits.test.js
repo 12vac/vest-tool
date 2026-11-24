@@ -40,3 +40,21 @@ test('room: daily = limit + P&L of the day, max = equity - total limit', () => {
   // down 150 on the day: ~46 left
   assert.strictEqual(limitsOf(real, { equity: 4758.94 }).dayLeft.toFixed(2), '46.35');
 });
+
+test('limits: manual daily drawdown limit and profit target replace Vest\'s (Instant accounts)', () => {
+  const { limitsOf: L } = require('../src/domain/account');
+  const a = { initial: 500, floor: null, dailyFloor: null }; // Instant: no daily limit, no target
+  const v = { equity: 498, dayPnl: -2 };
+  const auto = L(a, v);
+  assert.ok(Number.isNaN(auto.dayLimit));
+  assert.ok(Number.isNaN(auto.goal));
+  const m = L(a, v, { day: 10, goal: 50 });
+  assert.strictEqual(m.dayLimit, 10);
+  assert.strictEqual(m.dayLeft, 8); // 10 + today's -2
+  assert.strictEqual(m.dayUsed, 2);
+  assert.strictEqual(m.goal, 50);
+  assert.strictEqual(m.pl, -2);
+  assert.ok(m.dayManual && m.goalManual);
+  const off = L(a, v, { day: NaN, goal: NaN }); // switched OFF: back to Vest's
+  assert.ok(Number.isNaN(off.dayLimit) && !off.dayManual);
+});

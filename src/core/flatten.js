@@ -63,9 +63,9 @@ async function flattenAccount(id) {
 }
 
 /** All active accounts. Returns { found, left } (left > 0 = something was still open at the second round). */
-async function flattenAll() {
+async function flattenAll(only, why) {
   if (running) return null;
-  const ids = Object.keys(S.accounts);
+  const ids = only && only.length ? only.filter((id) => S.accounts[id]) : Object.keys(S.accounts); // only: some accounts (Account limits guard)
   if (!ids.length) {
     log.warn('FLATTEN ALL: no account loaded');
     return null;
@@ -74,7 +74,7 @@ async function flattenAll() {
   S.flattening = true;
   store.changed();
   const t0 = performance.now();
-  log.warn(`FLATTEN ALL: closing every position and cancelling every order on ${ids.length} accounts`);
+  log.warn(`FLATTEN ALL${why ? ' (' + why + ')' : ''}: closing every position and cancelling every order on ${ids.length} account${ids.length === 1 ? '' : 's'}`);
   try {
     const sweep = () =>
       Promise.all(

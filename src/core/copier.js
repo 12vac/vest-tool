@@ -1,4 +1,4 @@
-// Copier. One master account, one or more copies, sizing 1:1 or Cap-to-fit (reduce only).
+// Copier. One master account, one or more copies, sizing 1:1, Cap-to-fit or DD left (both reduce only).
 // EVERY successful order of the master is copied: the tool's own (orders.send) and those from Vest's order ticket (page
 // fetch/XHR, listened to and never modified): market entries/adds, reductions, closes, the card's FLAT, PENDING orders
 // (limits, ticket stops, limit reductions) with their cancellations, SL/TP on the position (added, moved, removed).
@@ -23,12 +23,13 @@ const { decodeJwt } = require('./jwt');
 const C = require('../domain/copy');
 const Z = require('../domain/sizing');
 const log = require('../diag/log');
+const F = require('../ui/format');
 const hooks = require('./hooks');
 
 const { S } = store;
 const CFG_KEY = 'vt1:copy'; // roles and mode (configuration, no amounts); the armed state is NEVER saved
 
-let cfg = { roles: {}, mode: 'cap' };
+let cfg = { roles: {}, mode: 'cap', dry: false, lim: {}, mult: {} }; // mult = { copy id: { on, x } } size multiplier per copy // dry = test mode; lim = { copy id: { loss: $ per day, pos: max positions } }
 try {
   Object.assign(cfg, JSON.parse(localStorage.getItem(CFG_KEY) || '{}'));
 } catch {
@@ -42,7 +43,44 @@ const save = () => {
   }
 };
 
-const st = { armed: false, master: null, followers: [], mode: 'cap', last: null };
+const st = { armed: false, master: null, followers: [], mode: 'cap', last: null, dry: false, mult: {} };
+const skips = new Map(); // copy -> { symbol, why, kind: 'small' | 'limit' | 'other', at }: last copy not made, for the sync status
+
+/**
+ * Every order to a COPY goes through here. TEST MODE: nothing is sent, the order is only written in the log
+ * (Gerry 2026-11-20): to see what the copier WOULD do, with real orders on the master only.
+ */
+function fsend(f, order, what, positionId) {
+  if (st.dry) {
+    log.info(`TEST (not sent) ${what}`);
+    return Promise.resolve({ test: true });
+  }
+  return orders.send(f, order, what, positionId, { copy: true });
+}
+function fflat(f, symbol) {
+  if (st.dry) {
+    log.info(`TEST (not sent) COPY ${label(f)}: FLAT ${symbol}`);
+    return Promise.resolve({ cancelled: 0, closed: 0 });
+  }
+  return flatten.flattenMarket(f, symbol);
+}
+
+/** Per-copy limits for an entry (open / add): reason to skip it, or null. Exits, SL / TP and cancels are always copied. */
+function limitWhy(f, symbol, action) {
+  if (action !== 'open' && action !== 'append') return null;
+  const L = (cfg.lim || {})[f] || {};
+  const loss = +L.loss,
+    maxPos = NaN; // Max positions removed (Gerry 2026-11-23): an old saved value no longer applies
+  if (loss > 0) {
+    const day = (store.values(f) || {}).dayPnl;
+    if (Number.isFinite(day) && day <= -loss) return `daily loss limit reached (today ${day.toFixed(2)} $, limit -${loss} $): entries not copied`;
+  }
+  if (maxPos > 0) {
+    const ps = ((S.state[f] || {}).positions || []).filter((p) => p.qty > 0);
+    if (!ps.some((p) => p.symbol === symbol) && ps.length >= maxPos) return `max ${maxPos} open position${maxPos > 1 ? 's' : ''} reached: new market not copied`;
+  }
+  return null;
+}
 
 // copied pending orders: key = id of the master's order (or market|price|size signature when Vest gives no id)
 // -> { symbol, sig, at, ids: { copy: id of its order | null } }. Memory only: after a reload the links are lost.
@@ -73,7 +111,7 @@ async function cancelLinked(l, why) {
         log.warn(`COPY ${label(f)}: pending order to cancel not found (${why})`);
         return Promise.reject(new Error('not found'));
       }
-      return orders.send(f, { method: 'POST', path: '/v3/positions/cancel-order', body: { orderId: id } }, `COPY ${label(f)}: cancel pending order (${why})`, null);
+      return fsend(f, { method: 'POST', path: '/v3/positions/cancel-order', body: { orderId: id } }, `COPY ${label(f)}: cancel pending order (${why})`, null);
     }),
   );
   st.followers.forEach((f, i) => {
@@ -110,16 +148,61 @@ function setRole(id, role) {
   save();
   store.changed();
 }
+const MODE_NAME = { '1:1': '1:1 (same size)', cap: 'Cap-to-fit (in proportion to equity, reduce only)', dd: 'DD left (same share of the drawdown left as the master, reduce only)' };
+const modeShort = (m) => (m === '1:1' ? '1:1' : m === 'dd' ? 'DD left' : 'Cap-to-fit');
+// $ left before an account fails (smaller of daily and max drawdown left), set by main.js
+let roomOf = () => NaN;
+function setRoom(fn) {
+  roomOf = fn;
+}
 function setMode(mode) {
   if (st.armed) throw new Error('stop the copier before changing the sizing');
-  cfg.mode = mode === '1:1' ? '1:1' : 'cap';
+  cfg.mode = mode === '1:1' || mode === 'dd' ? mode : 'cap';
   save();
   store.changed();
 }
 
 /** Why it cannot start, or null. */
+function setDry(on) {
+  if (st.armed) throw new Error('stop the copier before changing test mode');
+  cfg.dry = !!on;
+  save();
+  store.changed();
+}
+/** Multiplier of a copy: { on, x }; x read with a dot (a comma is accepted). Only while the copier is stopped. */
+const multOf = (m, id) => {
+  const r = (m || {})[id];
+  return r && r.on && r.x > 0 ? r.x : NaN;
+};
+function setMult(id, patch) {
+  if (st.armed) throw new Error('stop the copier before changing the multiplier');
+  cfg.mult = cfg.mult || {};
+  const r = { on: false, x: NaN, ...(cfg.mult[id] || {}) };
+  if ('on' in patch) r.on = !!patch.on;
+  if ('x' in patch) {
+    const n = parseFloat(String(patch.x).replace(',', '.'));
+    r.x = n > 0 && n <= 100 ? Math.round(n * 1000) / 1000 : NaN;
+    if (!(r.x > 0)) r.on = false;
+  }
+  if (r.on && !(r.x > 0)) throw new Error('type the multiplier first (e.g. 0.5 or 2.0)');
+  cfg.mult[id] = { on: r.on, x: r.x > 0 ? r.x : null };
+  save();
+  store.changed();
+}
+function setLimit(id, k, v) {
+  cfg.lim = cfg.lim || {};
+  const n = parseFloat(String(v).replace(',', '.'));
+  const L = { ...(cfg.lim[id] || {}) };
+  if (n > 0) L[k] = k === 'pos' ? Math.floor(n) : n;
+  else delete L[k];
+  if (Object.keys(L).length) cfg.lim[id] = L;
+  else delete cfg.lim[id];
+  save();
+  store.changed();
+}
+
 function cannotStart() {
-  if (!orders.enabled()) return 'switch Orders on first';
+  if (!orders.enabled() && !cfg.dry) return 'switch Orders on first (or tick test mode)';
   const m = masterId(),
     f = followerIds();
   if (!m) return 'choose the master account';
@@ -132,7 +215,17 @@ function cannotStart() {
 function describe() {
   const m = masterId(),
     f = followerIds();
-  return `Master: ${label(m)}\nCopies: ${f.map(label).join(', ')}\nSizing: ${cfg.mode === '1:1' ? '1:1 (same size)' : 'Cap-to-fit (in proportion to equity, reduce only)'}`;
+  return `${cfg.dry ? 'TEST MODE: nothing is sent to the copies, only written in the log\n' : ''}Master: ${label(m)}\nCopies: ${f.map(label).join(', ')}\nSizing: ${MODE_NAME[cfg.mode] || MODE_NAME.cap}${cfg.mode === 'dd' ? ddLines(m, f) : ''}${f.filter((id) => multOf(cfg.mult, id) > 0).map((id) => `\n${label(id)}: x${F.mult(multOf(cfg.mult, id))} of the master size (multiplier)`).join('')}`;
+}
+// DD left now, per account, for the START confirmation (it is read again at every entry)
+function ddLines(m, f) {
+  const usd = (x) => (Number.isFinite(x) ? `${Math.round(x)} $` : 'unknown');
+  const mr = roomOf(m);
+  return `\nDrawdown left now: ${label(m)} ${usd(mr)}` + f.filter((id) => !(multOf(cfg.mult, id) > 0)).map((id) => {
+    const r = roomOf(id);
+    const pct = r > 0 && mr > 0 ? Math.min(100, Math.floor((r / mr) * 100)) : NaN;
+    return `\n${label(id)}: ${usd(r)} -> ${Number.isFinite(pct) ? `${pct}% of the master size` : 'entries NOT copied'}`;
+  }).join('');
 }
 
 function start() {
@@ -141,13 +234,16 @@ function start() {
   st.master = masterId();
   st.followers = followerIds();
   st.mode = cfg.mode;
+  st.dry = !!cfg.dry;
+  st.mult = Object.fromEntries(st.followers.map((f) => [f, multOf(cfg.mult, f)]).filter(([, x]) => x > 0));
   st.armed = true;
+  skips.clear();
   st.last = null;
   held = new Set();
   watchMaster(); // markets already open on the master when switched on
   installPageHooks();
   for (const id of st.followers) session.accountToken(id).catch(() => {}); // tokens ready: the first copy does not wait for a mint
-  log.warn(`COPIER ON: ${label(st.master)} -> ${st.followers.map(label).join(', ')} (${st.mode === '1:1' ? '1:1' : 'Cap-to-fit'})`);
+  log.warn(`COPIER ON${st.dry ? ' (TEST MODE, nothing sent)' : ''}: ${label(st.master)} -> ${st.followers.map(label).join(', ')} (${modeShort(st.mode)})`);
   store.changed();
 }
 
@@ -193,7 +289,7 @@ async function exitCheck(sym, side) {
           return false;
         }
         const lev = p.leverage > 0 ? p.leverage : Z.maxLeverageFor(m.margin, S.accounts[f]);
-        await orders.send(f, Z.reduceOrder({ pos: p, qty: p.qty, leverage: lev, step: m.step }), `COPY ${label(f)}: master left ${label0}, closing ${p.qty}`, p.id);
+        await fsend(f, Z.reduceOrder({ pos: p, qty: p.qty, leverage: lev, step: m.step }), `COPY ${label(f)}: master left ${label0}, closing ${p.qty}`, p.id);
         return true;
       }),
     );
@@ -211,7 +307,7 @@ store.subscribe(watchMaster);
 
 // switching Orders off switches the copier off too (the copies would not be sent)
 orders.onChange(() => {
-  if (st.armed && !orders.enabled()) stop('Orders off');
+  if (st.armed && !st.dry && !orders.enabled()) stop('Orders off');
 });
 
 // copies' account tokens always ready while the copier is on (like the selected account's)
@@ -266,6 +362,7 @@ async function mirror({ accountId, order, before, via, res: mRes }) {
   if (!m) return log.warn(`MASTER ${action} (${src}): market ${symbol || '?'} not recognised, not copied`);
   if (action === 'open') await leftoversGone(symbol); // e.g. LIMIT moved by the plan: cancel + new /open on the master
   const mEq = (store.values(st.master) || {}).equity;
+  const mRoom = st.mode === 'dd' ? roomOf(st.master) : NaN;
   const t0 = performance.now();
   const plans = st.followers.map((f) => {
     const fs = S.state[f] || {};
@@ -282,8 +379,11 @@ async function mirror({ accountId, order, before, via, res: mRes }) {
         fPos: onSym(fs.positions, symbol),
         fPh: onSym(fs.placeholders, symbol),
         mode: st.mode,
+        mult: st.mult[f],
         mEq,
         fEq: (store.values(f) || {}).equity,
+        mRoom,
+        fRoom: st.mode === 'dd' ? roomOf(f) : NaN,
         step: m.step,
         tick: m.tick,
         fLev,
@@ -294,11 +394,15 @@ async function mirror({ accountId, order, before, via, res: mRes }) {
   if (nc) return log.warn(`MASTER (${src}): ${nc.plan.notCopied}`);
   const res = await Promise.allSettled(
     plans.map(({ f, plan }) => {
-      if (plan.skip) {
-        log.warn(`COPY ${label(f)}: ${plan.skip}${phNote(f, symbol)}`);
+      const lim = !plan.skip && limitWhy(f, symbol, action);
+      if (plan.skip || lim) {
+        const why = plan.skip || lim;
+        skips.set(f, { symbol, why, kind: lim ? 'limit' : /small|minimum|below|step/i.test(why) ? 'small' : 'other', at: Date.now() });
+        log.warn(`COPY ${label(f)}: ${why}${lim ? '' : phNote(f, symbol)}`);
         return Promise.reject(new Error('skipped'));
       }
-      return orders.send(f, plan.order, `COPY ${label(f)}: ${plan.label}`, plan.positionId);
+      if (action === 'open' || action === 'append') skips.delete(f);
+      return fsend(f, plan.order, `COPY ${label(f)}: ${plan.label}`, plan.positionId);
     }),
   );
   const ok = res.filter((r) => r.status === 'fulfilled').length;
@@ -357,11 +461,73 @@ async function mirrorCancelAll(accountId, symbol) {
 async function mirrorFlat(accountId, symbol) {
   if (!st.armed || accountId !== st.master || !symbol) return;
   for (const [k, l] of links) if (l.symbol === symbol) links.delete(k); // the copies' FLAT already cancels their orders
-  const res = await Promise.allSettled(st.followers.map((f) => flatten.flattenMarket(f, symbol)));
+  const res = await Promise.allSettled(st.followers.map((f) => fflat(f, symbol)));
   const ok = res.filter((r) => r.status === 'fulfilled').length;
   st.last = { at: Date.now(), action: 'FLAT', src: 'tool', ok, n: res.length, ms: null };
   log[ok === res.length ? 'info' : 'warn'](`Copy FLAT: ${ok}/${res.length} copies`);
   store.changed();
+}
+
+/**
+ * FLAT on the master with the copier OFF (Gerry 2026-11-20: after a reload the copier stays off, FLAT closed the master only
+ * and the copies had to be closed by hand). The copy accounts set in the roles are read fresh; if any of them has a position
+ * on that market, the user is ASKED (never automatic: a position there may have been opened by hand) and on OK each one gets
+ * the same FLAT. The copier is not switched on. Returns the number of copies flattened.
+ */
+async function flatIdleCopies(accountId, symbol) {
+  if (st.armed || !symbol || accountId !== masterId()) return 0;
+  const fs = followerIds().filter((f) => f !== accountId);
+  if (!fs.length) return 0;
+  const open = [];
+  await Promise.all(
+    fs.map(async (f) => {
+      try {
+        const ps = (await restPositions(f)).filter((p) => p.symbol === symbol && p.qty > 0);
+        for (const p of ps) open.push({ f, txt: `${label(f)}: ${String(p.side).toUpperCase()} ${p.qty}` });
+      } catch (e) {
+        log.warn(`FLAT copies: ${label(f)} not readable (${e.message})`);
+      }
+    }),
+  );
+  if (!open.length) return 0;
+  const ids = [...new Set(open.map((o) => o.f))];
+  const many = ids.length > 1;
+  const list = open.map((o) => o.txt).join('\n');
+  const ok = window.confirm(`Copier is OFF, but ${ids.length} copy account${many ? 's' : ''} still hold${many ? '' : 's'} ${symbol}:\n\n${list}\n\nFLAT them too (cancel their orders on this market and close at market)?`);
+  if (!ok) {
+    log.warn(`FLAT copies: copier off, ${ids.length} copies left open on ${symbol} (refused)`);
+    return 0;
+  }
+  const res = await Promise.allSettled(ids.map((f) => flatten.flattenMarket(f, symbol)));
+  const done = res.filter((r) => r.status === 'fulfilled').length;
+  log[done === ids.length ? 'info' : 'warn'](`FLAT copies (copier off): ${done}/${ids.length} copies flat on ${symbol}`);
+  store.changed();
+  return done;
+}
+
+/**
+ * Sync status of a copy on a market, for the Copier accounts table:
+ * { k: 'ok' | 'off' | 'small' | 'limit' | 'missing' | 'extra' | 'side', text }. Sides only: sizes differ on purpose with Cap-to-fit.
+ */
+/** Sync of a copy with the master on a market. Copier OFF: no mark at all (Gerry 2026-11-23: "!" only with the copier ON). */
+function syncOf(f, symbol) {
+  return st.armed ? syncRaw(f, symbol) : null;
+}
+function syncRaw(f, symbol) {
+  const mId = st.armed ? st.master : masterId();
+  if (!mId || f === mId) return null;
+  const mp = ((S.state[mId] || {}).positions || []).find((p) => p.symbol === symbol && p.qty > 0);
+  const fp = ((S.state[f] || {}).positions || []).find((p) => p.symbol === symbol && p.qty > 0);
+  const sk = skips.get(f);
+  if (!mp && !fp) return { k: st.armed ? 'ok' : 'off', text: st.armed ? 'in sync (both flat)' : 'copier off' };
+  if (mp && fp && mp.side === fp.side) return { k: 'ok', text: `in sync (${fp.side.toUpperCase()} ${fp.qty})` };
+  if (mp && fp) return { k: 'side', text: `OUT OF SYNC: master ${mp.side.toUpperCase()}, copy ${fp.side.toUpperCase()}` };
+  if (mp && !fp) {
+    if (sk && sk.symbol === symbol && sk.kind === 'small') return { k: 'small', text: `too small: ${sk.why}` };
+    if (sk && sk.symbol === symbol && sk.kind === 'limit') return { k: 'limit', text: `limit: ${sk.why}` };
+    return { k: 'missing', text: `OUT OF SYNC: master ${mp.side.toUpperCase()} ${mp.qty}, copy flat${st.armed ? '' : ' (copier off)'}` };
+  }
+  return { k: 'extra', text: `OUT OF SYNC: master flat, copy ${fp.side.toUpperCase()} ${fp.qty}` };
 }
 
 // ── orders made by the page (Vest's order ticket): fetch and XHR are listened to, never modified. Installed at the first START.
@@ -455,6 +621,10 @@ function installPageHooks() {
   }
 }
 
+// copier ON: the tool trades only on the master (Gerry 2026-11-23: a SHORT went to copy 23, selected by mistake, and was not
+// copied). Only NEW entries (open / append) are refused on the other accounts: FLAT, close, reduce, cancel, SL / TP stay allowed.
+orders.setAccountGuard((id) => (st.armed && id !== st.master ? `Copier ON: entries only from the master ${label(st.master)} (selected: ${label(id)})` : null));
+
 // tool orders: orders.send notifies after every successful order, with the account snapshot taken before sending
 orders.onSent((x) => mirror({ ...x, via: 'tool' }).catch((e) => log.error('Copy: ' + e.message)), snapshot);
 
@@ -465,8 +635,15 @@ module.exports = {
   describe,
   setRole,
   setMode,
+  setRoom,
   mirrorFlat,
+  flatIdleCopies,
+  setDry,
+  setLimit,
+  setMult,
+  multOf: (id) => multOf(st.armed ? Object.fromEntries(Object.entries(st.mult).map(([k, x]) => [k, { on: true, x }])) : cfg.mult, id),
+  syncOf,
   mirrorCancelAll,
-  state: () => ({ armed: st.armed, master: st.armed ? st.master : masterId(), followers: st.armed ? st.followers : followerIds(), mode: st.armed ? st.mode : cfg.mode, roles: { ...cfg.roles }, last: st.last }),
+  state: () => ({ dry: st.armed ? st.dry : !!cfg.dry, lim: { ...(cfg.lim || {}) }, mult: JSON.parse(JSON.stringify(cfg.mult || {})), armed: st.armed, master: st.armed ? st.master : masterId(), followers: st.armed ? st.followers : followerIds(), mode: st.armed ? st.mode : cfg.mode, roles: { ...cfg.roles }, last: st.last }),
   isFollower: (id) => st.armed && st.followers.includes(id),
 };

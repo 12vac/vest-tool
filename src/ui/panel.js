@@ -6,41 +6,10 @@ const { HELP } = require('./help');
 const store = require('../core/store');
 const log = require('../diag/log');
 const dock = require('./dock');
+const CS = require('./chartstyle');
 
 const UI_KEY = 'vt1:ui';
-// chart overlay lines: [kind, name, default colour] (colour, dash and width of each one can be changed)
-const LINE_KINDS = [
-  ['long', 'LONG', '#3ecf8e'],
-  ['short', 'SHORT', '#ff6b61'],
-  ['avg', 'AVG ALL', '#5ad1e6'],
-  ['avg1', 'AVG NEXT', '#5ad1e6'],
-  ['avgn', 'AVG NEW', '#5ad1e6'],
-  ['ko', 'FAIL', '#c58cff'],
-  ['dd50', '50% DRAWDOWN', '#f472b6'],
-  ['mfp', 'FAIL NEW', '#ff9f43'],
-  ['tp', 'TP', '#3ecf8e'],
-  ['sl', 'SL', '#ff6b61'],
-  ['lm', 'LIMIT', '#7fb2ff'],
-  ['st', 'STOP', '#e8b84a'],
-];
-// trailing and BE segments between candles and labels: [kind, name, colour, dash]; width 3, automatic length
-const SEG_KINDS = [
-  ['tstop', 'Trailing: stop', '#ff9f43', 'solid'],
-  ['tact', 'Trailing: start level', '#5ad1e6', 'solid'],
-  ['tnext', 'Trailing: next step', '#a3e635', 'solid'],
-  ['beplus', 'BE+', '#e879f9', 'solid'],
-  ['beauto', 'Auto BE', '#e879f9', 'dashed'],
-];
-// last swing high / low: short lines between the cards and the price axis (fixed length)
-const HL_KINDS = [
-  ['hhigh', 'Last swing high', '#3ecf8e', 'solid'],
-  ['hlow', 'Last swing low', '#ff6b61', 'solid'],
-];
-const LINE_DEFAULTS = Object.fromEntries([
-  ...LINE_KINDS.flatMap(([k, , c]) => [['lc_' + k, c], ['ls_' + k, 'dashed'], ['lw_' + k, '1']]),
-  ...SEG_KINDS.flatMap(([k, , c, s]) => [['lc_' + k, c], ['ls_' + k, s], ['lw_' + k, '3'], ['ll_' + k, '']]),
-  ...HL_KINDS.flatMap(([k, , c, s]) => [['lc_' + k, c], ['ls_' + k, s], ['lw_' + k, '2']]),
-]);
+const LINE_DEFAULTS = CS.defaults(); // lines and labels on the chart: src/ui/chartstyle.js
 // colours of the entry buttons and FLAT in Trade commands, and of the mode words: [key, name, default]
 const BTN_COLS = [
   ['lm', 'LIMIT', '#1d4ed8', '#e0ecff'],
@@ -64,10 +33,11 @@ let root = null,
   panel = null,
   els = {},
   handlers = {};
-let ui = { ...LINE_DEFAULTS, ...COL_DEFAULTS, qc: '#ffb402', qsz: '11', qb: true, trOn: false, trUnit: 'pt', trAct: '', trDist: '', trStep: '', beOn: false, beUnit: 'pt', beOff: '', beAuto: false, beAt: '', x: null, y: null, min: false, lines: true, overlay: true, dd50: true, hideVest: true, blockPct: 125, chipPct: 100, roomPx: 360, cdOn: true, theme: 'console', dock: true, dockW: 420, pstyle: 'console', cardsAt: 'column', hlOn: true, hlK: 2, atrOn: true, atrH: 14, atrR: 3, pp0: 1, pp1: 2, pp2: 4, pp3: 8, pp4: 5, pp5: 16, dailyGoal: '', closePct: 100, sizePct: 1, capPct: 10, mode: 'pos', slUsd: '', tpUsd: '', side: 'long', qty: '', entry: '', symbol: calc.DEFAULT_SYMBOL };
+let ui = { ...LINE_DEFAULTS, ...COL_DEFAULTS, qc: '#ffb402', qsz: '11', qb: true, trOn: false, trUnit: 'pt', trAct: '', trDist: '', trStep: '', beOn: false, beUnit: 'pt', beOff: '', beAuto: false, beAt: '', brOn: false, brSl: '', brTp: '', brDca: false, gdOn: false, gdEnOn: false, gdTpOn: true, gdSlOn: true, gdEnAvg: true, gdTpAvg: true, gdSlAvg: true, gdEnOv: '', gdEnFixPx: '', gdTpOv: '', gdSlOv: '', gdEnMan: '', gdTpMan: '', gdSlMan: '', gdEnSide: 'long', gdEnNear: '', gdEnFar: '', gdEnMid: '2', gdEnPct: '', gdEnDist: 'equal', gdEnSize: 'equal', gdEnCustom: '', gdTpNear: '', gdTpFar: '', gdTpMid: '1', gdTpPct: '100', gdTpDist: 'equal', gdTpSize: 'equal', gdTpCustom: '', gdSlNear: '', gdSlFar: '', gdSlMid: '0', gdSlDist: 'equal', gdSlSize: 'equal', gdSlCustom: '', ocoOn: false, srMode: 'off', srAct: '10', srLock: '1', srTight: '0.3', srRunPct: '33', srRunAtr: '3', srPausePct: '0', srGate: true, srClimax: false, x: null, y: null, min: false, lines: true, overlay: true, dd50: true, dd25On: true, dd75On: true, ddP1: 25, ddP2: 50, ddP3: 75, hideVest: true, blockPct: 125, chipPct: 100, roomPx: 360, cdOn: true, theme: 'console', dock: true, dockW: 420, pstyle: 'console', cardsAt: 'column', hlOn: true, hlK: 2, atrOn: true, atrH: 14, atrR: 3, pp0: 1, pp1: 2, pp2: 4, pp3: 8, pp4: 5, pp5: 16, dailyGoal: '', closePct: 100, sizePct: 1, capPct: 10, mode: 'pos', slUsd: '', tpUsd: '', side: 'long', qty: '', entry: '', symbol: calc.DEFAULT_SYMBOL };
 
 try {
   Object.assign(ui, JSON.parse(localStorage.getItem(UI_KEY) || '{}'));
+  ui.gdOn = false; // the grid starts OFF at every reload (never PLAN / ACTIVE by itself)
 } catch {
   /* default settings */
 }
@@ -77,6 +47,8 @@ if (ui.bc_flat_bg === '#d4a514' && ui.bc_flat_tx === '#17181b') Object.assign(ui
 // trailing and auto BE send orders on their own: off after every reload, like Orders (never re-armed automatically)
 ui.trOn = false;
 ui.beAuto = false;
+// safe runner: LIVE sends orders on its own: after a reload it comes back as VIEW (lines only), never live
+if (ui.srMode === 'live') ui.srMode = 'view';
 const saveUi = () => {
   try {
     localStorage.setItem(UI_KEY, JSON.stringify(ui));
@@ -87,7 +59,7 @@ const saveUi = () => {
 
 // ── layout: foldable sections, each with a "?" that opens its explanation (texts in help.js)
 // sections open by default; the others start folded. ui.fold remembers what the user opened or closed.
-const OPEN_DEFAULT = { overview: true, trade: true, copier: true, accounts: true };
+const OPEN_DEFAULT = { overview: true, copier: true };
 const isOpen = (k) => (ui.fold && k in ui.fold ? !!ui.fold[k] : !!OPEN_DEFAULT[k]);
 const info = (k) => `<button class="qi" data-info="${k}" aria-label="What is this?">?</button>`;
 const sec = (k, title, body) =>
@@ -104,88 +76,111 @@ const SKELETON = `
 <div class="dockbg" data-dockbg></div>
 <div class="panel">
   <div class="head" data-drag>
-    <span class="title">VestTool</span><span class="hdord" style="display:none"><button class="btn ord" data-act="orders" data-ord>Orders: OFF</button>${info('orders')}</span><span class="muted" data-ver></span><span class="say" data-say></span><span class="hbr"></span>
+    <span class="title">VestTool</span><span class="hdord" style="display:none"><button class="btn ord" data-act="orders" data-ord>Orders: OFF</button>${info('orders')}</span><span class="muted" data-ver></span><span class="say" data-say></span><span class="hwait" data-hwait style="display:none"></span><span class="htg"><span class="htl">ORDERS</span><button class="htb" data-act="orders" data-hord title="ORDERS ON: the tool's buttons send real orders to the account active on Vest">OFF</button><span class="htl" data-hcpl>COPY</span><button class="htb" data-act="copy" data-hcpy title="COPY ON: every order of the master is copied to the copy accounts">OFF</button></span><span class="hbr"></span>
     <span class="hinfo" data-hinfo></span>
     <div class="dots" data-dots></div>
     <button class="btn" data-act="min" title="Minimise (Alt+Shift+V)">–</button>
     <div class="hpos" data-hpos style="display:none"></div>
   </div>
   <div class="body">
-    ${sec('overview', 'Overview', `
-      <div class="tot" data-totals></div>
-      <div class="pl">
-        <div class="plhead"><div><div class="plbig" data-plbig></div><div class="plsub" data-plsub></div></div>
-          <span class="opt"><button class="btn flatall" data-act="flatall" data-flatall>FLATTEN ALL</button>${info('flatall')}</span></div>
-        <div class="placc" data-placc></div>
-      </div>`)}
-    ${sec('trade', '<span data-trtitle>Trade</span>', `
-      <div class="trd">
-        <div class="trh"><b data-trsym></b><span class="lev" data-trlev></span><b class="trpx" data-trpx></b></div>
-        <div class="trs" data-trsize></div>
-        <div class="bars">
-          <div class="bar"><div class="bl"><span>MARGIN</span><span data-mtxt></span></div><div class="track"><i data-mfill></i></div></div>
-          <div class="bar"><div class="bl"><span>RISK</span><span data-rtxt></span></div><div class="track"><i data-rfill></i></div></div>
-        </div>
-        <h4>Pending orders</h4>
-        <div class="pend" data-pend></div>
-      </div>`)}
-    ${sec('copier', 'Copier', `
+    <div class="group">Accounts</div>
+    ${sec('overview', 'Accounts overview', `
+      <div class="ovh"><span class="muted" data-ovsub></span>
+        <span class="opt"><button class="btn flatall" data-act="flatall" data-flatall>FLATTEN ALL</button>${info('flatall')}</span></div>
+      <table class="acct" data-accounts></table>
+      <div class="selinfo" data-selinfo></div>
+      <h4 style="margin-top:8px">Open positions</h4><div data-positions></div>
+      <h4 style="margin-top:8px">Pending orders</h4><div class="pend" data-pend></div>`)}
+    <div class="group">Copier</div>
+    ${sec('copier', 'Copier accounts', `
       <div class="copy">
-        <div class="cprow"><span class="muted">Sizing</span><button class="btn seg" data-cmode="1:1">1:1</button><button class="btn seg" data-cmode="cap">Cap-to-fit</button>
+        <div class="cprow"><span class="muted">Sizing</span><button class="btn seg" data-cmode="1:1">1:1</button><button class="btn seg" data-cmode="cap">Cap-to-fit</button><button class="btn seg" data-cmode="dd">DD left</button>
           <span class="cpst" data-cpst></span><button class="btn cpgo" data-act="copy" data-cpgo>START</button></div>
+        <label class="cpdry"><input type="checkbox" data-cpdry> Test mode: copies are only written in the log, nothing is sent to the copy accounts</label>
         <table class="cpacc" data-cpacc></table>
         <div class="note" data-cplast></div>
       </div>`)}
-    ${sec('accounts', 'Accounts and positions', `
-      <table data-accounts></table>
-      <h4 data-pos-title style="margin-top:8px">Positions</h4><div data-positions></div>`)}
-    <div class="group">Settings</div>
-    ${sec('layout', 'Panel layout', `
+    <div class="group">Settings of the column sections</div>
+    ${sec('size', 'Trade commands settings', `
+      <div class="row">
+        ${opt('capPct', `size cap ${num('capPct', 38)}%`)}
+        ${opt('presets', `presets ${['pp0', 'pp1', 'pp2', 'pp3', 'pp4', 'pp5'].map((k) => num(k, 30)).join('')}%`)}
+      </div>`)}
+    ${sec('manlim', 'Account limits settings', `
+      <div class="row">
+        ${opt('manDay', `${chk('mdOn', 'manual daily drawdown limit $')}${num('mdUsd', 56)}`)}
+      </div>
+      <div class="row">
+        ${opt('manTgt', `${chk('mtOn', 'manual account profit target $')}${num('mtUsd', 56)}`)}
+      </div>
+      <div class="row">
+        ${opt('dd50', `drawdown labels ${chk('dd25On', '')}${num('ddP1', 30)}% ${chk('dd50', '')}${num('ddP2', 30)}% ${chk('dd75On', '')}${num('ddP3', 30)}%`)}
+      </div>`)}
+    <div class="group">Layout</div>
+    ${sec('layout', 'Panel and column', `
       <div class="row">
         ${opt('dock', `column width ${num('dockW', 40)} px`)}
         ${opt('pstyle', `panel style <select data-in="pstyle" style="width:88px"><option value="console">Console</option><option value="classic">Classic</option></select>`)}
       </div>`)}
-    ${sec('size', 'Order size and daily goal', `
-      <div class="row">
-        ${opt('capPct', `size cap ${num('capPct', 38)}%`)}
-        ${opt('presets', `presets ${['pp0', 'pp1', 'pp2', 'pp3', 'pp4', 'pp5'].map((k) => num(k, 30)).join('')}%`)}
-        ${opt('dailyGoal', `daily goal $${num('dailyGoal', 56)}`)}
-      </div>`)}
-    ${sec('stops', 'Trailing stop and breakeven', `
-      <div class="row">
-        ${opt('trailing', `${chk('trOn', 'trailing')} &nbsp;unit ${unit('trUnit')} &nbsp;start after ${num('trAct', 44, 'empty')} &nbsp;pullback ${num('trDist', 44, 'empty')} &nbsp;step ${num('trStep', 44, 'empty')}`)}
-      </div>
-      <div class="row">
-        ${opt('breakeven', `${chk('beOn', 'BE+')} &nbsp;unit ${unit('beUnit')} &nbsp;profit ${num('beOff', 44, 'empty')} &nbsp;${chk('beAuto', 'auto BE after')} ${num('beAt', 44, 'empty')}`)}
-      </div>
-      <div class="note" data-trst></div>`)}
     ${sec('display', 'Chart display', `
       <div class="row">
         ${opt('overlay', chk('overlay', 'trade overlay (cards)'))}
         ${opt('lines', chk('lines', 'lines on the chart'))}
-        ${opt('dd50', chk('dd50', '50% drawdown label'))}
         ${opt('hideVest', chk('hideVest', 'hide Vest lines'))}
         ${opt('countdown', chk('cdOn', 'candle countdown'))}
-        ${opt('hilo', `${chk('hlOn', 'last swing high/low lines, swing =')} ${num('hlK', 30)} candles each side`)}
-        ${opt('atr', `${chk('atrOn', 'volatility heatmap: last')} ${num('atrR', 30)} candles vs last ${num('atrH', 34)} hours`)}
       </div>
       <div class="row">
         ${opt('theme', `card style <select data-in="theme" style="width:88px"><option value="console">Console</option><option value="classic">Classic</option><option value="sonar">Sonar</option></select>`)}
         ${opt('blockPct', `card scale ${num('blockPct', 40)}%`)}
         ${opt('chipPct', `label scale ${num('chipPct', 40)}%`)}
-        ${opt('roomPx', `label space ${num('roomPx', 40)}px`)}
       </div>
       <div class="row">
-        ${opt('qty', `quantities: colour <input type="color" data-in="qc" style="width:34px;height:20px;padding:0 2px"> size <select data-in="qsz" style="width:64px">${[9, 10, 11, 12, 13, 14, 15, 16].map((v) => `<option value="${v}">${v} px</option>`).join('')}</select> ${chk('qb', 'bold')}`)}
+      </div>
+      <div class="row">
+        ${opt('roomPx', `space between the last candle and the price axis ${num('roomPx', 44)} px`)}
+      </div>
+      <div class="row">
+        ${opt('hilo', `${chk('hlOn', 'swing range: last swing high / low lines, swing =')} ${num('hlK', 30)} candles each side`)}
+      </div>
+      <div class="note" data-swst></div>`)}
+    ${sec('colours', 'Chart lines and labels', `
+      <div class="csed">
+        <label class="csel">Element <select data-csel>${[...new Set(CS.ELEMENTS.map((e) => e[2]))].map((g) => `<optgroup label="${g}">${CS.ELEMENTS.filter((e) => e[2] === g).map(([k, n]) => `<option value="${k}">${n}</option>`).join('')}</optgroup>`).join('')}</select></label>
+        <div class="csprev" data-csprev><div class="csline"></div><div class="cschip"><span class="k">NAME</span><b>25,000.00</b><span class="qy">0.5</span><span class="up">+$12.50</span></div></div>
+        <div class="csh4">Line</div>
+        <div class="csrow">
+          <label>colour <input type="color" data-cs="lc"></label>
+          <label>style <select data-cs="ls">${CS.DASHES.map((d) => `<option value="${d}">${d === 'dashdot' ? 'dash-dot' : d}</option>`).join('')}</select></label>
+          <label>width <select data-cs="lw">${[1, 2, 3, 4, 5, 6].map((w) => `<option value="${w}">${w} px</option>`).join('')}</select></label>
+          <label data-csseg>length <input data-cs="ll" inputmode="decimal" placeholder="auto" style="width:52px"> px</label>
+        </div>
+        <div data-cslab>
+          <div class="csh4">Label</div>
+          <div class="csrow">
+            <label>background <input type="color" data-cs="cbg"></label>
+            <label>border <input type="color" data-cs="cbo"></label>
+            <label>border width <select data-cs="cbw"><option value="">default</option>${[0, 1, 2, 3, 4].map((w) => `<option value="${w}">${w} px</option>`).join('')}</select></label>
+          </div>
+          <div class="csrow">
+            <label>name colour <input type="color" data-cs="cn"></label>
+            <label><input type="checkbox" data-cs="cnbOn"> name filled <input type="color" data-cs="cnb"></label>
+          </div>
+          <div class="csrow">
+            <label>text size <select data-cs="cfs"><option value="">default</option>${[9, 10, 11, 12, 13, 14, 15, 16, 18, 20].map((v) => `<option value="${v}">${v} px</option>`).join('')}</select></label>
+            <label>weight <select data-cs="cfw"><option value="">default</option><option value="b">bold</option><option value="n">normal</option></select></label>
+          </div>
+        </div>
+        <div class="csrow"><button class="btn" data-act="csreset">Default for this element</button><button class="btn" data-act="csresetall">All lines and labels to default</button></div>
+        <div class="csh4">All labels</div>
+        <div class="csrow">
+          <label>price <input type="color" data-cc="cpx"></label>
+          <label>profit <input type="color" data-cc="cup"></label>
+          <label>loss <input type="color" data-cc="cdn"></label>
+        </div>
+        <div class="csrow">
+          ${opt('qty', `quantities <input type="color" data-in="qc"> size <select data-in="qsz" style="width:72px">${[9, 10, 11, 12, 13, 14, 15, 16].map((v) => `<option value="${v}">${v} px</option>`).join('')}</select> ${chk('qb', 'bold')}`)}
+        </div>
       </div>`)}
-    ${sec('colours', 'Line colours', `
-      <table class="lstyle">
-        ${LINE_KINDS.map(([k, name]) => `<tr><td>${name}</td><td><input type="color" data-in="lc_${k}"></td><td><select data-in="ls_${k}"><option value="dashed">dashed</option><option value="dotted">dotted</option><option value="solid">solid</option></select></td><td><select data-in="lw_${k}">${[1, 2, 3, 4].map((w) => `<option value="${w}">${w} px</option>`).join('')}</select></td><td></td></tr>`).join('')}
-        <tr><td colspan="5"><h4 style="margin-top:6px">Trailing and BE segments (length in px, empty = automatic)</h4></td></tr>
-        ${SEG_KINDS.map(([k, name]) => `<tr><td>${name}</td><td><input type="color" data-in="lc_${k}"></td><td><select data-in="ls_${k}"><option value="solid">solid</option><option value="dashed">dashed</option><option value="dotted">dotted</option></select></td><td><select data-in="lw_${k}">${[1, 2, 3, 4, 5, 6].map((w) => `<option value="${w}">${w} px</option>`).join('')}</select></td><td><input data-in="ll_${k}" inputmode="decimal" placeholder="auto" style="width:44px"> px</td></tr>`).join('')}
-        <tr><td colspan="5"><h4 style="margin-top:6px">Last swing high / low</h4></td></tr>
-        ${HL_KINDS.map(([k, name]) => `<tr><td>${name}</td><td><input type="color" data-in="lc_${k}"></td><td><select data-in="ls_${k}"><option value="solid">solid</option><option value="dashed">dashed</option><option value="dotted">dotted</option></select></td><td><select data-in="lw_${k}">${[1, 2, 3, 4].map((w) => `<option value="${w}">${w} px</option>`).join('')}</select></td><td></td></tr>`).join('')}
-      </table>`)}
     ${sec('btncol', 'Button and mode colours', `
       <table class="lstyle">
         <tr><td></td><td class="muted">background</td><td class="muted">text</td><td class="muted">size</td></tr>
@@ -195,6 +190,7 @@ const SKELETON = `
         ${MODE_COLS.map(([k, name]) => `<tr><td>${name}</td><td><input type="color" data-in="mc_${k}"></td><td>${modeSize(`mc_${k}_fs`, [9, 10, 11, 12, 13, 14, 15, 16, 18, 20])}</td><td>${k === 'manual' ? '' : modeSize(`mc_${k}_lfs`, [8, 9, 10, 11, 12, 13, 14, 15, 16])}</td><td><select data-in="mc_${k}_fw"><option value="">default</option><option value="b">bold</option><option value="n">normal</option></select></td></tr>`).join('')}
       </table>
       <div class="row"><button class="btn" data-act="colreset">Default colours</button></div>`)}
+    <div class="group">Other</div>
     ${sec('calc', 'SL / TP calculator', `
       <div class="calc">
         <label>Base<select data-in="mode"><option value="pos">Account position</option><option value="man">Manual</option></select></label>
@@ -230,8 +226,7 @@ function mount(version, h) {
   root.innerHTML = `<style>${css}</style>${SKELETON}`;
   document.documentElement.appendChild(host);
   panel = root.querySelector('.panel');
-  for (const k of ['trsize', 'trtitle', 'trsym', 'trlev', 'trpx', 'mtxt', 'mfill', 'rtxt', 'rfill', 'pend', 'dots', 'totals', 'plbig', 'plsub', 'placc', 'flatall', 'accounts', 'positions', 'calc', 'checks', 'log', 'sync', 'manual', 'ver', 'ord', 'cpst', 'cpgo', 'cpacc', 'cplast', 'trst', 'say', 'hinfo', 'hpos']) els[k] = root.querySelector(`[data-${k}]`);
-  els.posTitle = root.querySelector('[data-pos-title]');
+  for (const k of ['pend', 'dots', 'ovsub', 'selinfo', 'flatall', 'accounts', 'positions', 'calc', 'checks', 'log', 'sync', 'manual', 'ver', 'ord', 'cpst', 'cpgo', 'cpacc', 'cplast', 'trst', 'srst', 'say', 'hinfo', 'hpos', 'hord', 'hcpy', 'hcpl', 'hwait']) els[k] = root.querySelector(`[data-${k}]`);
   els.pop = root.querySelector('[data-pop]');
   els.popt = root.querySelector('[data-popt]');
   els.poph = root.querySelector('[data-poph]');
@@ -251,7 +246,18 @@ function mount(version, h) {
     if (inp.type === 'checkbox') inp.checked = !!ui[k];
     else inp.value = ui[k] ?? '';
     inp.addEventListener(inp.type === 'checkbox' || inp.tagName === 'SELECT' ? 'change' : 'input', () => {
+      if (k === 'srMode' && inp.value === 'live' && ui.srMode !== 'live') {
+        const ok = window.confirm(`Safe runner LIVE (experimental)?
+
+Once the profit reaches "start after", it moves the stop on Vest and closes parts of the position at market by itself (with Orders ON, while this tab is open).
+After a reload it comes back as VIEW.`);
+        if (!ok) {
+          inp.value = ui.srMode;
+          return;
+        }
+      }
       ui[k] = inp.type === 'checkbox' ? inp.checked : inp.value.trim().replace(',', '.');
+      exclusive(k, ui[k]);
       saveUi();
       if (k === 'dock' || k === 'dockW' || k === 'pstyle' || k === 'cardsAt') layout(k !== 'dockW'); // width: wait for the typing to stop
       handlers.onInput && handlers.onInput();
@@ -266,7 +272,7 @@ function mount(version, h) {
     if (fo) return fold(fo.dataset.fold);
     const cx = e.target.closest('[data-cancel]');
     if (cx) {
-      const it = lastPend.find((x) => String(x.id) === cx.dataset.cancel);
+      const it = lastPend.find((x) => x.key === cx.dataset.cancel);
       if (it) {
         cx.disabled = true;
         handlers.cancelPending(it).catch((err) => log.error('Cancel failed: ' + err.message));
@@ -278,15 +284,45 @@ function mount(version, h) {
     const b = e.target.closest('[data-act]');
     if (b) return act(b.dataset.act);
   });
+  // Chart lines and labels editor
+  root.addEventListener('change', (e) => {
+    const sel = e.target.closest('select[data-csel]');
+    if (sel) {
+      csKind = sel.value;
+      return csFill();
+    }
+    const f = e.target.closest('[data-cs]');
+    if (f && (f.type === 'checkbox' || f.tagName === 'SELECT')) return csSet(f.dataset.cs, f.type === 'checkbox' ? f.checked : f.value);
+    const cc = e.target.closest('[data-cc]');
+    if (cc) {
+      ui[cc.dataset.cc] = cc.value;
+      saveUi();
+      csFill();
+      handlers.onInput && handlers.onInput();
+    }
+  });
+  root.addEventListener('input', (e) => {
+    const f = e.target.closest('[data-cs]');
+    if (f && f.type !== 'checkbox' && f.tagName !== 'SELECT') csSet(f.dataset.cs, f.value.trim());
+  });
+  csFill();
   root.addEventListener('change', (e) => {
     const al = e.target.closest('input[data-alias]');
     if (al) return store.setAlias(al.dataset.alias, al.value);
     const r = e.target.closest('select[data-crole]');
-    if (r) copyTry(() => handlers.copy.setRole(r.dataset.crole, r.value));
+    if (r) return copyTry(() => handlers.copy.setRole(r.dataset.crole, r.value));
+    const dr = e.target.closest('input[data-cpdry]');
+    if (dr) return copyTry(() => handlers.copy.setDry(dr.checked));
+    const mo = e.target.closest('input[data-cmon]');
+    if (mo) return copyTry(() => handlers.copy.setMult(mo.dataset.cmon, { on: mo.checked }));
+    const mx = e.target.closest('input[data-cmx]');
+    if (mx) return copyTry(() => handlers.copy.setMult(mx.dataset.cmx, { x: mx.value }));
+    const lm = e.target.closest('input[data-clim]');
+    if (lm) copyTry(() => handlers.copy.setLimit(lm.dataset.clim, lm.dataset.k, lm.value));
   });
   // account selected on PRESS: rows are redrawn at every price and a click could get lost
   root.addEventListener('pointerdown', (e) => {
-    const tr = e.target.closest('tr[data-id], .pla[data-id]'); // table or P&L row: selects the account
+    const tr = e.target.closest('tr[data-id]'); // accounts table row: selects the account
     if (!tr) return;
     S.selected = tr.dataset.id;
     handlers.onInput && handlers.onInput();
@@ -354,6 +390,18 @@ function act(a) {
     panel.classList.toggle('min', ui.min);
     saveUi();
     layout(true);
+  } else if (a === 'csreset' || a === 'csresetall') {
+    const kinds = a === 'csreset' ? [csKind] : CS.ELEMENTS.map((e) => e[0]);
+    const d = CS.defaults();
+    for (const k of kinds) for (const f of CS.FIELDS) {
+      const key = f + '_' + k;
+      if (key in d) ui[key] = d[key];
+      else delete ui[key];
+    }
+    if (a === 'csresetall') for (const k of ['cpx', 'cup', 'cdn']) delete ui[k];
+    saveUi();
+    csFill();
+    handlers.onInput && handlers.onInput();
   } else if (a === 'colreset') {
     for (const [k, v] of Object.entries(COL_DEFAULTS)) {
       ui[k] = v;
@@ -391,6 +439,8 @@ function renderCopy(ids, vals) {
     b.classList.toggle('on', b.dataset.cmode === c.mode);
     b.disabled = c.armed;
   }
+  const withX = c.followers.filter((id) => c.mult && c.mult[id] && c.mult[id].on && c.mult[id].x > 0);
+  for (const b of root.querySelectorAll('[data-cmode]')) b.title = withX.length ? `Not used by ${withX.map((id) => (S.accounts[id] || {}).label || id).join(', ')}: multiplier ON` : '';
   els.cpgo.textContent = c.armed ? 'STOP' : 'START';
   els.cpgo.classList.toggle('on', c.armed);
   const name = (id) => (S.accounts[id] ? S.accounts[id].label : '?');
@@ -398,23 +448,42 @@ function renderCopy(ids, vals) {
     ? `<b class="up">ACTIVE</b> ${F.esc(name(c.master))} → ${c.followers.length} cop${c.followers.length === 1 ? 'y' : 'ies'}`
     : '<span class="muted">off</span>';
   // the <select> is rebuilt only when something changes: redrawing it at every price would close an open dropdown
-  const key = JSON.stringify([ids, c.roles, c.armed, ids.map((id) => S.accounts[id].label), ids.map((id) => store.activityOf(id).tip)]);
+  const dry = root.querySelector('[data-cpdry]');
+  if (dry) {
+    dry.checked = !!c.dry;
+    dry.disabled = c.armed;
+  }
+  const key = JSON.stringify([ids, c.roles, c.armed, c.lim, c.mult, c.mode, ids.map((id) => S.accounts[id].label), ids.map((id) => store.activityOf(id).tip)]);
   if (els.cpacc.dataset.key !== key) {
     els.cpacc.dataset.key = key;
-    els.cpacc.innerHTML = ids
+    const lim = (id, k, ph, tip) =>
+      c.roles[id] === 'copy'
+        ? `<input class="clim" data-clim="${F.esc(id)}" data-k="${k}" inputmode="decimal" value="${F.esc(String((c.lim[id] || {})[k] ?? ''))}" placeholder="${ph}" title="${tip}">`
+        : '';
+    // multiplier of a copy: ON + value; ON greys out 1:1 / Cap-to-fit for that account (Gerry 2026-11-23)
+    const mult = (id) => {
+      if (c.roles[id] !== 'copy') return '';
+      const M = (c.mult || {})[id] || {};
+      const x = M.x > 0 ? F.mult(M.x) : '';
+      return `<span class="cmul"><input type="checkbox" data-cmon="${F.esc(id)}"${M.on ? ' checked' : ''}${c.armed ? ' disabled' : ''} title="ON: this copy uses the multiplier instead of ${c.mode === '1:1' ? '1:1' : c.mode === 'dd' ? 'DD left' : 'Cap-to-fit'}"><span class="cmx">x</span><input class="clim" data-cmx="${F.esc(id)}" inputmode="decimal" value="${x}" placeholder="1.0"${c.armed ? ' disabled' : ''} title="Multiplier, with a dot: 0.5 = half the master size, 2.0 = double"></span>`;
+    };
+    els.cpacc.innerHTML =
+      `<tr class="cph"><th>Account</th><th>Equity</th><th>Role</th><th title="Size of this copy = master size x the multiplier (e.g. 0.5 or 2.0, with a dot). ON replaces 1:1 / Cap-to-fit for this account.">Multiplier</th><th title="Entries are not copied to this account once its P&L today is down this many $ (exits, SL / TP and cancels still are). Empty = no limit.">Max loss</th></tr>` +
+      ids
       .map((id) => {
         const r = c.roles[id] || '';
         const opt = (v, t) => `<option value="${v}"${r === v ? ' selected' : ''}>${t}</option>`;
         const a = S.accounts[id];
-        return `<tr><td>${adot(id)}<input class="alias" data-alias="${F.esc(id)}" value="${F.esc(store.aliasOf(id) || '')}" placeholder="${F.esc(a.autoLabel || a.label)}" title="Account name in this panel (Enter to save). Empty = automatic name."> <span class="muted">${F.esc(a.type)}</span>
-          <span class="idt" title="Account id: ${F.esc(id)}. Compare it with the one copied by the icon next to the account name on Vest.">…${F.esc(String(id).slice(-6))}</span></td><td class="eq" data-cpeq="${F.esc(id)}"></td>
-          <td><select data-crole="${F.esc(id)}"${c.armed ? ' disabled' : ''}>${opt('', '—')}${opt('master', 'Master')}${opt('copy', 'Copy')}</select></td></tr>`;
+        return `<tr><td>${adot(id)}<input class="alias" data-alias="${F.esc(id)}" value="${F.esc(store.aliasOf(id) || '')}" placeholder="${F.esc(a.autoLabel || a.label)}" title="Account name in this panel (Enter to save). Empty = automatic name. ${F.esc(a.type)} account, id ${F.esc(id)}."></td><td class="eq" data-cpeq="${F.esc(id)}"></td>
+          <td><select data-crole="${F.esc(id)}"${c.armed ? ' disabled' : ''}>${opt('', '—')}${opt('master', 'Master')}${opt('copy', 'Copy')}</select></td>
+          <td>${mult(id)}</td>
+          <td>${lim(id, 'loss', 'none', 'Max loss today in $: above it entries are not copied to this account')}</td></tr>`;
       })
       .join('');
   }
   for (const td of els.cpacc.querySelectorAll('[data-cpeq]')) td.textContent = F.usd((vals[td.dataset.cpeq] || {}).equity);
   const l = c.last;
-  els.cplast.textContent = l ? `Last copy: ${l.action} from ${l.src}, ${l.ok}/${l.n} copies${l.ms != null ? ` in ${l.ms} ms` : ''}, ${F.ago(l.at)}` : c.armed ? 'No copies yet' : 'After a reload the copier starts switched off.';
+  els.cplast.textContent = l ? `Last copy: ${l.action} from ${l.src}, ${l.ok}/${l.n} copies${l.ms != null ? ` in ${l.ms} ms` : ''}, ${F.ago(l.at)}` : c.armed ? 'Copier ON: no order of the master copied yet in this session' : 'After a reload the copier starts switched off.';
 }
 
 // docked (full-height column on the right, Vest's page narrowed) or floating. Docked and minimised: only the header at the top,
@@ -506,78 +575,70 @@ function render() {
   const on = handlers.ordersOn && handlers.ordersOn();
   els.ord.textContent = on ? 'Orders: ON' : 'Orders: OFF';
   els.ord.classList.toggle('on', !!on);
+  // waiting for Vest data after a reload: header says what is missing, panel greyed out, ORDERS / COPY hidden
+  const wait = handlers.waitingFor ? handlers.waitingFor() : [];
+  panel.classList.toggle('waiting', wait.length > 0);
+  els.hwait.style.display = wait.length ? '' : 'none';
+  if (wait.length) els.hwait.textContent = `WAITING FOR VEST DATA… (${wait.join(', ')})`;
+  // header ORDERS / COPY (Gerry 2026-11-23: moved here from Trade commands, always in sight)
+  els.hord.textContent = on ? 'ON' : 'OFF';
+  els.hord.classList.toggle('on', !!on);
+  const cs = handlers.copy && handlers.copy.state();
+  const cOk = !!(cs && cs.master && cs.followers && cs.followers.length);
+  els.hcpy.style.display = els.hcpl.style.display = cOk && !wait.length ? '' : 'none';
+  root.querySelector('.htg').style.display = wait.length ? 'none' : '';
+  els.hcpy.textContent = cs && cs.armed ? 'ON' : 'OFF';
+  els.hcpy.classList.toggle('on', !!(cs && cs.armed));
   const ts = handlers.trailStatus ? handlers.trailStatus() : null;
   // warnings for empty fields (BE+ on with an empty profit made the button do a plain BE)
   const warn = [];
   if (ui.beOn && !(+ui.beOff > 0)) warn.push(`BE+ is on but "profit" is empty: the BE button puts the stop at the entry`);
   if (ui.beAuto && !(+ui.beAt > 0)) warn.push(`Auto BE is on but the "after" threshold is empty: it never triggers`);
   if (ui.trOn && !(+ui.trDist > 0)) warn.push('Trailing is on but "pullback" is empty: it does nothing');
-  els.trst.textContent = [...warn, ts ? 'Trailing / BE: ' + ts : ''].filter(Boolean).join(' · ');
-  els.trst.classList.toggle('warn', warn.length > 0);
-  if (panel) panel.classList.toggle('stopscol', stopsInColumn()); // the section is in the column: not shown twice
+  // shown in Trailing & breakeven of the column (trailNote)
+  trailTxt = { text: [...warn, ts ? 'Trailing / BE: ' + ts : ''].filter(Boolean).join(' · '), warn: warn.length > 0 };
 
-  // totals of all accounts
+  // ── Accounts overview: one row per account + total row (no balance / session: balance = equity - open, session ~ today)
   const sum = (k) => {
-    let s = 0;
+    let t = 0;
     for (const id of ids) {
       const v = vals[id] && vals[id][k];
       if (!Number.isFinite(v)) return NaN; // one account without data makes the total unknown: never pass off a partial total as complete
-      s += v;
+      t += v;
     }
-    return ids.length ? s : NaN;
+    return ids.length ? t : NaN;
   };
-  const T = { balance: sum('balance'), equity: sum('equity'), upnl: sum('upnl'), dayPnl: sum('dayPnl'), sessionPnl: sum('sessionPnl'), totalPnl: sum('totalPnl') };
-  els.totals.innerHTML = [
-    ['Total equity', F.usd(T.equity), ''],
-    ['Total balance', F.usd(T.balance), ''],
-    ['Open P&L', F.usd(T.upnl, true), F.cls(T.upnl)],
-    ['Vest day P&L', F.usd(T.dayPnl, true), F.cls(T.dayPnl)],
-    ['Session P&L', F.usd(T.sessionPnl, true), F.cls(T.sessionPnl)],
-    ['Total P&L', F.usd(T.totalPnl, true), F.cls(T.totalPnl)],
-  ]
-    .map(([n, v, c]) => `<div><span>${n}</span><b class="${c}">${v}</b></div>`)
-    .join('');
-
-  // P&L: today in large type, open and total for all accounts; each account on two lines
-  els.plbig.textContent = F.usd(T.dayPnl, true);
-  els.plbig.className = 'plbig ' + F.cls(T.dayPnl);
-  els.plsub.innerHTML = `Today on ${ids.length} account${ids.length === 1 ? '' : 's'} · open <b class="${F.cls(T.upnl)}">${F.usd(T.upnl, true)}</b> · total <b class="${F.cls(T.totalPnl)}">${F.usd(T.totalPnl, true)}</b>`;
+  const T = { equity: sum('equity'), upnl: sum('upnl'), dayPnl: sum('dayPnl'), totalPnl: sum('totalPnl') };
   els.flatall.disabled = !!S.flattening || !ids.length;
   els.flatall.textContent = S.flattening ? 'FLATTENING…' : 'FLATTEN ALL';
-  els.placc.innerHTML = ids
-    .map((id) => {
-      const a = S.accounts[id],
-        v = vals[id];
-      return `<div class="pla" data-id="${F.esc(id)}">
-        <div class="plr"><b>${adot(id)}${F.esc(a.label)}</b><b class="${F.cls(v.dayPnl)}" title="Today's P&L (since 20:00 New York time)">${F.usd(v.dayPnl, true)}</b></div>
-        <div class="plr muted"><span>${F.esc(a.type)}</span><span><span title="Equity">${F.usd(v.equity)}</span> · open <span class="${F.cls(v.upnl)}">${F.usd(v.upnl, true)}</span> · tot <span class="${F.cls(v.totalPnl)}">${F.usd(v.totalPnl, true)}</span></span></div>
-      </div>`;
-    })
-    .join('');
-
-  renderCopy(ids, vals);
-  renderTrade();
-
-  // accounts table
+  const roleTag = (id) => {
+    if (!cs || !cs.roles[id]) return '';
+    if (cs.roles[id] === 'master') return ' <i class="rtag m" title="Copier master">M</i>';
+    const x = cs.mult && cs.mult[id] && cs.mult[id].on && cs.mult[id].x > 0 ? cs.mult[id].x : 0;
+    return ` <i class="rtag" title="Copier copy${x ? ': size = master x ' + x : ''}">C${x ? ' x' + F.mult(x) : ''}</i>`;
+  };
+  const td = (v) => `<td class="${F.cls(v)}">${F.usd(v, true)}</td>`;
   const rows = ids
     .map((id) => {
       const a = S.accounts[id],
-        v = vals[id],
-        st = S.state[id];
-      const pos = st && st.positions.length ? st.positions.map((p) => `${p.side === 'long' ? 'L' : 'S'} ${F.qty(p.qty)} ${(S.symbols[p.symbol] || {}).label || p.symbol}`).join(', ') : '<span class="muted">flat</span>';
+        v = vals[id];
       const src = v.source === 'series' ? ' <span class="muted" title="equity from the Vest performance series, about 1 minute late">*</span>' : '';
-      return `<tr data-id="${F.esc(id)}" class="${id === S.selected ? 'sel' : ''}">
-        <td>${adot(id)}${F.esc(a.label)} <span class="muted">${F.esc(a.type)}</span></td>
-        <td>${F.usd(v.balance)}</td><td>${F.usd(v.equity)}${src}</td>
-        <td class="${F.cls(v.upnl)}">${F.usd(v.upnl, true)}</td>
+      const sel = id === S.selected;
+      return `<tr data-id="${F.esc(id)}" class="${sel ? 'sel' : ''}">
+        <td title="${F.esc(a.type)} account">${adot(id)}${F.esc(a.label)}${roleTag(id)}${sel ? ' <b class="act" title="Active on Vest: the buttons of the tool trade on this account">ACTIVE</b>' : ''}</td>
+        <td>${F.usd(v.equity)}${src}</td>${td(v.upnl)}
         <td class="${F.cls(v.dayPnl)}" title="${Number.isFinite(v.dayPnl) ? 'equity minus equity at 20:00 New York time (start of the Vest day)' : 'start of the Vest day not read yet for this account'}">${F.usd(v.dayPnl, true)}</td>
-        <td class="${F.cls(v.sessionPnl)}">${F.usd(v.sessionPnl, true)}</td>
-        <td class="${F.cls(v.totalPnl)}">${F.usd(v.totalPnl, true)}</td>
-        <td>${F.usd(v.toFloor)}</td><td>${pos}</td></tr>`;
+        ${td(v.totalPnl)}<td>${F.usd(v.toFloor)}</td></tr>`;
     })
     .join('');
-  els.accounts.innerHTML = `<thead><tr><th>Account</th><th>Balance</th><th>Equity</th><th>Open</th><th title="equity minus equity at 20:00 New York time (start of the Vest day)">Today</th><th title="equity minus the first equity this panel read today">Session</th><th>Total</th><th title="$ of equity left before the drawdown limit (total or daily, whichever is closer)">Room to DD limit</th><th>Position</th></tr></thead>
-    <tbody>${rows || '<tr><td colspan="9" class="muted">Waiting for the Vest session…</td></tr>'}</tbody>`;
+  els.accounts.innerHTML = `<thead><tr><th>Account</th><th>Equity</th><th>Open</th><th title="equity minus equity at 20:00 New York time (start of the Vest day)">Today</th><th>Total</th><th title="$ of equity left before the drawdown limit (total or daily, whichever is closer)">Room</th></tr></thead>
+    <tbody>${rows || '<tr><td colspan="6" class="muted">Waiting for the Vest session…</td></tr>'}</tbody>
+    ${ids.length > 1 ? `<tfoot><tr class="sum"><td>Total (${ids.length})</td><td>${F.usd(T.equity)}</td>${td(T.upnl)}${td(T.dayPnl)}${td(T.totalPnl)}<td></td></tr></tfoot>` : ''}`;
+  els.ovsub.textContent = ids.length ? `${ids.length} account${ids.length === 1 ? '' : 's'} · click a row to see which one is active on Vest` : '';
+
+  renderCopy(ids, vals);
+  renderSelInfo();
+  renderPending();
 
   renderPositions();
   renderCalc();
@@ -586,81 +647,64 @@ function render() {
 }
 
 let lastPend = [];
-const heat = (f) => (f >= 1 ? 'hot' : f >= 0.8 ? 'warn' : '');
-function renderTrade() {
+let trailTxt = { text: '', warn: false };
+// one line about the account active on Vest and the chart's market (margin and size still available)
+function renderSelInfo() {
   const t = handlers.tradeInfo && handlers.tradeInfo();
   if (!t) {
-    els.trtitle.textContent = 'Trade';
-    els.trsym.textContent = '—';
-    els.trlev.textContent = els.trpx.textContent = els.mtxt.textContent = els.rtxt.textContent = '';
-    els.pend.innerHTML = '<span class="muted">no account</span>';
+    els.selinfo.innerHTML = '<span class="muted">No account active on Vest</span>';
     return;
   }
-  els.trtitle.textContent = 'Trade · ' + t.account;
-  els.trsym.textContent = t.label;
-  els.trlev.textContent = t.lev > 0 ? t.lev + 'x' : '';
-  els.trpx.textContent = F.priceG(t.mark, t.priceDec);
-  // margin
-  const mf = Number.isFinite(t.marginPct) ? t.marginPct : 0;
-  els.mfill.style.width = Math.min(100, mf * 100).toFixed(1) + '%';
-  els.mfill.className = heat(mf);
-  els.mtxt.innerHTML = Number.isFinite(t.marginPct) ? `<b>${Math.round(mf * 100)}%</b> · ${t.maxQty > 0 ? F.qty(t.maxQty) + ' ' + F.esc(t.label) + ' can still be opened' : 'no free margin'}` : '—';
-  // size of the open trade and of the pending orders on the chart's market
-  const lbl = F.esc(t.label);
-  els.trsize.innerHTML = `Trade: ${t.pos ? `<b class="${t.pos.side === 'long' ? 'up' : 'down'}">${t.pos.side === 'long' ? 'LONG' : 'SHORT'} ${F.qty(t.pos.qty)} ${lbl}</b>` : '<span class="muted">flat</span>'} · Pending: ${t.pendCount ? `<b>${F.qty(+t.pendQty.toFixed(8))} ${lbl}</b> <span class="muted">(${t.pendCount} order${t.pendCount === 1 ? '' : 's'})</span>` : '<span class="muted">none</span>'}`;
-  // RISK: drawdown used by the open trade (its open loss) and drawdown left before the limit
-  const used = t.pos && Number.isFinite(t.pos.upnl) ? Math.max(0, -t.pos.upnl) : 0;
-  const left = t.room;
-  const rf = left > 0 || used > 0 ? used / (used + Math.max(0, left)) : 0;
-  els.rfill.style.width = Math.min(100, rf * 100).toFixed(1) + '%';
-  els.rfill.className = heat(rf);
-  els.rtxt.innerHTML = Number.isFinite(left)
-    ? `used <b class="${used > 0 ? 'hot' : ''}">${F.usd(used)}</b> · left <b class="${heat(rf)}">${F.usd(left)}</b>`
-    : '—';
-  // pending orders (all the account's markets) and local stops
-  lastPend = t.pendings;
-  // rewritten only when it changes: the panel redraws at every price and a replaced button loses the click
-  const pendHtml = t.pendings.length
-    ? t.pendings
-        .map(
-          (o) => `<div class="pr"><span class="pk">${F.esc(o.kind)}</span><span class="${o.side === 'long' ? 'up' : 'down'}">${o.side === 'long' ? 'BUY' : o.side === 'short' ? 'SELL' : ''}</span><span>${F.qty(o.qty)} ${F.esc(t.labels[o.symbol] || o.symbol || '')}</span><span class="muted">@ ${F.priceG(o.price, t.priceDec)}</span><button class="btn sm" data-cancel="${F.esc(o.id)}">cancel</button></div>`,
-        )
+  const mp = Number.isFinite(t.marginPct) ? Math.round(t.marginPct * 100) + '%' : '—';
+  els.selinfo.innerHTML = `Active on Vest: <b>${F.esc(t.account)}</b> · ${F.esc(t.label)}${t.lev > 0 ? ' ' + t.lev + 'x' : ''} <b>${F.priceG(t.mark, t.priceDec)}</b> · margin used <b>${mp}</b> · ${t.maxQty > 0 ? `<b>${F.qty(t.maxQty)}</b> ${F.esc(t.label)} can still be opened` : 'no free margin'}`;
+}
+
+// pending orders of EVERY account (Vest limits and local stops); rewritten only when they change (a replaced button loses the click)
+function renderPending() {
+  const list = (handlers.pendingsAll && handlers.pendingsAll()) || [];
+  lastPend = list;
+  const html = list.length
+    ? list
+        .map((o) => {
+          const m = S.symbols[o.symbol] || { priceDec: 2, label: o.symbol || '' };
+          return `<div class="pr"><span class="pa">${F.esc(o.account)}</span><span class="pk">${F.esc(o.kind)}</span><span class="${o.side === 'long' ? 'up' : 'down'}">${o.side === 'long' ? 'BUY' : o.side === 'short' ? 'SELL' : ''}</span><span>${F.qty(o.qty)} ${F.esc(m.label)}</span><span class="muted">@ ${F.priceG(o.price, m.priceDec)}</span><button class="btn sm" data-cancel="${F.esc(o.key)}">cancel</button></div>`;
+        })
         .join('')
     : '<span class="muted">none</span>';
-  if (els.pend.dataset.html !== pendHtml) {
-    els.pend.innerHTML = pendHtml;
-    els.pend.dataset.html = pendHtml;
+  if (els.pend.dataset.html !== html) {
+    els.pend.innerHTML = html;
+    els.pend.dataset.html = html;
   }
 }
 
+// open positions of EVERY account, one table
 function renderPositions() {
-  const id = S.selected,
-    a = S.accounts[id],
-    st = S.state[id];
-  els.posTitle.textContent = a ? `Positions · ${a.label}` : 'Positions';
-  if (!st || !st.positions.length) {
-    els.positions.innerHTML = '<span class="muted">No open position</span>';
-    return;
-  }
-  const rows = st.positions
-    .map((p) => {
-      const m = S.symbols[p.symbol] || { priceDec: 2, label: p.symbol };
-      const mk = S.marks[p.symbol];
-      const pnl = mk ? (p.side === 'long' ? 1 : -1) * p.qty * (mk.px - p.openPrice) : NaN;
-      const stale = mk && Date.now() - mk.at > 5000 ? ' <span class="muted" title="stale price">!</span>' : '';
-      const legs = p.triggers
-        .slice()
-        .sort((x, y) => x.price - y.price)
-        .map((t) => `${t.kind.toUpperCase()} ${F.price(t.price, m.priceDec)} <span class="${F.cls(calc.triggerUsd(p, t))}">${F.usd(calc.triggerUsd(p, t), true)}</span>`)
-        .join(' · ');
-      const risk = p.triggers.filter((t) => t.kind === 'sl').reduce((s, t) => s + Math.min(0, calc.triggerUsd(p, t)), 0);
-      return `<tr><td>${F.esc(m.label)}</td><td class="${p.side === 'long' ? 'up' : 'down'}">${p.side.toUpperCase()}</td><td>${F.qty(p.qty)}</td>
-        <td>${F.price(p.openPrice, m.priceDec)}</td><td>${mk ? F.price(mk.px, m.priceDec) : '—'}${stale}</td>
-        <td class="${F.cls(pnl)}">${F.usd(pnl, true)}</td><td>${p.triggers.some((t) => t.kind === 'sl') ? F.usd(risk, true) : '<span class="down">no SL</span>'}</td></tr>
-        <tr><td colspan="7" class="muted" style="text-align:left">${legs || 'no stop or target'}</td></tr>`;
-    })
+  const ids = Object.keys(S.accounts).sort((a, b) => String(S.accounts[a].label).localeCompare(String(S.accounts[b].label), 'en', { numeric: true }));
+  const rows = ids
+    .flatMap((id) =>
+      ((S.state[id] || {}).positions || [])
+        .filter((p) => p.qty > 0)
+        .map((p) => {
+          const m = S.symbols[p.symbol] || { priceDec: 2, label: p.symbol };
+          const mk = S.marks[p.symbol];
+          const pnl = mk ? (p.side === 'long' ? 1 : -1) * p.qty * (mk.px - p.openPrice) : NaN;
+          const stale = mk && Date.now() - mk.at > 5000 ? ' <span class="muted" title="stale price">!</span>' : '';
+          const legs = p.triggers
+            .slice()
+            .sort((x, y) => x.price - y.price)
+            .map((t) => `${t.kind.toUpperCase()} ${F.price(t.price, m.priceDec)} <span class="${F.cls(calc.triggerUsd(p, t))}">${F.usd(calc.triggerUsd(p, t), true)}</span>`)
+            .join(' · ');
+          const risk = p.triggers.filter((t) => t.kind === 'sl').reduce((s, t) => s + Math.min(0, calc.triggerUsd(p, t)), 0);
+          return `<tr class="${id === S.selected ? 'sel' : ''}"><td>${F.esc(S.accounts[id].label)}</td><td>${F.esc(m.label)}</td><td class="${p.side === 'long' ? 'up' : 'down'}">${p.side === 'long' ? 'LONG' : 'SHORT'}</td><td>${F.qty(p.qty)}</td>
+            <td>${F.price(p.openPrice, m.priceDec)}${stale}</td>
+            <td class="${F.cls(pnl)}">${F.usd(pnl, true)}</td><td>${p.triggers.some((t) => t.kind === 'sl') ? F.usd(risk, true) : '<span class="down">no SL</span>'}</td></tr>
+            <tr class="legs"><td></td><td colspan="6" class="muted" style="text-align:left">${legs || 'no stop or target'}</td></tr>`;
+        }),
+    )
     .join('');
-  els.positions.innerHTML = `<table><thead><tr><th>Market</th><th>Side</th><th>Qty</th><th>Entry</th><th>Mark</th><th>P&L $</th><th>Risk at SL</th></tr></thead><tbody>${rows}</tbody></table>`;
+  els.positions.innerHTML = rows
+    ? `<table class="acct"><thead><tr><th>Account</th><th>Market</th><th>Side</th><th>Qty</th><th>Entry</th><th>P&L $</th><th>Risk at SL</th></tr></thead><tbody>${rows}</tbody></table>`
+    : '<span class="muted">No open position</span>';
 }
 
 function renderCalc() {
@@ -726,7 +770,12 @@ function headPos(d) {
   //   2) points from the entry, contracts and $ per point ............ points of the day
   // flat: one row, FLAT ............ points of the day
   const flat = d.side === 'flat';
-  const day = d.dpt ? `<span class="day"><i>today</i> <b class="${e(d.dptC)}">${e(d.dpt)}</b></span>` : '';
+  // trades closed today (one Vest position = one trade, adds and partial closes included), winners / losers, left of "today"
+  const T = d.trades;
+  const trd = T && T.n >= 0 && d.dpt
+    ? `<span class="dtr" title="Trades closed today (Vest day, from 20:00 New York): one position = one trade, adds and partial closes included. Won / lost by points, fees not counted."><b>${T.n}</b><i>trades</i><b class="up">${T.win}▲</b><b class="down">${T.loss}▼</b></span>`
+    : '';
+  const day = d.dpt ? `${trd}<span class="day"><i>today</i> <b class="${e(d.dptC)}">${e(d.dpt)}</b></span>` : '';
   els.hpos.className = 'hpos ' + d.side;
   els.hpos.innerHTML = flat
     ? `<div class="r1"><span class="sd">FLAT</span>${day}</div>`
@@ -743,6 +792,7 @@ function headPos(d) {
 /** A setting changed from the column (Trailing & breakeven): same effect as typing it in the panel. */
 function setUiInput(k, v) {
   ui[k] = v;
+  exclusive(k, v);
   saveUi();
   const inp = root && root.querySelector('[data-in="' + k + '"]');
   if (inp) {
@@ -753,8 +803,62 @@ function setUiInput(k, v) {
   render();
 }
 
+/**
+ * Functions that cannot work together (Gerry 2026-11-23): switching one ON switches the others OFF.
+ *  - Safe runner LIVE  <->  trailing stop, auto BE (they move the same stop), Risk & targets ON (the plan has its own legs)
+ *  - Bracket           <->  Risk & targets ON (two sets of SL / TP on the same entry)
+ * k = key just changed in ui (or 'risk' when Risk & targets was switched ON in the column). Returns the names switched off.
+ */
+function exclusive(k, v) {
+  const off = [];
+  const set = (key, val, name) => {
+    if (ui[key] === val) return;
+    ui[key] = val;
+    off.push(name);
+    const inp = root && root.querySelector(`[data-in="${key}"]`);
+    if (inp) {
+      if (inp.type === 'checkbox') inp.checked = !!val;
+      else inp.value = val;
+    }
+  };
+  const risk = () => {
+    if (handlers.riskOn && handlers.riskOn()) {
+      handlers.riskOff();
+      off.push('Risk & targets');
+    }
+  };
+  if ((k === 'trOn' || k === 'beAuto') && v === true && ui.srMode === 'live') set('srMode', 'off', 'Safe runner LIVE');
+  if (k === 'srMode' && v === 'live') {
+    set('trOn', false, 'Trailing stop');
+    set('beAuto', false, 'auto BE');
+    risk();
+  }
+  if (k === 'brOn' && v === true) risk();
+  if (k === 'risk') {
+    set('brOn', false, 'Bracket');
+    if (ui.srMode === 'live') set('srMode', 'off', 'Safe runner LIVE');
+  }
+  if (off.length) {
+    saveUi();
+    say(`${off.join(', ')} switched OFF: not compatible with ${{ trOn: 'Trailing stop', beAuto: 'auto BE', srMode: 'Safe runner LIVE', brOn: 'Bracket', risk: 'Risk & targets' }[k]}`, 'warn');
+  }
+  return off;
+}
+
+/** Notes of the Bracket and Safe runner sections of the column. */
+function sideNotes() {
+  const rs = handlers.runnerStatus ? handlers.runnerStatus() : null;
+  const rw = ui.srMode === 'live' && (ui.trOn || ui.beAuto) ? 'LIVE needs trailing and auto BE OFF (they move the same stop)' : '';
+  const bw = ui.brOn && !(+ui.brSl > 0);
+  return {
+    br: bw ? { text: 'Bracket is on but SL is empty: entries go without SL / TP', warn: true } : { text: ui.brOn ? `Every new entry from the tool goes with SL ${ui.brSl} pt${+ui.brTp > 0 ? ' and TP ' + ui.brTp + ' pt' : ''}.${ui.brDca ? ' With a position open, after an add (market or LIMIT filled) and when entry LIMITs are placed or cancelled, SL / TP move to the same distances from AVG ALL (position + LIMITs waiting); the SL never sits between two entries: if a LIMIT is at or past it, it goes SL pt beyond the farthest LIMIT. A SL at breakeven or in profit stays.' : ' Adds have no legs: SL / TP stay where they are.'}` : '' },
+    sr: { text: [rw, handlers.runnerTrend ? handlers.runnerTrend().text : '', rs || ''].filter(Boolean).join(' · '), warn: !!rw },
+    oco: { text: ui.ocoOn ? 'ON: when a pending entry of a market is executed (LIMIT filled or local STOP touched) the other pending entries of that market are cancelled (Orders ON, tab open). A local STOP can be armed on either side of a pending LIMIT.' : 'OFF: pending LIMITs and local STOPs live independently.', warn: false },
+  };
+}
+
 /** Trailing / BE status line of the panel (warnings for empty fields + what is running). */
-const trailNote = () => (els.trst ? { text: els.trst.textContent, warn: els.trst.classList.contains('warn') } : { text: '', warn: false });
+const trailNote = () => trailTxt;
 
 /** True when the Trailing & breakeven settings live in the docked column instead of the panel. */
 const stopsInColumn = () => !!(ui.dock && ui.cardsAt !== 'chart' && ui.overlay && dock.width());
@@ -790,27 +894,61 @@ function btnColors() {
   return out;
 }
 
-function lineStyles() {
-  const out = {};
-  for (const [k, , c] of LINE_KINDS) {
-    const col = /^#[0-9a-f]{6}$/i.test(ui['lc_' + k]) ? ui['lc_' + k] : c;
-    const st = ['dashed', 'dotted', 'solid'].includes(ui['ls_' + k]) ? ui['ls_' + k] : 'dashed';
-    const w = Math.min(4, Math.max(1, Math.round(+ui['lw_' + k]) || 1));
-    out[k] = { c: col, s: st, w };
+/** Lines and labels on the chart (Layout → Chart lines and labels): { kind: { c, s, w, l?, lab } }. */
+const lineStyles = () => CS.styles(ui);
+/** Colours of every label: price, profit, loss ('' = the card style's). */
+const COMMON = { cpx: '#d7dbe3', cup: '#3ecf8e', cdn: '#ff6b61' };
+const chartCommon = () => Object.fromEntries(Object.keys(COMMON).map((k) => [k, /^#[0-9a-f]{6}$/i.test(ui[k]) ? ui[k] : '']));
+
+// ── editor of Chart lines and labels: one element at a time (the select), its fields are ui[field + '_' + kind]
+let csKind = 'long';
+function csFill() {
+  if (!root) return;
+  const sel = root.querySelector('[data-csel]');
+  if (!sel) return;
+  sel.value = csKind;
+  const st = CS.styleOf(ui, csKind);
+  for (const inp of root.querySelectorAll('[data-cs]')) {
+    const v = CS.shown(ui, csKind, inp.dataset.cs);
+    if (inp.type === 'checkbox') inp.checked = !!v;
+    else if (root.activeElement !== inp) inp.value = v;
   }
-  for (const [k, , c, s0] of SEG_KINDS) {
-    const col = /^#[0-9a-f]{6}$/i.test(ui['lc_' + k]) ? ui['lc_' + k] : c;
-    const st = ['dashed', 'dotted', 'solid'].includes(ui['ls_' + k]) ? ui['ls_' + k] : s0;
-    const w = Math.min(6, Math.max(1, Math.round(+ui['lw_' + k]) || 3));
-    const l = Math.round(+ui['ll_' + k]);
-    out[k] = { c: col, s: st, w, l: l >= 4 && l <= 400 ? l : 0 }; // l = 0: automatic length
+  root.querySelector('[data-cslab]').style.display = st && st.lab ? '' : 'none';
+  root.querySelector('[data-csseg]').style.display = CS.SEGS.has(csKind) ? '' : 'none';
+  for (const inp of root.querySelectorAll('[data-cc]')) if (root.activeElement !== inp) inp.value = /^#[0-9a-f]{6}$/i.test(ui[inp.dataset.cc]) ? ui[inp.dataset.cc] : COMMON[inp.dataset.cc];
+  // preview: the line and the label as on the chart
+  const pv = root.querySelector('[data-csprev]');
+  const ln = pv.querySelector('.csline'),
+    ch = pv.querySelector('.cschip');
+  const dd = st.s === 'dashdot';
+  ln.style.borderTop = dd ? '0' : `${st.w}px ${st.s} ${st.c}`;
+  ln.style.height = dd ? st.w + 'px' : '0';
+  ln.style.background = dd ? `repeating-linear-gradient(90deg, ${st.c} 0 8px, transparent 8px 11px, ${st.c} 11px 13px, transparent 13px 16px)` : '';
+  ch.style.display = st.lab ? '' : 'none';
+  if (st.lab) {
+    const L = st.lab;
+    const el = CS.ELEMENTS.find((e) => e[0] === csKind);
+    ch.querySelector('.k').textContent = el[1].replace(/ \(.*\)$/, '').toUpperCase();
+    ch.style.background = L.bg || '#17181b';
+    ch.style.borderColor = L.bo || el[6].bo || '#2a2f3a';
+    ch.style.borderWidth = (L.bw == null ? 1 : L.bw) + 'px';
+    ch.style.fontSize = (L.fs || 12) + 'px';
+    ch.style.fontWeight = L.fw === 'n' ? '400' : L.fw === 'b' ? '700' : '';
+    const k = ch.querySelector('.k');
+    k.style.color = L.n || st.c;
+    k.style.background = L.nb || 'transparent';
+    k.style.padding = L.nb ? '0 4px' : '0';
+    ch.querySelector('b').style.color = chartCommon().cpx || '';
+    ch.querySelector('.up').style.color = chartCommon().cup || '';
   }
-  for (const [k, , c, s0] of HL_KINDS) {
-    const col = /^#[0-9a-f]{6}$/i.test(ui['lc_' + k]) ? ui['lc_' + k] : c;
-    const st = ['dashed', 'dotted', 'solid'].includes(ui['ls_' + k]) ? ui['ls_' + k] : s0;
-    out[k] = { c: col, s: st, w: Math.min(4, Math.max(1, Math.round(+ui['lw_' + k]) || 2)) };
-  }
-  return out;
+}
+function csSet(f, v) {
+  if (f === 'cnbOn') {
+    ui['cnb_' + csKind] = v ? CS.shown(ui, csKind, 'cnb') : 'none';
+  } else ui[f + '_' + csKind] = v;
+  saveUi();
+  csFill();
+  handlers.onInput && handlers.onInput();
 }
 
 /** Style of the quantities on the chart: { c, s (px), b (bold) }. */
@@ -828,11 +966,35 @@ function cardsColumn() {
   return { left: window.innerWidth - w, width: w, top, height: Math.max(0, window.innerHeight - top), hidden: !ui.min };
 }
 
+/** Main panel open (false) or folded to its header (true): Trade commands floating = open, docked = folded. */
+/** Swing range section: points between the last swing high and low (from the overlay). */
+let swingKey = null;
+function swingNote(text) {
+  if (!root || text === swingKey) return;
+  const el = root.querySelector('[data-swst]');
+  if (!el) return;
+  swingKey = text;
+  el.textContent = text;
+}
+
+function setMin(v) {
+  if (!panel || ui.min === !!v) return;
+  showInfo(null);
+  ui.min = !!v;
+  panel.classList.toggle('min', ui.min);
+  saveUi();
+  layout(true);
+}
+
 module.exports = {
+  exclusive,
+  setMin,
+  swingNote,
   qtyStyle,
   cardsColumn,
   setUiInput,
   say,
   headPos,
   trailNote,
-  lineStyles, btnColors, mount, render, ui: () => ui, setUi };
+  sideNotes,
+  lineStyles, chartCommon, btnColors, mount, render, ui: () => ui, setUi };

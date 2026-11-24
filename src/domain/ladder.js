@@ -9,7 +9,8 @@ const { roundToTick } = require('./num');
  * pos: { side, qty, openPrice } or null · orders: [{ id, side, price, qty }] Vest entry limits on the market
  * equity: account equity · mark: current price · floors: { total, daily } (equity below which it fails) · sl: SL price or null
  * Returns null if there are no useful limits, otherwise
- * { side, lastId, last, n, qty, avg, pnl, equityAt, ddLeft, floorKind, slPnl, slEquityAt, slDdLeft }
+ * { side, lastId, last, n, parts, qty, avg, pnl, equityAt, ddLeft, floorKind, slPnl, slEquityAt, slDdLeft }
+ * parts = entries averaged (open position + limits): with 1 the average is just that order's price
  */
 function ladder({ pos, orders, equity, mark, floors, sl }) {
   const side = pos ? pos.side : orders.length ? orders[0].side : null;
@@ -34,7 +35,7 @@ function ladder({ pos, orders, equity, mark, floors, sl }) {
   const t = floors && floors.total > 0 ? floors.total : 0,
     d = floors && floors.daily > 0 ? floors.daily : 0;
   const floor = Math.max(t, d);
-  const out = { side, lastId: lastO.id, last, n: lms.length, qty, avg, pnl, equityAt, ddLeft: floor > 0 ? equityAt - floor : NaN, floorKind: !floor ? null : d > t ? 'daily' : 'total' };
+  const out = { side, lastId: lastO.id, last, n: lms.length, parts: lms.length + (pos && pos.qty > 0 ? 1 : 0), qty, avg, pnl, equityAt, ddLeft: floor > 0 ? equityAt - floor : NaN, floorKind: !floor ? null : d > t ? 'daily' : 'total' };
   // open position + ONLY the next limit (the nearest against the position), if there is more than one
   if (pos && pos.qty > 0 && lms.length > 1) {
     const nextO = lms.reduce((a, o) => (dir * o.price > dir * a.price ? o : a));
@@ -126,7 +127,7 @@ function ddHalf({ pos, orders = [], equity, balance, mark, floors, initial, tick
   // position P&L (with the filled limits) at the rounded price
   const loss = dir * (r.qty * price - r.avg * r.qty);
   return {
-    price, qty: r.qty, avg: r.avg, filled: r.filled, avail, half, loss,
+    price, qty: r.qty, avg: r.avg, filled: r.filled, avail, half, loss, pct,
     fromNow: r.base + loss - equity,
     pl: initial > 0 ? balance - initial : NaN,
     ddInit: initial > 0 ? initial - t : NaN,

@@ -55,6 +55,13 @@ const legOf = (kind) => (b) => ({
   qty: b.quantity != null && b.sizeMode !== 'full_position' ? num(b.quantity) : null,
 });
 
+/** Time in ms from a number (s or ms) or an ISO string; NaN when missing. */
+function msOf(v) {
+  if (v == null || v === '') return NaN;
+  const n = typeof v === 'number' ? v : /^\d+(\.\d+)?$/.test(String(v)) ? +v : Date.parse(v);
+  return Number.isFinite(n) ? (n < 1e12 ? n * 1000 : n) : NaN;
+}
+
 /** GET /v3/positions/opened -> open positions (quantity > 0). */
 function parseRestPositions(res) {
   return ((res && res.positions) || [])
@@ -64,6 +71,7 @@ function parseRestPositions(res) {
       side: p.side,
       qty: num(p.quantity),
       openPrice: num(p.openPrice),
+      openedAt: msOf(p.openDate), // ms, NaN when Vest does not give it (safe runner: candle of the entry)
       collateral: num(p.collateral) || 0,
       leverage: num(p.leverage) || null,
       triggers: [...(p.takeProfits || []).map(legOf('tp')), ...(p.stopLosses || []).map(legOf('sl'))].filter(
@@ -144,6 +152,7 @@ function mergePosition(st, ev) {
     side: ev.side,
     qty: size,
     openPrice: num(ev.open_price),
+    openedAt: known && Number.isFinite(known.openedAt) ? known.openedAt : msOf(ev.open_date ?? ev.created_at),
     collateral: num(ev.collateral) || 0,
     leverage: num(ev.leverage) || known?.leverage || null,
     triggers: known ? known.triggers : [],
@@ -263,22 +272,32 @@ function valuesOf(acc, st, marks, perf, dayStartEq) {
  *     Used = limit - (equity - daily_loss_floor). Without the field: pct x balance at reset.
  * [D] maximum: limit = initial capital - max_drawdown_limit (right if the limit is fixed, not trailing).
  */
-function limitsOf(a, v) {
+/**
+ * man: manual limits from the panel (Gerry 2026-11-23, for Instant accounts that have none on Vest): { day: $ daily drawdown
+ * limit, goal: $ profit target }; a value > 0 replaces Vest's. Manual daily: left = limit + P&L of the day.
+ */
+function limitsOf(a, v, man = {}) {
   if (!a || !(v.equity >= 0)) return {};
-  const dayLimit = !(a.dailyFloor > 0) ? NaN : a.dailyLimit > 0 ? a.dailyLimit : a.dailyPct > 0 && a.dailyResetBalance > 0 ? a.dailyPct * a.dailyResetBalance : NaN;
+  const mDay = man.day > 0,
+    mGoal = man.goal > 0;
+  // P&L of the day on Vest's base (balance at daily reset); without the field, the series one (20:00 New York)
+  const dayPl = a.dailyResetBalance > 0 ? v.equity - a.dailyResetBalance : v.dayPnl;
+  const dayLimit = mDay ? man.day : !(a.dailyFloor > 0) ? NaN : a.dailyLimit > 0 ? a.dailyLimit : a.dailyPct > 0 && a.dailyResetBalance > 0 ? a.dailyPct * a.dailyResetBalance : NaN;
   const maxLimit = a.floor > 0 && a.initial > a.floor ? a.initial - a.floor : NaN;
+  // room: $ left before the account fails. Daily = limit + P&L of the day (moves, 0 = account lost); maximum: static
+  const dayLeft = mDay ? (Number.isFinite(dayPl) ? man.day + dayPl : NaN) : a.dailyFloor > 0 ? v.equity - a.dailyFloor : NaN;
   return {
-    dayUsed: Math.max(0, dayLimit - (v.equity - a.dailyFloor)),
+    dayUsed: Math.max(0, dayLimit - dayLeft),
     dayLimit,
     maxUsed: Math.max(0, maxLimit - (v.equity - a.floor)),
     maxLimit,
     pl: v.equity - a.initial,
-    goal: a.target > a.initial ? a.target - a.initial : NaN,
-    // room: $ left before the account fails. Daily = limit + P&L of the day (moves, 0 = account lost); maximum: static
-    dayLeft: a.dailyFloor > 0 ? v.equity - a.dailyFloor : NaN,
+    goal: mGoal ? man.goal : a.target > a.initial ? a.target - a.initial : NaN,
+    dayLeft,
     maxLeft: a.floor > 0 ? v.equity - a.floor : NaN,
-    // P&L of the day on Vest's base (balance at daily reset); without the field, the series one (20:00 New York)
-    dayPl: a.dailyResetBalance > 0 ? v.equity - a.dailyResetBalance : v.dayPnl,
+    dayPl,
+    dayManual: mDay,
+    goalManual: mGoal,
   };
 }
 /**

@@ -4,16 +4,20 @@
 const HELP = {
   // ── sections
   overview: [
-    'Overview',
-    `<b>VestTool is unofficial</b>: an independent project, not made or supported by Vest Markets.<br>Totals of all your active Vest accounts, in dollars.
+    'Accounts overview',
+    `<b>VestTool is unofficial</b>: an independent project, not made or supported by Vest Markets.<br>All your active Vest accounts, in dollars, one row each
+    (the last row is the total).
     <ul>
-      <li><b>Today</b>: equity now minus equity at the start of the Vest day (20:00 New York time). A payout made today shows as a loss.</li>
-      <li><b>Open</b>: P&L of the open positions at the mark price.</li>
-      <li><b>Total</b>: equity minus the initial capital of the account.</li>
-      <li><b>Session</b>: equity now minus the first value read today on this computer (reset it in Diagnostics).</li>
+      <li><b>◀ ACTIVE</b>: the account active on Vest, the one the tool's buttons trade on. Click a row to show it in the panel.</li>
+      <li><b>M</b> / <b>C</b>: master / copy of the copier; <b>C x0.5</b> = copy with a multiplier.</li>
+      <li><b>Equity</b> = balance + open P&L at the mark price (* = from Vest's performance series, about a minute late).</li>
+      <li><b>Open</b>: P&L of the open positions. <b>Today</b>: equity now minus equity at the start of the Vest day (20:00 New York time;
+      a payout made today shows as a loss). <b>Total</b>: equity minus the initial capital.</li>
+      <li><b>Room to DD</b>: what you can still lose before the nearer drawdown limit (total or daily).</li>
+      <li><b>Open positions</b> and <b>Pending orders</b>: of every account. Risk at SL = $ lost if every stop is hit (no fees or slippage).
+      A pending order can be cancelled here, on its own account.</li>
     </ul>
-    If one account has no value, the total shows "—", never a partial total.
-    Click an account to <b>select</b> it: the column and the Trade section follow the selected account.`,
+    If one account has no value, the total shows "—", never a partial total.`,
   ],
   flatall: [
     'FLATTEN ALL',
@@ -39,6 +43,14 @@ const HELP = {
       <li><b>1:1</b>: each copy opens the same size as the master.</li>
       <li><b>Cap-to-fit</b>: a copy smaller than the master is scaled down to its equity (5% safety margin);
       a copy that is the same size or larger opens the master's size.</li>
+      <li><b>DD left</b>: a copy with less drawdown left than the master is scaled down in the same proportion
+      (copy left / master left), so with the same stop price it risks the same share of what it has left.
+      Drawdown left = the smaller of daily and maximum, read at every entry with the open P&L. A copy with more left opens
+      the master's size (never more). Unknown or used up = that entry is not copied. Adds, reductions and partial SL / TP keep
+      following the copy's own position in proportion.</li>
+      <li><b>Multiplier</b> (per copy): tick it and type the value with a dot (0.5 = half the master size, 2.0 = double, 1.25...).
+      ON replaces 1:1 / Cap-to-fit / DD left for that account only; the size is rounded down to the market's step. Shown as x0.5 next to the
+      account in Copier accounts of the column. It can be changed only with the copier stopped.</li>
       <li><b>START</b> needs Orders ON and asks for confirmation. The copier switches off at every page reload and when Orders go off.</li>
       <li>The dot next to each account: green = nothing open, red = positions or pending orders, yellow = an empty Vest placeholder,
       grey = not read yet.</li>
@@ -56,9 +68,9 @@ const HELP = {
     </ul>`,
   ],
   size: [
-    'Order size and daily goal',
-    `Sizes in Trade commands are a <b>percentage of the maximum size</b> the account can open with its leverage
-    (100% = all the free margin). Example: 2% on an account that can open 50 NQ = 1 NQ.`,
+    'Trade commands settings',
+    `Settings of <b>Trade commands</b> in the column that are not set there. Sizes are a <b>percentage of the maximum size</b> the account
+    can open with its leverage (100% = all the free margin). Example: 2% on an account that can open 50 NQ = 1 NQ.`,
   ],
   stops: [
     'Trailing stop and breakeven',
@@ -114,12 +126,10 @@ const HELP = {
       <li><b>Risk &amp; targets</b>: size from the risk in $, stop and up to four targets, drawn on the chart; ON next to the title lets
       Trade commands send the plan. The <b>?</b> next to <i>column width</i> in Panel layout explains every field.</li>
       <li><b>Trailing &amp; breakeven</b>: the same settings as the panel's "Trailing stop and breakeven".</li>
-      <li><b>Account limits</b>: <b>MARGIN USED</b>: margin of the open positions as a % of equity. <b>MARGIN + ORDERS</b>: including pending orders, and the contracts you can still open.
-      <b>DAILY GOAL</b>: today's P&L against the goal set in Order size and daily goal. <b>OPEN LOSS</b>: loss of the open trade out of what you can lose before Vest's daily limit.
-      <b>DAILY LOSS LEFT</b> / <b>DRAWDOWN LEFT</b>: dollars left before the daily / total limit (the limit in brackets), as on Vest's page.
-      <b>PROFIT TARGET</b>: total P&L against the evaluation target. Bars: green in profit, yellow up to 50% used, orange up to 75%, red beyond.</li>
-      <li><b>Swing range and volatility</b>: SWING RANGE = points between the last swing high and low; VOLATILITY = the heatmap described in Chart display.</li>
-      <li><b>Chart space</b>: room in pixels between the last candle and the price axis, for the labels.</li>
+      <li><b>Account limits</b>: <b>MARGIN USED</b>: margin of the open positions as a % of equity. <b>MARGIN USED + ORDERS</b>: including pending orders, and the contracts you can still open.
+      <b>DAILY PROFIT TARGET</b>: today's P&L against the goal set in Order size and daily profit target. <b>DAILY LOSS LIMIT</b>: today's loss against the level you set. <b>MAX OPEN PROFIT</b> / <b>MAX OPEN LOSS</b>: profit / loss of the open trade (loss out of what you can lose before Vest's daily limit).
+      <b>DAILY DRAWDOWN BUFFER</b> / <b>MAX DRAWDOWN BUFFER</b>: dollars left before the daily / total limit (the limit in brackets), as on Vest's page.
+      <b>ACCOUNT PROFIT TARGET</b>: total P&L against the evaluation target. A row switched ON draws its level on the chart as a <b>USER</b> line (the price where it closes everything). Bars: green in profit, yellow up to 50% used, orange up to 75%, red beyond.</li>
       <li>Click a section title to fold it.</li>
       <li><b>Labels on the chart</b>: drag SL, TP, LIMIT and STOP labels (or their line) to move them; ✕ cancels. On the position label ✕ closes 100% at market (two clicks).</li>
     </ul>`,
@@ -148,7 +158,43 @@ const HELP = {
     'Size presets',
     'The values of the six % buttons in Trade commands, in % of the maximum size. They are shown in ascending order. The size cap still applies.',
   ],
-  dailyGoal: ['Daily goal', 'Your profit target for the day, in dollars. The DAILY GOAL bar in Account limits compares today\'s P&L with it.'],
+  bracket: [
+    'Bracket',
+    `With <b>bracket</b> on, every NEW position opened from the tool goes to Vest with its own SL (and TP if set), in points from
+    the entry: market LONG / SHORT (from the current price), LIMIT (from the limit price), local STOP when it triggers, a LIMIT
+    moved on the chart. Adds to a position already open have no legs (Vest attaches them only to the first order): the position
+    keeps its SL / TP. With Risk & targets ON the plan's own SL / TP are used instead. Seen on Vest with plan LIMITs: the legs of a
+    LIMIT are live before the fill (a TP crossed before the fill shows "trade rejected").`,
+  ],
+  runner: [
+    'Safe runner (experimental)',
+    `It manages the EXIT of a position already open; it is not an initial stop loss (use Bracket for that).
+    <ul>
+      <li><b>1 · Before "start after"</b>: nothing is touched. With no stop on the position, there is none until then.</li>
+      <li><b>2 · At "start after"</b> the size is split into parts, each with its own stop measured from the best price reached:
+        <b>tight</b> (the rest of the size, at <i>tight</i> x ATR), <b>pause low</b> (optional, just under the last pause low of the move)
+        and <b>runner</b> (at <i>runner</i> x ATR). ATR = average range of the last 14 one-minute candles.</li>
+      <li><b>3 · Then</b>, in real time (at every price, not at the candle close), the stops follow the best price; they only move forward and never below
+        entry + <b>profit always kept</b>.</li>
+    </ul>
+    The LOWEST stop (long) is the real stop on Vest for all the remaining size, so it protects with the tab closed too. The higher
+    ones are kept in this tab: when the price touches one, that part is closed at market (tab open, Orders ON).<br>
+    Example, LONG at 100, start 15, kept 10, tight 1 ATR, runner 2 ATR, ATR 8: the price reaches 132 →
+    tight stop 124 (in this tab), runner stop 116 (on Vest), never below 110.<br>
+    <b>1h trend</b>: the badge in the title shows the side in favour (EMA20 vs EMA50 on 1h). With the box ticked the runner keeps its
+    wide stop only on that side, otherwise it uses the tight distance.<br>
+    <b>LIVE</b> needs trailing and auto BE OFF (they move the same stop) and comes back as VIEW after a reload.`,
+  ],
+  srMode: ['Mode', 'OFF: nothing. VIEW: lines and status only, no orders. LIVE: moves the stop on Vest and closes the tranches at market.'],
+  srAct: ['Start after / lock', 'Points of profit (best price reached, live) before the safe runner takes over; lock = profit every stop keeps at least (entry + lock).'],
+  srTight: ['Tight stop', 'Distance of the tight tranche from the best price, in ATR(14) of the 1m candles. NQ tests: 0.3 to 0.5 worked best.'],
+  srRun: ['Runner', 'Share of the size kept as runner and its distance from the best price in ATR. With the 1h check on, the runner is wide only when the 1h trend (EMA20 / EMA50) is in favour.'],
+  srPause: ['Pause-low tranche', 'Share of the size with its stop under the low of the last pause of the move (structure). 0 = not used: in the NQ tests it did not help.'],
+  srClimax: ['Climax', 'After a very large 1m candle at the top (2.5 ATR or more) the stops are tightened. NQ 1m data: after such a candle the move went on less often; in the exit tests it made no difference.'],
+  manlim: ['Account limits settings', 'Settings of <b>Account limits</b> in the column that are not set there. Manual limits: for accounts that have no daily drawdown limit or profit target on Vest (e.g. Instant); switched ON with an amount, each one replaces the value read from Vest (marked "manual" in Account limits), in its bars and in its FLAT rows. Drawdown labels: the X% DRAWDOWN labels on the chart.'],
+  manDay: ['Manual daily drawdown limit', 'ON + amount: the daily drawdown limit becomes this many $. DAILY DRAWDOWN BUFFER = this amount + today\'s P&L (day from 20:00 New York, or Vest\'s daily reset when the account has one). Also the range of MAX OPEN LOSS and the cap of DAILY LOSS LIMIT. It is only the tool\'s: Vest does not know it and does not close anything by itself.'],
+  manTgt: ['Manual account profit target', 'ON + amount: the account profit target becomes this many $ of profit over the initial capital. ACCOUNT PROFIT TARGET shows it as "manual".'],
+  dailyGoal: ['Daily profit target', 'Your profit target for the day, in dollars. The DAILY PROFIT TARGET bar in Account limits compares today\'s P&L with it.'],
   trailing: [
     'Trailing stop',
     `<ul>
@@ -171,7 +217,7 @@ const HELP = {
   ],
   lines: ['Lines on the chart', 'Draws the tool\'s own lines and labels on the chart (position, SL/TP, orders, averages, fail price).'],
   overlay: ['Trade overlay', 'Shows the sections and Trade commands in the column. Off = no sections and no trade buttons.'],
-  dd50: ['50% drawdown label', 'Shows the 50% DRAWDOWN label: the price where the position (plus the entry limits that fill first) loses half of the drawdown still available.'],
+  dd50: ['Drawdown labels', 'Three labels X% DRAWDOWN (25, 50 and 75 by default): the price where the position (plus the entry limits that fill first) loses that % of the drawdown still available. Each one has its box (on / off) and its % (1-99; empty or out of range = the default).'],
   hideVest: [
     'Hide Vest lines',
     `Hides the position line and the SL/TP lines that Vest draws, because the tool draws its own. If the column shows a different
@@ -180,7 +226,7 @@ const HELP = {
   blockPct: ['Card scale', 'Size of the cards when they were drawn on the chart. The panel is now always docked and the sections in the column use the column size, so this value has no effect there.'],
   chipPct: ['Label scale', 'Size of the labels on the chart (SL, TP, LIMIT, STOP, position...). 50-250.'],
   roomPx: [
-    'Label space',
+    'Chart space',
     'Fixed space in pixels between the last candle and the price axis, for the labels and the trailing/BE segments (50-900, empty = 360). The chart does not shift when the labels change width.',
   ],
   countdown: [
@@ -194,15 +240,15 @@ const HELP = {
     LIMIT, armed local STOP or open position). Font size of each button (default = the column's size). Saved in this browser. <b>Default colours</b> puts them all back. Keep LONG and SHORT easy to tell apart.`,
   ],
   layout: [
-    'Panel layout',
-    'Where the panel sits and how it looks. Saved in this browser; nothing here sends orders.',
+    'Panel and column',
+    'Width of the docked column and style of this panel. Saved in this browser; nothing here sends orders.',
   ],
   dock: [
     'Dock as a column',
     `The panel becomes a full-height column on the right and Vest's page is narrowed to leave room for it, so the panel no longer covers
     the chart. Width 320-900 px. It always stays docked; only the Trade commands panel can float (⇱ in its title, ⇥ puts it back).
     <br>Under the folded panel the column holds <b>Trade commands</b> (every trade button) and the sections Risk &amp; targets,
-    Trailing &amp; breakeven, Account limits, Swing range and volatility, Chart space (a click on a section title folds it);
+    Trailing &amp; breakeven, Account limits (a click on a section title folds it);
     the position is shown in the panel header.
     The <b>Trailing &amp; breakeven</b> section holds the same settings as the panel's "Trailing stop and breakeven" (that section
     is hidden from the panel while the column shows its sections).
@@ -254,6 +300,7 @@ const HELP = {
     (lowest) of 91 candles. The candles read go back 300 candles: with a big K there may be no confirmed swing in them (the line then
     is missing on that side).
     If the price goes past the last swing, the line follows the price until a new swing is confirmed.
+    The <b>Swing range</b> section of the panel switches the lines on / off and shows the points between the last swing high and low.
     Colours in Line colours. The candles (the last 300) are read from Vest's chart once a second; if the chart does not provide them the lines
     are not shown (see the log).`,
   ],

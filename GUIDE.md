@@ -54,8 +54,8 @@ Building it yourself lets you read every line before it touches your account. Th
 3. Wait for the four dots in the panel header to turn green: *Session*, *Feed*, *Chart*, *Checks*.
    - If *Checks* stays yellow or red, open **Settings → Diagnostics** to see which check failed.
 4. The column shows the selected account on the chart's market: the position in the panel header, then Trade commands,
-   Risk & targets, Trailing & breakeven, Account limits, Copier accounts, Volatility and Chart space. Click a section title
-   to fold it.
+   Risk & targets, Trailing & breakeven, Account limits, Copier accounts, Bracket, Grid, OCO and Safe runner. Click a section
+   title to fold it. Until Vest's data are in, the column says "WAITING FOR VEST DATA".
 5. Every section and every setting in the panel has a **?** button: click it for an explanation.
    **Settings → Column and Trade commands: what everything does** explains every button and bar.
 
@@ -95,32 +95,37 @@ Check every step on Vest's own positions page.
 
 ## 6. Settings worth setting on day one
 
-- **Order size and daily goal → size cap**: no entry order can be larger than this % of the maximum size. Default 10%.
-- **Order size and daily goal → presets**: the six % buttons in Trade commands.
-- **Order size and daily goal → daily goal**: your target for the day, shown in Account limits.
-- **Panel layout**: column width and panel style. If a Vest window or menu ends up hidden behind the column, fold the
+- **Trade commands settings → size cap**: no entry order can be larger than this % of the maximum size. Default 10%.
+- **Trade commands settings → presets**: the six % buttons in Trade commands.
+- **Trade commands settings → daily profit target**: your target for the day, shown in Account limits.
+- **Account limits settings**: manual daily drawdown limit and profit target for accounts that have none on Vest (e.g. Instant).
+  They are only the tool's: Vest does not know them.
+- **Panel and column**: column width and panel style. If a Vest window or menu ends up hidden behind the column, fold the
   panel or narrow the column.
 - **Button and mode colours**: colours of LIMIT, STOP, LONG, SHORT, FLAT and of the words MANUAL / RISK PLAN / RISK ACTIVE.
-- **Chart display**: card style (Console, Classic or Sonar), card and label size, label space, candle countdown, last swing high/low lines (K = candles on each
-  side, 1-50), volatility heatmap (last N candles vs the last H hours). Each has a **?** that explains it.
-- **Line colours**: colour, dash and width of every line.
+- **Chart display**: card style (Console, Classic or Sonar), label size, space between the last candle and the price axis,
+  candle countdown, last swing high/low lines (K = candles on each side, 1-50) with the swing range in points.
+  Each has a **?** that explains it.
+- **Chart lines and labels**: colour, dash, width and label style of every line and label the tool draws.
 
 Settings are stored in your browser only. Orders, trailing, auto BE and the copier always start **off** after a reload.
 
-## 6b. Reading the Volatility section
+## 6b. Bracket, Grid, OCO and Safe runner
 
-The **Volatility** section of the column has two parts:
-- **SWING RANGE**: points between the last swing high and the last swing low (the green and red lines next to the price axis).
-  With a small K you see the local swings; with a big K only the major ones, confirmed K candles later.
-- **VOLATILITY**: five boxes, 1h to 1m, all measured over the same hours. The big number is the ATR of the last few candles
-  divided by the ATR over the hours: above 1 that timeframe is moving more than usual. When a move starts, 1m usually turns
-  orange or red first, then 5m, 15m... The small number is the ATR in points.
-- The boxes need candles of that timeframe or shorter: with the chart on 5m the 1m box shows "—". Put the chart on 1m for all five.
+All four are off until you switch them on, and **Grid and Safe runner are experimental**: try them at minimum size first.
+- **Bracket**: tick it and set SL (and TP) in points: every new position opened from the tool gets them. *SL / TP follow adds
+  (DCA)* keeps them at those distances from AVG ALL while you add.
+- **Grid**: set Entries / TP / SL ladders, look at them in PLAN (nothing is sent), then ACTIVE and START. ACTIVE is off after a reload.
+- **OCO**: when one pending entry of a market fills, the other pending entries and local stops there are cancelled. The tab
+  must stay open with Orders ON.
+- **Safe runner**: start with VIEW to see its lines without orders; LIVE moves the real stop and closes parts at market.
+  Switch trailing and auto BE off first.
 
 ## 7. Copier (optional)
 
 1. In **Copier**, set one account to **Master** and the others to **Copy**.
-2. Choose **1:1** (same size) or **Cap-to-fit** (copies smaller than the master are scaled down to their equity).
+2. Choose **1:1** (same size), **Cap-to-fit** (copies smaller than the master are scaled down to their equity) or **DD left**
+   (copies with less drawdown left than the master are scaled down in proportion). A per-copy multiplier overrides them.
 3. Switch Orders on, then press **START** and confirm.
 4. Every order of the master is copied, including orders placed with Vest's own order ticket.
 
@@ -134,6 +139,8 @@ There is no automatic update, on purpose: nothing new runs on your account witho
 1. Download the new `vest-tool.user.js` from Releases (or build it).
 2. Install it over the existing one: Tampermonkey replaces the script with the same name.
 3. Reload the Vest page and check the version next to the panel title.
+
+If you used the test build *VestTool EXP*, disable it: it shares the settings, and only one VestTool starts on the page.
 
 Up to version 0.10.58 the script was called *Vest Tool* (with a space). Tampermonkey tells scripts apart by name, so the
 renamed *VestTool* is installed **next to** the old one, not over it. Delete *Vest Tool* in the Tampermonkey Dashboard

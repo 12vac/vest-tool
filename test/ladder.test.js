@@ -134,3 +134,12 @@ test('50% drawdown = half fail price: counts the entry limits that fill first', 
   assert.strictEqual(ddHalf({ ...base, balance: 975, orders: [] }), null); // below the floor
   assert.strictEqual(ddHalf({ ...base, pos: null, orders: [] }), null);
 });
+
+test('parts: entries averaged (AVG ALL only from 2)', () => {
+  const one = { id: 'a', side: 'long', price: 90, qty: 1 },
+    two = { id: 'b', side: 'long', price: 80, qty: 1 };
+  assert.strictEqual(ladder({ pos: null, orders: [one] }).parts, 1); // a single LIMIT: no AVG ALL
+  assert.strictEqual(ladder({ pos: null, orders: [one, two] }).parts, 2);
+  assert.strictEqual(ladder({ pos: { side: 'long', qty: 1, openPrice: 100 }, orders: [one] }).parts, 2);
+  assert.strictEqual(ladder({ pos: { side: 'long', qty: 0, openPrice: 0 }, orders: [one] }).parts, 1); // size-0 placeholder
+});

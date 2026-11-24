@@ -178,6 +178,10 @@ button[disabled] { opacity: .45; cursor: default; }
 /* ── SL and TP labels */
 .chip { padding: 2px 6px; display: flex; gap: 6px; align-items: center; cursor: ns-resize; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .chip.tp { border-color: #2f6b52; } .chip.sl { border-color: #7a3438; }
+.chip.sr { border-color: color-mix(in srgb, var(--kc) 55%, #12151b); }
+.csec[data-sec="br"] .tbb { grid-template-columns: auto 1fr 1fr; }
+.tbb input.brr { height: 16px; padding: 0; margin: 2px 0 0; border: 0; background: transparent; accent-color: var(--k-acc); cursor: pointer; }
+.chip.br { border-color: color-mix(in srgb, var(--kc) 45%, #12151b); opacity: .85; } /* safe runner: border in the colour of its tranche */
 .chip.long { border-color: #2f6b52; } .chip.long .k { color: #3ecf8e; } .chip.short { border-color: #7a3438; } .chip.short .k { color: #ff6b61; }
 .chip.pos { cursor: default; }
 .chip .k { font-weight: 700; } .chip.tp .k { color: #3ecf8e; } .chip.sl .k { color: #ff6b61; }
@@ -479,8 +483,10 @@ button[disabled] { opacity: .45; cursor: default; }
 .root.col .card2 > span.sz:not(.why) { font-size: 13px; font-weight: 400; } /* same size and weight as the number in the % box */
 .root.col .card2 > button.cx { grid-column: span 12; order: 3; }
 .root.col .card2 > :is(button.tp, button.sl, button.be) { grid-column: span 8; order: 3; }
-.root.col .card2 > .cxm { grid-column: 1 / -1; order: 4; position: static !important; width: auto; flex-direction: row; gap: 5px; padding: 5px; box-shadow: none; }
-.root.col .card2 > .cxm button { flex: 1; height: 28px !important; justify-content: center; font-size: 12px; }
+/* CANCEL: a drop-down under its button, over the rest (nothing below LIMIT moves) - Gerry 2026-11-23 */
+.root.col .card2 { position: relative; }
+.root.col .card2 > .cxm { position: absolute !important; z-index: 30; flex-direction: column; gap: 3px; padding: 4px; box-shadow: 0 8px 22px rgba(0,0,0,.6); }
+.root.col .card2 > .cxm button { height: 26px !important; justify-content: flex-start; padding: 0 10px; font-size: 12px; white-space: nowrap; }
 .root.col .card2 > :is(button.lm, button.st, button.long, button.short) { grid-column: span 9; order: 5; }
 .root.col .card2 > :is(button.lm, button.st, button.long, button.short) { font-size: 13.5px; } /* the four entry buttons: same size */
 .root.col .pctbox { width: auto; height: 30px; padding: 0 6px; border-radius: var(--k-rad); border-color: var(--k-bd2); background: var(--k-in); }
@@ -560,6 +566,28 @@ button[disabled] { opacity: .45; cursor: default; }
 .tbnote { grid-column: 1 / -1; font-size: 11.5px; color: var(--k-lb); line-height: 1.35; }
 .tbnote:empty { display: none; }
 .tbnote.warn { color: #f0c03a; }
+.csh .srtr { margin-left: 8px; padding: 0 6px 1px; border-radius: 4px; font: 800 11px/19px system-ui, -apple-system, "Segoe UI", sans-serif; border: 1px solid currentColor; }
+.csh .srtr:empty { display: none; }
+.csh .srtr.up { color: #3ecf8e; } .csh .srtr.down { color: #ff6b61; }
+.tbb .srwide { grid-column: span 3; white-space: normal; height: auto; min-height: 30px; }
+.srb { padding: 8px 10px 10px; display: flex; flex-direction: column; gap: 6px; }
+.srrow { display: grid; grid-template-columns: 1fr 86px; gap: 10px; align-items: center; }
+.srn { font-size: 12.5px; font-weight: 700; color: var(--k-tx, #e6e6e6); line-height: 1.25; }
+.srn small { display: block; font-weight: 400; font-size: 11px; color: var(--k-lb); margin-top: 1px; }
+.srb input, .srb select { box-sizing: border-box; width: 100%; min-width: 0; height: 28px; padding: 0 6px; font: 12.5px/1 system-ui, -apple-system, "Segoe UI", sans-serif;
+  background: #000; color: #fff; border: 1px solid #3b4456; border-radius: 4px; outline: none; }
+.srb input:focus, .srb select:focus { border-color: var(--k-acc); }
+.srb .omcb { display: flex; align-items: flex-start; gap: 6px; font-size: 12px; line-height: 1.3; white-space: normal; cursor: pointer; }
+.srb input[type="checkbox"] { width: 14px; height: 14px; padding: 0; margin: 1px 0 0; accent-color: var(--k-acc); flex: none; }
+.srh { margin-top: 4px; padding-top: 6px; border-top: 1px solid #2a2f3a; font-size: 11px; font-weight: 800; letter-spacing: .3px; color: var(--k-acc); text-transform: uppercase; }
+.srsplit { font-size: 11px; color: var(--k-lb); line-height: 1.3; }
+.srb .tbnote { margin-top: 4px; }
+.csh .srq { margin-left: 8px; width: 19px; height: 19px; padding: 0; border-radius: 50%; border: 1px solid #45474e; background: #303136; color: #fdba74;
+  font: 800 12px/17px system-ui, sans-serif; cursor: pointer; flex: none; }
+.csh .srq:hover { background: #45474e; color: #fff; }
+.srhelp { margin: 8px 10px 0; padding: 8px 10px; border: 1px solid #45474e; border-radius: 6px; background: #15171c; font-size: 12px; line-height: 1.45; color: #d6d6d6; }
+.srhelp ul { margin: 4px 0; padding-left: 18px; }
+.srhelp[hidden] { display: none; }
 /* Risk & targets mode: Manual % / Preview / Active (Active = real orders with the plan) */
 .ommode { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1fr) repeat(3, 84px); gap: 6px; align-items: center; }
 .ommode > span { font-size: 11.5px; color: var(--k-lb); }
@@ -683,3 +711,154 @@ button[disabled] { opacity: .45; cursor: default; }
 .root .cmdh .cph.act { font-size: var(--m-act-fs, 11px); font-weight: var(--m-act-fw, 800); }
 .root .chip .ph.view { font-size: var(--m-view-lfs, 11px); font-weight: var(--m-view-fw, 800); }
 .root .chip .ph.act { font-size: var(--m-act-lfs, 11px); font-weight: var(--m-act-fw, 800); }
+
+/* copier table: sync status per copy (v0.20.15) */
+.sy { display: inline-block; min-width: 13px; margin-left: 4px; padding: 0 3px; border-radius: 3px; font: 800 10.5px/14px system-ui, sans-serif; text-align: center; cursor: help; }
+.sy.ok { color: #3ecf8e; } .sy.off { color: #8b93a3; }
+.sy.small, .sy.limit { background: #f0c03a; color: #000; }
+.sy.missing, .sy.extra, .sy.side { background: #ff6b61; color: #fff; }
+.sy.test { background: #a78bfa; color: #000; }
+/* Account limits guard (Gerry 2026-11-21): ON / OFF per bar; margins and open loss: the slider IS the bar (thumb = FLAT level);
+   the others: a number. FLAT when the level is reached. */
+.card3 .track { position: relative; }
+.root:not(.col) .card3 .gl { display: none; }
+.root:not(.col) .card3 .track.gs .gr { display: none; }
+.root.col .card3 .track.gs { overflow: visible; height: 6px; margin: 9px 0 8px; }
+.card3 .track.gs .gr { position: absolute; left: 0; right: 0; top: 50%; width: 100%; height: 18px; margin: 0; padding: 0; transform: translateY(-50%);
+  -webkit-appearance: none; appearance: none; background: transparent; cursor: pointer; }
+.card3 .track.gs .gr:disabled { cursor: default; opacity: .4; }
+.card3 .track.gs .gr::-webkit-slider-runnable-track { height: 18px; background: transparent; border: 0; }
+.card3 .track.gs .gr::-moz-range-track { height: 18px; background: transparent; border: 0; }
+.card3 .track.gs .gr::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 8px; height: 18px; border-radius: 2px; background: #f97316; border: 1px solid #fff; }
+.card3 .track.gs .gr::-moz-range-thumb { width: 6px; height: 16px; border-radius: 2px; background: #f97316; border: 1px solid #fff; }
+.card3 .gl { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+.card3 .gl .gon { flex: none; width: 38px; height: 19px; padding: 0; border-radius: 4px; border: 1px solid #45474e; background: #26272b; color: #9aa0ab;
+  font: 800 10.5px/17px system-ui, -apple-system, "Segoe UI", sans-serif; cursor: pointer; }
+.card3 .bar.garm .gl .gon { background: #c2410c; border-color: #f97316; color: #fff; }
+.card3 .gl .gn { display: flex; align-items: center; gap: 4px; font: 600 10.5px/1 system-ui, -apple-system, "Segoe UI", sans-serif; color: #aab1be; white-space: nowrap; }
+.card3 .gl .gv { box-sizing: border-box; width: 82px; height: 20px; padding: 0 5px; font: 11.5px/1 system-ui, -apple-system, "Segoe UI", sans-serif;
+  background: #000; color: #fff; border: 1px solid #3b4456; border-radius: 4px; outline: none; }
+.card3 .gl .gv:focus { border-color: #f97316; }
+.card3 .gl .gt { flex: 1; text-align: right; font: 600 10.5px/1.2 system-ui, -apple-system, "Segoe UI", sans-serif; color: #8b93a3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card3 .bar.garm { border-color: #f97316 !important; }
+.card3 .bar.garm .gl .gt { color: #fdba74; }
+.card3 .bar.ghit { background: rgba(255,77,77,.14) !important; }
+
+/* copier table: the account active on Vest (v0.20.26) */
+.card4 tr.sel td { background: #1c2a40; } .card4 tr.sel td:first-child { box-shadow: inset 3px 0 0 #7fb2ff; padding-left: 5px; }
+.card4 tr.sel.bad td { background: #3a1616; } .card4 tr.sel.bad td:first-child { box-shadow: inset 3px 0 0 #ff6b61; }
+.card4 b.act { display: inline-block; margin-left: 4px; padding: 1px 4px 0; border-radius: 3px; font-size: 8.5px; font-weight: 800; letter-spacing: .3px;
+  color: #0b1220; background: #7fb2ff; vertical-align: 1px; }
+.card4 b.act.bad { color: #fff; background: #c0392b; }
+/* column: wider first column for the ◀ ACTIVE tag (v0.20.26) */
+.root.col .card4 col.c0 { width: 33%; } .root.col .card4 col.c1 { width: 12%; } .root.col .card4 col.c2, .root.col .card4 col.c3, .root.col .card4 col.c4 { width: 18.33%; }
+
+/* USER lines: Account limits switched ON (v0.20.29), orange = set by you */
+.chip.usr .un { color: #fdba74; font-weight: 700; }
+
+/* eye next to ON / OFF: USER line shown on the chart or not (v0.20.32) */
+.card3 .gl .geye { flex: none; width: 24px; height: 19px; padding: 0; margin-left: 4px; border-radius: 4px; border: 1px solid #45474e; background: #26272b;
+  color: #fdba74; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+.card3 .gl .geye svg { display: block; }
+.card3 .gl .geye .sl { display: none; }
+.card3 .gl .geye.off { color: #6b7385; }
+.card3 .gl .geye.off .sl { display: inline; }
+
+/* "ACTIVE" next to a section title when its function is on (v0.20.33), same style as the copier's ◀ ACTIVE */
+.csh .sact { margin-left: 8px; padding: 1px 5px 0; border-radius: 3px; font: 800 9.5px/15px system-ui, -apple-system, "Segoe UI", sans-serif;
+  letter-spacing: .3px; color: #0b1220; background: #7fb2ff; }
+.csh .sact.view { color: #c9d1e0; background: #3b4456; }
+
+/* multiplier of a copy next to its number (v0.20.36) */
+.card4 .cmx { font-weight: 700; font-size: .9em; color: #fdba74; }
+
+/* size closed by an SL / TP leg (v0.20.37): ALL = whole position */
+.chip .qy .pc { font-style: normal; opacity: .7; font-size: .9em; }
+
+/* copier OFF and the copy differs from the master: grey, information only (v0.20.38) */
+.sy.offdiff { color: #8b93a3; border: 1px solid #5a606c; line-height: 12px; }
+
+/* sync mark: a click shows its meaning in the panel header (v0.20.39) */
+.card4 .sy[data-tip] { cursor: pointer; }
+
+/* waiting for Vest data after a reload (v0.20.41): column greyed out and not clickable */
+.root.waiting { pointer-events: none !important; }
+/* start (Gerry 2026-11-23): invisible until Vest data are in, then a short fade in (no grey see-through column) */
+.root { transition: opacity .3s ease-out; }
+.root.hidden0 { opacity: 0; visibility: hidden; transition: none; }
+.root.waiting * { pointer-events: none !important; }
+
+/* Exit grid (v0.20.42): two ladders of four columns */
+.csec[data-sec="gd"] .gdb { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.gdb .gdh, .gdb .srwide, .gdb .gdgo, .gdb .tbnote { grid-column: 1 / -1; }
+.gdb .gdw { grid-column: span 2; }
+.gdb .gdc { grid-column: 1 / -1; }
+.gdb .gdh { font-size: 11px; font-weight: 800; letter-spacing: .05em; color: var(--k-tx); margin-top: 4px; border-top: 1px solid #34363c; padding-top: 6px; }
+.gdb .gdgo { height: 30px; border-radius: 6px; border: 1px solid #fff3; background: #c2410c; color: #fff; font-weight: 800; cursor: pointer; }
+.gdb .gdgo:disabled { opacity: .4; cursor: default; }
+.chip.gdtp, .chip.gdsl { border-style: dashed; }
+.chip.gdtp .un, .chip.gdsl .un { opacity: .8; }
+.chip.gden { border-style: dashed; }
+.chip.gden .un { opacity: .8; }
+
+/* Chart lines and labels from the panel (v0.20.44) */
+.chip.knb .k { background: var(--knb) !important; padding: 0 4px; border-radius: 3px; }
+.chip.kfw-b, .chip.kfw-b * { font-weight: 700 !important; }
+.chip.kfw-n, .chip.kfw-n * { font-weight: 400 !important; }
+.root.cpx .chip > b { color: var(--cpx) !important; }
+.root.cup .chip .up { color: var(--cup) !important; }
+.root.cdn .chip .down { color: var(--cdn) !important; }
+.hl.dd { border-top: 0; height: var(--w, 1px); background: repeating-linear-gradient(90deg, var(--c) 0 8px, transparent 8px 11px, var(--c) 11px 13px, transparent 13px 16px); }
+.hl.grab.dd { height: 9px; background: none; }
+.hl.grab.dd::before { border-top: 0; height: var(--w, 1px); background: repeating-linear-gradient(90deg, var(--c) 0 8px, transparent 8px 11px, var(--c) 11px 13px, transparent 13px 16px); }
+.csh .gdtgl.plan { background: #1e3a5f; border-color: #7dd3fc; }
+.gdb .gdh { display: flex; align-items: baseline; gap: 8px; }
+.gdb .gdh label { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }
+.gdb .gdh span { font-weight: 500; letter-spacing: 0; opacity: .65; }
+.gdb .gsl { grid-column: 1 / -1; padding: 2px 2px 4px; }
+.gdb .gslh { display: flex; align-items: center; justify-content: space-between; gap: 6px; font-size: 10.5px; opacity: .8; }
+.gdb .gslh button { white-space: nowrap; height: 20px; padding: 0 7px; border-radius: 4px; border: 1px solid #fff3; background: #26272c; color: inherit; font: 700 10.5px system-ui, sans-serif; cursor: pointer; }
+.gdb .gbar { position: relative; height: 42px; margin: 4px 10px 0; touch-action: none; user-select: none; }
+.gdb .gline { position: absolute; left: 0; right: 0; top: 17px; height: 6px; background: #34363c; border-radius: 3px; }
+.gdb .gend { position: absolute; top: 15px; width: 2px; height: 10px; background: #6b7280; border-radius: 1px; }
+.gdb .gend.s { left: 0; }
+.gdb .gend.e { right: 0; }
+.gdb .gh { position: absolute; top: 9px; width: 14px; height: 22px; margin-left: -7px; cursor: ew-resize; }
+.gdb .gh::before { content: ''; position: absolute; left: 3px; top: 2px; width: 8px; height: 18px; box-sizing: border-box; background: #f97316; border: 1px solid #fff; border-radius: 2px; }
+.gdb .gh:hover::before { background: #fb923c; }
+.gdb .gsv { position: absolute; top: 28px; transform: translateX(-50%); font-size: 10px; white-space: nowrap; color: var(--k-tx, #cbd5e1); pointer-events: none; }
+.gdb .gsv.gtop { top: -3px; }
+/* START like the Copier accounts one (main panel), ACTIVE in the colour of the other ACTIVE tags */
+.gdb .gdgo[data-a="gdstart"] { grid-column: span 2; align-self: end; justify-self: end; height: auto; padding: 6px 18px; border-radius: 4px; background: #15803d; border: 1px solid #22c55e; color: #fff; font-weight: 700; }
+.gdb .gdgo[data-a="gdstart"]:disabled { opacity: .45; }
+.gdb .gdgo[data-a="gdstart"].on, .gdb .gdgo[data-a="gdstart"].on:disabled { background: #7fb2ff; border-color: #7fb2ff; color: #0b1220; font-weight: 800; opacity: 1; }
+/* grid: nearest / farthest of each ladder slightly brighter and solid (they can be dragged); the ones in between are fixed
+   unless Distances = Manual */
+.chip.gdend { border-style: solid; }
+.chip.gdfix, .hl.gdfix { cursor: default; }
+.gdb .gsl.lock [data-gslinv] { visibility: hidden; }
+.gdb .gh.lock { cursor: default; }
+.gdb .gh.lock::before { background: #6b7280; border-color: #9ca3af; }
+/* grid: average line of each ladder on / off (same eye as Account limits) */
+.gdb .gdh .gdeye { margin-left: auto; height: 19px; padding: 0 5px; border-radius: 4px; border: 1px solid #45474e; background: #26272b; color: #fdba74;
+  cursor: pointer; display: inline-flex; align-items: center; gap: 4px; font: 800 9.5px/1 system-ui, sans-serif; letter-spacing: .04em; }
+.gdb .gdh .gdeye svg { display: block; }
+.gdb .gdh .gdeye .sl { display: none; }
+.gdb .gdh .gdeye.off { color: #6b7385; }
+.gdb .gdh .gdeye.off .sl { display: inline; }
+/* grid entries FIX: frozen reference price */
+.gdb .gdh .gdfixb { margin-left: auto; height: 19px; padding: 0 7px; border-radius: 4px; border: 1px solid #45474e; background: #26272b; color: #cbd5e1;
+  cursor: pointer; font: 800 9.5px/1 system-ui, sans-serif; letter-spacing: .04em; white-space: nowrap; }
+.gdb .gdh .gdfixb.on { background: #7fb2ff; border-color: #7fb2ff; color: #0b1220; }
+.gdb .gdh .gdfixb + .gdeye { margin-left: 4px; }
+/* Copier accounts title while the copier is off */
+.csh .sact.off { color: #fff; background: #b91c1c; }
+/* Grid: Entries / TP / SL each in its own tinted block with a lighter title band (Gerry 2026-11-23) */
+.gdb .gdsec { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; align-items: end;
+  margin-top: 6px; padding: 0 8px 8px; border-radius: 6px; background: var(--gs-bg); border: 1px solid var(--gs-bo); }
+.gdb .gdsec > .gdh { margin: 0 -8px 2px; padding: 6px 8px; border-top: 0; border-radius: 6px 6px 0 0; background: var(--gs-hd); color: #fff; }
+.gdb .gdsec > .gdh span { opacity: .8; }
+.gdb .gdsec.en { --gs-bg: rgba(59, 130, 246, .07); --gs-bo: rgba(59, 130, 246, .35); --gs-hd: rgba(59, 130, 246, .30); }
+.gdb .gdsec.tp { --gs-bg: rgba(34, 197, 94, .07); --gs-bo: rgba(34, 197, 94, .35); --gs-hd: rgba(34, 197, 94, .28); }
+.gdb .gdsec.sl { --gs-bg: rgba(239, 68, 68, .07); --gs-bo: rgba(239, 68, 68, .35); --gs-hd: rgba(239, 68, 68, .28); }
+.gdb .gdsec > .gdh label { white-space: nowrap; }

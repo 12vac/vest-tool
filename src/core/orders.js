@@ -12,6 +12,7 @@ const log = require('../diag/log');
 const { S } = store;
 const busy = new Map(); // positionId -> description of the action in progress
 const listeners = new Set();
+let accountGuard = null; // copier: reason why an account may not trade by hand now (copier ON, not the master), or null
 let sentHook = null,
   snapOf = null; // copier: notified after every successful order, with the account state captured BEFORE sending
 
@@ -44,15 +45,22 @@ function blocked(accountId) {
 }
 
 /** Sends an order { method, path, body } for an account. On 401 renews the token and retries ONCE (nothing was executed). */
-async function send(accountId, order, label, positionId) {
-  const why = blocked(accountId);
-  if (why) throw new Error(why);
+async function send(accountId, order, label, positionId, opts = {}) {
+  // copier guard on entries only (open / append): closing, reducing, cancelling and SL / TP stay possible on a copy, to fix it by hand
+  const entry = /\/v3\/positions\/(open|append)$/.test(order.path || '');
+  const why = blocked(accountId) || (entry && !opts.copy && accountGuard ? accountGuard(accountId) : null);
+  if (why) {
+    log.warn(`✗ ${label}: ${why}`);
+    throw new Error(why);
+  }
   if (positionId && busy.has(positionId)) throw new Error(`wait: "${busy.get(positionId)}" is still in progress`);
   if (positionId) busy.set(positionId, label);
   notify();
   const key = uuid();
   const before = snapOf ? snapOf(accountId) : null;
   const t0 = performance.now();
+  // the account in every line (Gerry 2026-11-23: an order went to a copy account selected by mistake and the log did not say so)
+  if (!/^COPY /.test(label)) label = `${(S.accounts[accountId] || {}).label || accountId}: ${label}`;
   log.info(`→ ${label}`);
   try {
     let tok = (await session.accountToken(accountId)).token;
@@ -136,6 +144,7 @@ module.exports = {
   busyOn: (pid) => busy.get(pid) || null,
   onChange: (fn) => (listeners.add(fn), () => listeners.delete(fn)),
   onSent: (fn, snap) => ((sentHook = fn), (snapOf = snap)),
+  setAccountGuard: (fn) => (accountGuard = fn),
   flat,
   breakeven,
   setLeg,

@@ -213,3 +213,79 @@ label.il input[type="checkbox"] { width: auto; }
 .hpos .pl { margin-left: auto; font-size: 14px; font-weight: 800; }
 .hpos .day { margin-left: auto; }
 .hpos .day b { font-weight: 700; }
+.hpos .dtr { margin-left: auto; flex: none; display: inline-flex; align-items: baseline; gap: 4px; white-space: nowrap; color: #8b93a3; font-weight: 600; }
+.hpos .dtr b { display: inline; font-weight: 700; color: #d7dbe3; }
+.hpos .dtr i { margin-right: 0; }
+.hpos .r2 .day { flex: none; }
+.hpos .r2 .mic { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.hpos .dtr b.up { color: #3ecf8e; } .hpos .dtr b.down { color: #ff6b61; }
+.hpos .dtr + .day { margin-left: 0; }
+
+/* copier: test mode and per-copy limits (v0.20.15) */
+.cpdry { display: flex; align-items: center; gap: 6px; margin: 6px 0; font-size: 12px; color: #c9ced8; cursor: pointer; }
+.cpacc .cph th { font-size: 10.5px; font-weight: 600; color: #8b93a3; text-align: left; padding: 2px 4px; }
+.cpacc .clim { width: 64px; box-sizing: border-box; height: 22px; padding: 0 4px; background: #000; color: #fff; border: 1px solid #3b4456; border-radius: 4px; font-size: 12px; }
+
+/* header ORDERS / COPY toggles (v0.20.26): right of the first header row, red OFF / green ON */
+.htg { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; align-self: center; flex: 0 0 auto; }
+.htl { font-size: 9px; font-weight: 800; letter-spacing: .3px; color: #8b93a3; }
+/* text 2 px higher than v0.20.27 (Gerry): same font as then, centred in the box with 1 px bottom padding */
+.htb { display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; font-family: inherit;
+  min-width: 32px; height: 16px; padding: 0 4px 1px; border-radius: 3px; cursor: pointer;
+  color: #fff; background: #8a2a2a; border: 1px solid #c44; margin-right: 6px; }
+.htb.on { background: #1f6a45; border-color: #3ecf8e; }
+
+/* Copier (v0.20.27): test-mode checkbox at the start of its line, Role readable, no Max positions column */
+.panel .cpdry { flex-direction: row; align-items: center; justify-content: flex-start; text-align: left; }
+.panel .cpdry input { flex: 0 0 auto; width: 16px; height: 16px; margin: 0; padding: 0; }
+.panel .cpacc select { width: 92px; min-width: 92px; padding: 3px 4px; font-size: 12px; }
+
+/* v0.20.36 reorganised panel: accounts overview, multiplier per copy */
+.ovh { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+table.acct td:first-child, table.acct th:first-child { text-align: left; }
+table.acct { font-size: 11px; }
+table.acct td, table.acct th { padding-left: 2px; padding-right: 2px; white-space: nowrap; }
+table.acct tfoot td { font-weight: 700; border-top: 1px solid #3a3d45; }
+table.acct tr.legs td { padding-top: 0; font-size: 11px; }
+.rtag { font-style: normal; font-weight: 700; font-size: 10px; padding: 0 4px; border-radius: 3px; background: #3b3f4a; color: #fdba74; }
+.rtag.m { color: #fff; background: #c2410c; }
+b.act { font-size: 10px; padding: 1px 4px 0; border-radius: 3px; color: #0b1220; background: #7fb2ff; }
+.selinfo { margin-top: 6px; font-size: 12px; color: #aeb4c0; }
+.pr .pa { font-weight: 700; min-width: 56px; color: #d6dae2; }
+.cmul { display: inline-flex; align-items: center; gap: 3px; }
+.cmul .cmx { color: #fdba74; font-weight: 700; }
+.cmul .clim { width: 44px; }
+/* v0.20.36: five columns in the docked width (multiplier added) */
+.panel .cpacc { font-size: 11.5px; }
+.panel .cpacc td, .panel .cpacc th { padding-left: 2px; padding-right: 2px; }
+.panel .cpacc input.alias { width: 74px; }
+.panel .cpacc select { width: 70px; min-width: 70px; }
+.panel .cpacc .clim { width: 46px; }
+.panel .cpacc .cmul .clim { width: 38px; }
+
+/* waiting for Vest data after a reload (v0.20.41): what is missing in the header, the rest greyed out and not clickable */
+.hwait { margin-left: auto; align-self: center; font-size: 11px; font-weight: 800; letter-spacing: .04em; color: #fbbf24; animation: hwblink 1.2s ease-in-out infinite; }
+@keyframes hwblink { 50% { opacity: .45; } }
+.panel.waiting .body, .panel.waiting .hpos { pointer-events: none; }
+
+/* colour pickers: the swatch is visible (the Console style padding hid it, v0.20.44) */
+.panel input[type="color"], .panel.console input[type="color"] { width: 40px; height: 24px; padding: 2px; flex: none; cursor: pointer; vertical-align: middle; }
+.panel input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+.panel input[type="color"]::-webkit-color-swatch { border: 0; border-radius: 3px; }
+.panel input[type="color"]::-moz-color-swatch { border: 0; border-radius: 3px; }
+/* Chart lines and labels editor */
+.csed { display: flex; flex-direction: column; gap: 8px; }
+.csed .csel { display: flex; align-items: center; gap: 8px; font-weight: 700; }
+.csed .csel select { flex: 1; }
+.csed .csh4 { font-size: 10.5px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: #8e939e; border-top: 1px solid #34363c; padding-top: 6px; }
+.csed .csrow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+.csed .csrow label { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.csed .csrow select { width: auto; }
+.csed .csrow input[type="checkbox"] { width: 15px; height: 15px; }
+.csprev { position: relative; height: 44px; border: 1px solid #34363c; border-radius: 6px; background: #0f1013; overflow: hidden; }
+.csprev .csline { position: absolute; left: 0; right: 0; top: 21px; }
+.csprev .cschip { position: absolute; right: 10px; top: 9px; display: flex; gap: 6px; align-items: center; padding: 2px 6px; border: 1px solid #2a2f3a; border-radius: 5px;
+  white-space: nowrap; font-variant-numeric: tabular-nums; color: #e2e4e9; }
+.csprev .cschip .k { font-weight: 700; border-radius: 3px; }
+.csprev .cschip .qy { color: #ffb402; font-weight: 800; }
+.csprev .cschip .up { color: #3ecf8e; }

@@ -5,6 +5,9 @@
 // price; the copy's leg is recognised by the price of the master's leg before the change.
 // Sizing: 1:1 = same size; Cap-to-fit = size proportional to equity, ONLY scaling down
 // (a copy that is larger or equal sends the master's size), with a 5% margin and rounded down to the step.
+// DD left: size x (copy's drawdown left / master's drawdown left), ONLY scaling down: with the same SL price the copy risks
+// the same share of what it has left as the master (Gerry 2026-11-23). Drawdown left = the smaller of daily and max left.
+// Multiplier (per copy, ON + value): master size x value, replaces 1:1 / Cap-to-fit / DD left for that copy.
 
 const Z = require('./sizing');
 const { closeOrder } = require('./orders');
@@ -18,10 +21,26 @@ const ACTION_RE = /\/v3\/positions\/(open|append|reduce|close|cancel-order|stop-
 /** Action of an order from its path: 'open', 'append', 'reduce', 'close', ... or null. */
 const actionOf = (path) => (String(path).match(ACTION_RE) || [])[1] || null;
 
-/** Size of a copy for an entry. { qty, scaled } or { skip: reason }. */
-function capQty({ mode, masterQty, mEq, fEq, step }) {
+/** Size of a copy for an entry. { qty, scaled } or { skip: reason }.
+ *  mult > 0: multiplier of this copy (Gerry 2026-11-23): master size x mult, rounded down to the step; it replaces 1:1 / Cap-to-fit. */
+function capQty({ mode, masterQty, mEq, fEq, step, mult, mRoom, fRoom }) {
   const mQ = +masterQty;
   if (!(mQ > 0)) return { skip: 'invalid master size' };
+  if (mult > 0) {
+    if (Math.abs(mult - 1) < EPS) return { qty: mQ, scaled: false };
+    const q = floorStep(mQ * mult, step);
+    if (!(q > 0)) return { skip: `size x${mult} below the minimum size` };
+    return { qty: q, scaled: true };
+  }
+  if (mode === 'dd') {
+    // unknown or used up: skipped (never the full size on an account that may be at its limit)
+    if (!(fRoom > 0)) return { skip: 'drawdown left of the copy unknown or used up: entry not copied' };
+    if (!(mRoom > 0)) return { skip: 'drawdown left of the master unknown or used up: entry not copied' };
+    if (fRoom >= mRoom * (1 - CAP_SAME_SIZE)) return { qty: mQ, scaled: false };
+    const q = floorStep((mQ * fRoom) / mRoom, step);
+    if (!(q > 0)) return { skip: `size for ${Math.round((fRoom / mRoom) * 100)}% of the master's drawdown left is below the minimum size` };
+    return { qty: q, scaled: true };
+  }
   if (mode !== 'cap') return { qty: mQ, scaled: false };
   // without equity it cannot scale: better to skip than to send the full size to a possibly much smaller account
   if (!(mEq > 0) || !(fEq > 0)) return { skip: 'equity unknown: Cap-to-fit cannot compute the size' };
@@ -64,7 +83,7 @@ function planFollower(p) {
     let q;
     if (action === 'append' && fPos && mBefore && mBefore.qty > 0) q = scaleQty(body.quantity, fPos.qty, mBefore.qty, step);
     else {
-      const c = capQty({ mode: p.mode, masterQty: body.quantity, mEq: p.mEq, fEq: p.fEq, step });
+      const c = capQty({ mode: p.mode, masterQty: body.quantity, mEq: p.mEq, fEq: p.fEq, step, mult: p.mult, mRoom: p.mRoom, fRoom: p.fRoom });
       if (c.skip) return { skip: c.skip };
       q = c.qty;
     }
@@ -166,7 +185,7 @@ function planPending(p, lev) {
   let q;
   if (fPos && mBefore && mBefore.qty > 0 && fPos.side === side) q = scaleQty(body.quantity, fPos.qty, mBefore.qty, step);
   else {
-    const c = capQty({ mode: p.mode, masterQty: body.quantity, mEq: p.mEq, fEq: p.fEq, step });
+    const c = capQty({ mode: p.mode, masterQty: body.quantity, mEq: p.mEq, fEq: p.fEq, step, mult: p.mult, mRoom: p.mRoom, fRoom: p.fRoom });
     if (c.skip) return { skip: c.skip };
     q = c.qty;
   }

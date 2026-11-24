@@ -39,4 +39,7 @@ function ago(ts) {
   return s < 60 ? `${s}s ago` : `${Math.round(s / 60)}m ago`;
 }
 
-module.exports = { usd, usdUS, usdFine, price, priceG, qty, cls, esc, ago };
+/** Multiplier with at least one decimal and a dot: 2 -> "2.0", 0.5 -> "0.5", 1.25 -> "1.25". */
+const mult = (v) => (Number.isFinite(+v) && +v > 0 ? (Number.isInteger(+v) ? (+v).toFixed(1) : String(+(+v).toFixed(3))) : '');
+
+module.exports = { usd, usdUS, usdFine, price, priceG, qty, cls, esc, ago, mult };

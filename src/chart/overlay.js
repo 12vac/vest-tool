@@ -18,6 +18,8 @@ const F = { ...Fmt, usd: Fmt.usdUS }; // same US dollar format as the panel
 const log = require('../diag/log');
 const bars = require('./bars');
 const OM = require('../domain/plan');
+const GR = require('../domain/grid');
+const { HELP } = require('../ui/help');
 
 // RESERVED AREA on the right. Distances from the right edge of the chart (start of the price axis):
 //   cards 232 px wide, 20 px from the axis; labels right next to the cards.
@@ -45,7 +47,7 @@ const CLICK_PX = 3;
 const GRAB_HALF = 4; // SL/TP/LIMIT/STOP lines can be grabbed: invisible band of 2*4+1 px around the line
 const PRESETS = [1, 2, 4, 8, 5, 16]; // defaults of the 6 % buttons; changed from the panel (presets), ascending on the card
 const FRACS = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]; // fixed top row: fractions of 1%
-const COLORS = { avg: '#5ad1e6', avg1: '#5ad1e6', ko: '#c58cff', dd50: '#f472b6', mfp: '#ff9f43', avgn: '#5ad1e6', long: '#3ecf8e', short: '#ff6b61', tp: '#3ecf8e', sl: '#ff6b61', lm: '#7fb2ff', st: '#e8b84a' };
+const COLORS = { gdavg: '#e5e7eb', gdenE: '#3b82f6', gdtpE: '#22c55e', gdslE: '#ef4444', gden: '#7dd3fc', gdtp: '#a3e635', gdsl: '#fb7185', usr: '#f97316', avg: '#5ad1e6', avg1: '#5ad1e6', ko: '#c58cff', dd50: '#f472b6', mfp: '#ff9f43', avgn: '#5ad1e6', long: '#3ecf8e', short: '#ff6b61', tp: '#3ecf8e', sl: '#ff6b61', lm: '#7fb2ff', st: '#e8b84a' };
 // names shown for the order kinds (labels, messages)
 const NAME = { tp: 'TP', sl: 'SL', lm: 'LIMIT', st: 'STOP' };
 // line style per kind (colour, dash, width): from the panel (m.lineStyles), otherwise the defaults
@@ -121,12 +123,14 @@ function mount(opts) {
       <button class="close all" data-a="closeall" data-el="closeAllB">CLOSE</button>
       <div class="bars">
         <div class="bar"><div class="bl"><span>MARGIN USED</span><span data-el="m1t"></span></div><div class="track"><i data-el="m1f"></i></div></div>
-        <div class="bar"><div class="bl"><span>MARGIN + ORDERS</span><span data-el="m2t"></span></div><div class="track"><i data-el="m2f"></i></div></div>
-        <div class="bar"><div class="bl"><span>DAILY GOAL</span><span data-el="dgt"></span></div><div class="track"><i data-el="dgf"></i></div></div>
-        <div class="bar"><div class="bl"><span>OPEN LOSS</span><span data-el="rkt"></span></div><div class="track"><i data-el="rkf"></i></div></div>
-        <div class="bar"><div class="bl"><span data-el="ddl">DAILY LOSS LEFT</span><span data-el="ddt"></span></div><div class="track"><i data-el="ddf"></i></div></div>
-        <div class="bar"><div class="bl"><span data-el="dml">DRAWDOWN LEFT</span><span data-el="dmt"></span></div><div class="track"><i data-el="dmf"></i></div></div>
-        <div class="bar"><div class="bl"><span>PROFIT TARGET</span><span data-el="tgt"></span></div><div class="track"><i data-el="tgf" class="goal"></i></div></div>
+        <div class="bar"><div class="bl"><span>MARGIN USED + ORDERS</span><span data-el="m2t"></span></div><div class="track"><i data-el="m2f"></i></div></div>
+        <div class="bar" data-g="dg"><div class="bl"><span>DAILY PROFIT TARGET</span><span data-el="dgt"></span></div><div class="track"><i data-el="dgf"></i></div><div class="gl"><button class="gon" data-gk="dg">OFF</button><button class="geye" data-ek="dg" title="Show / hide this level on the chart (USER line)"><svg viewBox="0 0 24 24" width="15" height="15"><path d="M1.5 12S5.5 5 12 5s10.5 7 10.5 7-4 7-10.5 7S1.5 12 1.5 12z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/><line class="sl" x1="3" y1="21" x2="21" y2="3" stroke="currentColor" stroke-width="2.2"/></svg></button><label class="gn">FLAT at ≥ $<input class="gv" data-gk="dg" inputmode="decimal" autocomplete="off"></label><span class="gt"></span></div></div>
+        <div class="bar" data-g="dl"><div class="bl"><span>DAILY LOSS LIMIT</span><span data-el="dlt"></span></div><div class="track"><i data-el="dlf"></i></div><div class="gl"><button class="gon" data-gk="dl">OFF</button><button class="geye" data-ek="dl" title="Show / hide this level on the chart (USER line)"><svg viewBox="0 0 24 24" width="15" height="15"><path d="M1.5 12S5.5 5 12 5s10.5 7 10.5 7-4 7-10.5 7S1.5 12 1.5 12z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/><line class="sl" x1="3" y1="21" x2="21" y2="3" stroke="currentColor" stroke-width="2.2"/></svg></button><label class="gn">FLAT at loss ≥ $<input class="gv" data-gk="dl" inputmode="decimal" autocomplete="off"></label><span class="gt"></span></div></div>
+        <div class="bar" data-g="cp"><div class="bl"><span>MAX OPEN PROFIT</span><span data-el="cpt2"></span></div><div class="track gs"><i data-el="cpf"></i><input type="range" class="gr" data-gk="cp" min="0" aria-label="FLAT level"></div><div class="gl"><button class="gon" data-gk="cp">OFF</button><button class="geye" data-ek="cp" title="Show / hide this level on the chart (USER line)"><svg viewBox="0 0 24 24" width="15" height="15"><path d="M1.5 12S5.5 5 12 5s10.5 7 10.5 7-4 7-10.5 7S1.5 12 1.5 12z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/><line class="sl" x1="3" y1="21" x2="21" y2="3" stroke="currentColor" stroke-width="2.2"/></svg></button><span class="gt"></span></div></div>
+        <div class="bar" data-g="rk"><div class="bl"><span>MAX OPEN LOSS</span><span data-el="rkt"></span></div><div class="track gs"><i data-el="rkf"></i><input type="range" class="gr" data-gk="rk" min="0" aria-label="FLAT level"></div><div class="gl"><button class="gon" data-gk="rk">OFF</button><button class="geye" data-ek="rk" title="Show / hide this level on the chart (USER line)"><svg viewBox="0 0 24 24" width="15" height="15"><path d="M1.5 12S5.5 5 12 5s10.5 7 10.5 7-4 7-10.5 7S1.5 12 1.5 12z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/><line class="sl" x1="3" y1="21" x2="21" y2="3" stroke="currentColor" stroke-width="2.2"/></svg></button><span class="gt"></span></div></div>
+        <div class="bar" data-g="dd"><div class="bl"><span data-el="ddl">DAILY DRAWDOWN BUFFER</span><span data-el="ddt"></span></div><div class="track"><i data-el="ddf"></i></div><div class="gl"><button class="gon" data-gk="dd">OFF</button><button class="geye" data-ek="dd" title="Show / hide this level on the chart (USER line)"><svg viewBox="0 0 24 24" width="15" height="15"><path d="M1.5 12S5.5 5 12 5s10.5 7 10.5 7-4 7-10.5 7S1.5 12 1.5 12z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/><line class="sl" x1="3" y1="21" x2="21" y2="3" stroke="currentColor" stroke-width="2.2"/></svg></button><label class="gn">FLAT at ≤ $<input class="gv" data-gk="dd" inputmode="decimal" autocomplete="off"></label><span class="gt"></span></div></div>
+        <div class="bar" data-g="dm"><div class="bl"><span data-el="dml">MAX DRAWDOWN BUFFER</span><span data-el="dmt"></span></div><div class="track"><i data-el="dmf"></i></div><div class="gl"><button class="gon" data-gk="dm">OFF</button><button class="geye" data-ek="dm" title="Show / hide this level on the chart (USER line)"><svg viewBox="0 0 24 24" width="15" height="15"><path d="M1.5 12S5.5 5 12 5s10.5 7 10.5 7-4 7-10.5 7S1.5 12 1.5 12z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/><line class="sl" x1="3" y1="21" x2="21" y2="3" stroke="currentColor" stroke-width="2.2"/></svg></button><label class="gn">FLAT at ≤ $<input class="gv" data-gk="dm" inputmode="decimal" autocomplete="off"></label><span class="gt"></span></div></div>
+        <div class="bar" data-g="tg"><div class="bl"><span data-el="tgl">ACCOUNT PROFIT TARGET</span><span data-el="tgt"></span></div><div class="track"><i data-el="tgf" class="goal"></i></div><div class="gl"><button class="gon" data-gk="tg">OFF</button><button class="geye" data-ek="tg" title="Show / hide this level on the chart (USER line)"><svg viewBox="0 0 24 24" width="15" height="15"><path d="M1.5 12S5.5 5 12 5s10.5 7 10.5 7-4 7-10.5 7S1.5 12 1.5 12z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/><line class="sl" x1="3" y1="21" x2="21" y2="3" stroke="currentColor" stroke-width="2.2"/></svg></button><span class="gt"></span></div></div>
       </div>
       <div class="msg" data-el="msg"></div>
     </div>
@@ -137,19 +141,19 @@ function mount(opts) {
       <div class="hm" data-el="hm"></div>
     </div>
     <div class="colw" data-el="colw" style="display:none">
-      <div class="csec om" data-el="sOm" data-sec="om"><div class="csh">Risk &amp; targets<button class="omtgl" data-a="omtoggle" data-el="omTgl">OFF</button></div>
+      <div class="csec om" data-el="sOm" data-sec="om"><div class="csh">Risk &amp; targets<button class="omtgl" data-a="omtoggle" data-el="omTgl">OFF</button><b class="sact" data-el="actOm" style="display:none">ACTIVE</b></div>
         <div class="omb">
           <label class="omf"><span>Size by</span><select data-om="sizeBy"><option value="risk">Risk $</option><option value="pct">% of max</option><option value="qty">Quantity</option></select></label>
           <label class="omf"><span data-el="omSzL">Risk ($)</span><input data-om="sizeVal" inputmode="decimal" autocomplete="off"></label>
           <label class="omf omck"><span>Fees</span><span class="omcb"><input type="checkbox" data-om="fees"> count fees</span></label>
           <div class="omf"><span>Leverage (Vest)</span><b class="omro" data-el="omLev">—</b></div>
           <div class="omt">
-            <div class="omtg"><label><input type="checkbox" data-om="on0"> T1</label><select data-om="by0"><option value="r">× risk</option><option value="ticks">Ticks</option><option value="dist">Points</option><option value="atr">× ATR</option><option value="trail">Trailing</option></select><span class="omsp"><input data-om="val0" inputmode="decimal" autocomplete="off"><span class="spb"><button type="button" tabindex="-1" data-sp="1">▲</button><button type="button" tabindex="-1" data-sp="-1">▼</button></span></span></div>
-            <div class="omtg"><label><input type="checkbox" data-om="on1"> T2</label><select data-om="by1"><option value="r">× risk</option><option value="ticks">Ticks</option><option value="dist">Points</option><option value="atr">× ATR</option><option value="trail">Trailing</option></select><span class="omsp"><input data-om="val1" inputmode="decimal" autocomplete="off"><span class="spb"><button type="button" tabindex="-1" data-sp="1">▲</button><button type="button" tabindex="-1" data-sp="-1">▼</button></span></span></div>
-            <div class="omtg"><label><input type="checkbox" data-om="on2"> T3</label><select data-om="by2"><option value="r">× risk</option><option value="ticks">Ticks</option><option value="dist">Points</option><option value="atr">× ATR</option><option value="trail">Trailing</option></select><span class="omsp"><input data-om="val2" inputmode="decimal" autocomplete="off"><span class="spb"><button type="button" tabindex="-1" data-sp="1">▲</button><button type="button" tabindex="-1" data-sp="-1">▼</button></span></span></div>
-            <div class="omtg"><label><input type="checkbox" data-om="on3"> T4</label><select data-om="by3"><option value="r">× risk</option><option value="ticks">Ticks</option><option value="dist">Points</option><option value="atr">× ATR</option><option value="trail">Trailing</option></select><span class="omsp"><input data-om="val3" inputmode="decimal" autocomplete="off"><span class="spb"><button type="button" tabindex="-1" data-sp="1">▲</button><button type="button" tabindex="-1" data-sp="-1">▼</button></span></span></div>
+            <div class="omtg"><label><input type="checkbox" data-om="on0"> T1</label><select data-om="by0"><option value="r">R multiple</option><option value="ticks">Ticks</option><option value="dist">Points</option><option value="atr">ATR multiple</option><option value="trail">Trailing</option></select><span class="omsp"><input data-om="val0" inputmode="decimal" autocomplete="off"><span class="spb"><button type="button" tabindex="-1" data-sp="1">▲</button><button type="button" tabindex="-1" data-sp="-1">▼</button></span></span></div>
+            <div class="omtg"><label><input type="checkbox" data-om="on1"> T2</label><select data-om="by1"><option value="r">R multiple</option><option value="ticks">Ticks</option><option value="dist">Points</option><option value="atr">ATR multiple</option><option value="trail">Trailing</option></select><span class="omsp"><input data-om="val1" inputmode="decimal" autocomplete="off"><span class="spb"><button type="button" tabindex="-1" data-sp="1">▲</button><button type="button" tabindex="-1" data-sp="-1">▼</button></span></span></div>
+            <div class="omtg"><label><input type="checkbox" data-om="on2"> T3</label><select data-om="by2"><option value="r">R multiple</option><option value="ticks">Ticks</option><option value="dist">Points</option><option value="atr">ATR multiple</option><option value="trail">Trailing</option></select><span class="omsp"><input data-om="val2" inputmode="decimal" autocomplete="off"><span class="spb"><button type="button" tabindex="-1" data-sp="1">▲</button><button type="button" tabindex="-1" data-sp="-1">▼</button></span></span></div>
+            <div class="omtg"><label><input type="checkbox" data-om="on3"> T4</label><select data-om="by3"><option value="r">R multiple</option><option value="ticks">Ticks</option><option value="dist">Points</option><option value="atr">ATR multiple</option><option value="trail">Trailing</option></select><span class="omsp"><input data-om="val3" inputmode="decimal" autocomplete="off"><span class="spb"><button type="button" tabindex="-1" data-sp="1">▲</button><button type="button" tabindex="-1" data-sp="-1">▼</button></span></span></div>
           </div>
-          <label class="omf"><span>Stop by</span><select data-om="stopBy"><option value="dist">Points</option><option value="ticks">Ticks</option><option value="bar">Prev. candle</option><option value="atr">ATR ×</option></select></label>
+          <label class="omf"><span>Stop by</span><select data-om="stopBy"><option value="dist">Points</option><option value="ticks">Ticks</option><option value="bar">Prev. candle</option><option value="atr">ATR multiple</option></select></label>
           <label class="omf"><span data-el="omStL">Distance</span><input data-om="stopVal" inputmode="decimal" autocomplete="off"></label>
           <label class="omf"><span>Stops</span><select data-om="stops"><option value="one">One stop</option><option value="each">Per target</option></select></label>
           <label class="omf"><span>Split</span><select data-om="split"><option value="even">Equal</option><option value="front">T1 most</option><option value="back">Last most</option></select></label>
@@ -158,7 +162,7 @@ function mount(opts) {
         </div>
       </div>
       <div class="csec" data-el="sPos" data-sec="pos"><div class="csh">Position</div></div>
-      <div class="csec tb" data-el="sTb" data-sec="tb"><div class="csh">Trailing &amp; breakeven</div>
+      <div class="csec tb" data-el="sTb" data-sec="tb"><div class="csh">Trailing &amp; breakeven<b class="sact" data-el="actTb" style="display:none">ACTIVE</b></div>
         <div class="tbb">
           <label class="omcb tbon"><input type="checkbox" data-tb="trOn"> Trailing stop</label>
           <label class="omf"><span>Unit</span><select data-tb="trUnit"><option value="pt">pt</option><option value="$">$</option></select></label>
@@ -173,11 +177,49 @@ function mount(opts) {
           <div class="tbnote" data-el="tbNote"></div>
         </div>
       </div>
-      <div class="csec" data-el="sLim" data-sec="lim"><div class="csh">Account limits</div></div>
-      <div class="csec" data-el="sCopy" data-sec="copy"><div class="csh">Copier accounts</div></div>
-      <div class="csec" data-el="sVol" data-sec="vol"><div class="csh">Swing range and volatility</div></div>
-      <div class="csec" data-el="sChart" data-sec="chart"><div class="csh">Chart space</div>
-        <div class="chb"><span>Space between the last candle and the price axis (px)</span><span class="omsp"><input data-el="roomIn" data-step="10" inputmode="numeric" autocomplete="off" placeholder="360"><span class="spb"><button type="button" tabindex="-1" data-sp="1">▲</button><button type="button" tabindex="-1" data-sp="-1">▼</button></span></span></div>
+      <div class="csec" data-el="sLim" data-sec="lim"><div class="csh">Account limits<b class="sact" data-el="actLim" style="display:none">ACTIVE</b></div></div>
+      <div class="csec" data-el="sCopy" data-sec="copy"><div class="csh">Copier accounts<b class="sact" data-el="actCopy" style="display:none">ACTIVE</b></div></div>
+      <div class="csec tb" data-el="sBr" data-sec="br"><div class="csh">Bracket (SL / TP on every new entry)<b class="sact" data-el="actBr" style="display:none">ACTIVE</b></div>
+        <div class="tbb">
+          <label class="omcb tbon"><input type="checkbox" data-tb="brOn"> Bracket</label>
+          <label class="omf"><span>SL (pt)</span><input data-tb="brSl" inputmode="decimal" autocomplete="off" placeholder="empty"><input type="range" class="brr" data-tb="brSl" min="0" aria-label="SL distance"></label>
+          <label class="omf"><span>TP (pt)</span><input data-tb="brTp" inputmode="decimal" autocomplete="off" placeholder="none"><input type="range" class="brr" data-tb="brTp" min="0" aria-label="TP distance"></label>
+          <label class="omcb srwide"><input type="checkbox" data-tb="brDca"> SL / TP follow adds (DCA)</label>
+          <div class="tbnote" data-note="br"></div>
+        </div>
+      </div>
+      <div class="csec tb" data-el="sGd" data-sec="gd"><div class="csh">Grid (experimental)<button class="omtgl gdtgl" data-a="gdmode" data-el="gdTgl">OFF</button><b class="sact" data-el="actGd" style="display:none">ACTIVE</b></div>
+        <div class="tbb gdb">
+                    <label class="omf gdw"><span>Side (entries, or SL / TP at the market price)</span><select data-tb="gdEnSide"><option value="long">LONG</option><option value="short">SHORT</option></select></label><button class="gdgo" data-a="gdstart" data-el="gdStart">START</button><div class="gdsec en"><div class="gdh"><label><input type="checkbox" data-tb="gdEnOn"> Entries</label><span>LIMIT orders from the current price</span><button type="button" class="gdfixb" data-gdfix="En" data-el="gdFixEn" title="Entries measured from the price frozen now instead of the live price">FIX</button><button type="button" class="gdeye" data-gdeye="En" aria-label="Average line on the chart">AVG <svg viewBox="0 0 24 24" width="15" height="15"><path d="M1.5 12S5.5 5 12 5s10.5 7 10.5 7-4 7-10.5 7S1.5 12 1.5 12z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/><line class="sl" x1="3" y1="21" x2="21" y2="3" stroke="currentColor" stroke-width="2.2"/></svg></button></div><label class="omf"><span>Nearest (pt)</span><input data-tb="gdEnNear" inputmode="decimal" autocomplete="off" placeholder="empty"></label><label class="omf"><span>Farthest (pt)</span><input data-tb="gdEnFar" inputmode="decimal" autocomplete="off" placeholder="= nearest"></label><label class="omf"><span>Levels between</span><input data-tb="gdEnMid" inputmode="decimal" autocomplete="off" placeholder="0"></label><label class="omf"><span>Total size % of max</span><input data-tb="gdEnPct" inputmode="decimal" autocomplete="off" placeholder="empty"></label><label class="omf"><span>Distances</span><select data-tb="gdEnDist"><option value="equal">All equal</option><option value="linear">Linear (growing)</option><option value="invlin">Inverse linear (shrinking)</option><option value="hyper">Hyperbolic (faster at the far end)</option><option value="inv">Inverse hyperbolic (faster at the near end)</option><option value="manual">Manual (slider)</option></select></label><div class="gsl" data-gsl="En" data-gk="Man"><div class="gslh"><span>Levels from nearest ▸ to farthest (5 % steps of the way)</span><button type="button" data-gslinv>⇄ invert</button></div><div class="gbar"></div></div><label class="omf gdw"><span>Sizes</span><select data-tb="gdEnSize"><option value="equal">All equal</option><option value="linear">Linear (growing)</option><option value="invlin">Inverse linear (shrinking)</option><option value="hyper">Hyperbolic (faster at the far end)</option><option value="inv">Inverse hyperbolic (faster at the near end)</option><option value="custom">Custom %</option></select></label><label class="omf gdc" data-gdc="En"><span>Custom % of each level, nearest to farthest</span><input data-tb="gdEnCustom" autocomplete="off" placeholder="e.g. 20, 30, 50"></label><div class="gsl" data-gsl="En" data-gk="Custom"><div class="gslh"><span>Size of each level, nearest ▸ farthest (5 % steps)</span><button type="button" data-gslinv>⇄ invert</button></div><div class="gbar"></div></div></div>
+          <div class="gdsec tp"><div class="gdh"><label><input type="checkbox" data-tb="gdTpOn"> Targets (TP)</label><span>on the position, or on the entries waiting</span><button type="button" class="gdfixb" data-gdfix="Tp" data-el="gdFixTp" title="Only with nothing open or waiting (TP at the market price): TP measured from the price frozen now">FIX</button><button type="button" class="gdeye" data-gdeye="Tp" aria-label="Average line on the chart">AVG <svg viewBox="0 0 24 24" width="15" height="15"><path d="M1.5 12S5.5 5 12 5s10.5 7 10.5 7-4 7-10.5 7S1.5 12 1.5 12z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/><line class="sl" x1="3" y1="21" x2="21" y2="3" stroke="currentColor" stroke-width="2.2"/></svg></button></div><label class="omf"><span>Nearest (pt)</span><input data-tb="gdTpNear" inputmode="decimal" autocomplete="off" placeholder="empty"></label><label class="omf"><span>Farthest (pt)</span><input data-tb="gdTpFar" inputmode="decimal" autocomplete="off" placeholder="= nearest"></label><label class="omf"><span>Levels between</span><input data-tb="gdTpMid" inputmode="decimal" autocomplete="off" placeholder="0"></label><label class="omf"><span>Share of position %</span><input data-tb="gdTpPct" inputmode="decimal" autocomplete="off" placeholder="100"></label><label class="omf gdw"><span>Distances</span><select data-tb="gdTpDist"><option value="equal">All equal</option><option value="linear">Linear (growing)</option><option value="invlin">Inverse linear (shrinking)</option><option value="hyper">Hyperbolic (faster at the far end)</option><option value="inv">Inverse hyperbolic (faster at the near end)</option><option value="manual">Manual (slider)</option></select></label><div class="gsl" data-gsl="Tp" data-gk="Man"><div class="gslh"><span>Levels from nearest ▸ to farthest (5 % steps of the way)</span><button type="button" data-gslinv>⇄ invert</button></div><div class="gbar"></div></div><label class="omf gdw"><span>Sizes</span><select data-tb="gdTpSize"><option value="equal">All equal</option><option value="linear">Linear (growing)</option><option value="invlin">Inverse linear (shrinking)</option><option value="hyper">Hyperbolic (faster at the far end)</option><option value="inv">Inverse hyperbolic (faster at the near end)</option><option value="custom">Custom %</option></select></label><label class="omf gdc" data-gdc="Tp"><span>Custom % of each level, nearest to farthest</span><input data-tb="gdTpCustom" autocomplete="off" placeholder="e.g. 50, 30, 20"></label><div class="gsl" data-gsl="Tp" data-gk="Custom"><div class="gslh"><span>Size of each level, nearest ▸ farthest (5 % steps)</span><button type="button" data-gslinv>⇄ invert</button></div><div class="gbar"></div></div></div>
+          <div class="gdsec sl"><div class="gdh"><label><input type="checkbox" data-tb="gdSlOn"> Stops (SL)</label><span>idem</span><button type="button" class="gdfixb" data-gdfix="Sl" data-el="gdFixSl" title="Only with nothing open or waiting (SL at the market price): SL measured from the price frozen now">FIX</button><button type="button" class="gdeye" data-gdeye="Sl" aria-label="Average line on the chart">AVG <svg viewBox="0 0 24 24" width="15" height="15"><path d="M1.5 12S5.5 5 12 5s10.5 7 10.5 7-4 7-10.5 7S1.5 12 1.5 12z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/><line class="sl" x1="3" y1="21" x2="21" y2="3" stroke="currentColor" stroke-width="2.2"/></svg></button></div><label class="omf"><span>Nearest (pt)</span><input data-tb="gdSlNear" inputmode="decimal" autocomplete="off" placeholder="empty"></label><label class="omf"><span>Farthest (pt)</span><input data-tb="gdSlFar" inputmode="decimal" autocomplete="off" placeholder="= nearest"></label><label class="omf"><span>Levels between</span><input data-tb="gdSlMid" inputmode="decimal" autocomplete="off" placeholder="0"></label><span></span><label class="omf gdw"><span>Distances</span><select data-tb="gdSlDist"><option value="equal">All equal</option><option value="linear">Linear (growing)</option><option value="invlin">Inverse linear (shrinking)</option><option value="hyper">Hyperbolic (faster at the far end)</option><option value="inv">Inverse hyperbolic (faster at the near end)</option><option value="manual">Manual (slider)</option></select></label><div class="gsl" data-gsl="Sl" data-gk="Man"><div class="gslh"><span>Levels from nearest ▸ to farthest (5 % steps of the way)</span><button type="button" data-gslinv>⇄ invert</button></div><div class="gbar"></div></div><label class="omf gdw"><span>Sizes</span><select data-tb="gdSlSize"><option value="equal">All equal</option><option value="linear">Linear (growing)</option><option value="invlin">Inverse linear (shrinking)</option><option value="hyper">Hyperbolic (faster at the far end)</option><option value="inv">Inverse hyperbolic (faster at the near end)</option><option value="custom">Custom %</option></select></label><label class="omf gdc" data-gdc="Sl"><span>Custom % of each level, nearest to farthest</span><input data-tb="gdSlCustom" autocomplete="off" placeholder="e.g. 50, 30, 20"></label><div class="gsl" data-gsl="Sl" data-gk="Custom"><div class="gslh"><span>Size of each level, nearest ▸ farthest (5 % steps)</span><button type="button" data-gslinv>⇄ invert</button></div><div class="gbar"></div></div></div>
+          <div class="tbnote" data-note="gd"></div>
+        </div>
+      </div>
+      <div class="csec tb" data-el="sOco" data-sec="oco"><div class="csh">OCO (one cancels the other)<b class="sact" data-el="actOco" style="display:none">ACTIVE</b></div>
+        <div class="tbb">
+          <label class="omcb srwide"><input type="checkbox" data-tb="ocoOn"> OCO on the pending entries of a market</label>
+          <div class="tbnote" data-note="oco"></div>
+        </div>
+      </div>
+      <div class="csec tb" data-el="sSr" data-sec="sr"><div class="csh">Safe runner (experimental)<span class="srtr" data-el="srTr"></span><b class="sact" data-el="actSr" style="display:none">ACTIVE</b><button class="srq" data-a="srhelp" aria-label="How the safe runner works">?</button></div>
+        <div class="srhelp" data-el="srHelp" hidden></div>
+        <div class="srb">
+          <label class="srrow"><span class="srn">Mode<small>OFF nothing · VIEW lines only, no orders · LIVE moves the stop on Vest and closes parts at market</small></span><select data-tb="srMode"><option value="off">OFF</option><option value="view">VIEW</option><option value="live">LIVE</option></select></label>
+          <div class="srh">1 · When it takes over</div>
+          <label class="srrow"><span class="srn">Start after a profit of (points)<small>until the best price is this far in profit nothing is touched: your own stop stays (none = no stop)</small></span><input data-tb="srAct" inputmode="decimal" autocomplete="off"></label>
+          <label class="srrow"><span class="srn">Profit always kept (points)<small>no runner stop ever goes below entry + this (above for a short)</small></span><input data-tb="srLock" inputmode="decimal" autocomplete="off"></label>
+          <div class="srh">2 · How the size is split</div>
+          <label class="srrow"><span class="srn">Runner share (% of the size)<small>part kept for the long move, with the wide stop</small></span><input data-tb="srRunPct" inputmode="decimal" autocomplete="off"></label>
+          <label class="srrow"><span class="srn">Pause-low share (% of the size)<small>part with its stop just under the last pause low of the move; 0 = not used</small></span><input data-tb="srPausePct" inputmode="decimal" autocomplete="off"></label>
+          <div class="srsplit" data-el="srSplit"></div>
+          <div class="srh">3 · Stop distance from the best price (in ATR = average 1-minute candle range)</div>
+          <label class="srrow"><span class="srn">Tight stop distance (ATR)<small>stop of the tight part; 1 = one average 1m candle below the best price</small></span><input data-tb="srTight" inputmode="decimal" autocomplete="off"></label>
+          <label class="srrow"><span class="srn">Runner stop distance (ATR)<small>stop of the runner; bigger = it survives deeper pullbacks</small></span><input data-tb="srRunAtr" inputmode="decimal" autocomplete="off"></label>
+          <label class="omcb srwide"><input type="checkbox" data-tb="srGate"> Runner wide only when the 1h trend is in favour (otherwise it uses the tight distance)</label>
+          <label class="omcb srwide"><input type="checkbox" data-tb="srClimax"> After a very big 1m candle at the top (2.5 ATR or more) tighten the tight and pause-low stops to 60 %</label>
+          <div class="tbnote" data-note="sr"></div>
+        </div>
       </div>
     </div>
     <div class="cmd" data-el="cmd" style="display:none">
@@ -188,6 +230,7 @@ function mount(opts) {
   document.documentElement.appendChild(host);
   for (const el of root.querySelectorAll('[data-el]')) els[el.dataset.el] = el;
   els.layer = root.querySelector('.root');
+  els.layer.classList.add('hidden0'); // start: invisible until Vest data are in (main.js reveal)
   // CANCEL menu closes on a press elsewhere: outside the overlay (window sees only the host of the closed shadow root)
   // or inside it but not on the menu or its button
   const menuOpen = () => els.cxm.style.display !== 'none';
@@ -221,6 +264,7 @@ function mount(opts) {
     b.addEventListener('pointerdown', (e) => {
       if (b.disabled) return;
       const m = getModel();
+      if (m && m.gdFar && m.gdFar[kind]) return startDrag(e, b, kind, null, 'card'); // grid on: farthest level of that ladder
       if (!m || !m.pos) return;
       const legs = m.pos.triggers.filter((t) => t.kind === kind);
       if (legs.length > 1) return say(`More than one ${kind.toUpperCase()}: drag the line you want to move`, 'err');
@@ -252,6 +296,12 @@ function mount(opts) {
       const kind = cx.dataset.cx;
       return run(actions.cancelOrders(kind), kind === 'lm' ? 'pending limits cancelled' : kind === 'st' ? 'local stops cancelled' : 'all orders cancelled');
     }
+    if (t.closest('[data-a="srhelp"]')) {
+      if (els.sSr.classList.contains('folded')) foldSec(els.sSr);
+      if (!els.srHelp.innerHTML) els.srHelp.innerHTML = HELP.runner[1];
+      els.srHelp.hidden = !els.srHelp.hidden;
+      return;
+    }
     const sh = t.closest('.csh');
     if (sh && !t.closest('.omtgl')) return foldSec(sh.parentNode);
     const b = t.closest('button[data-a]');
@@ -276,11 +326,14 @@ function mount(opts) {
     else if (a === 'closeall') run(actions.closeAll(), 'CLOSE sent: pending orders stay');
     else if (a === 'close') run(actions.closePct(), 'PARTIAL CLOSE sent');
     else if (a === 'cmdfloat') setFloat(!cmdSt.float);
+    else if (a === 'gdmode' && actions.gridMode) actions.gridMode();
+    else if (a === 'gdstart' && actions.gridStart) run(actions.gridStart(), 'GRID ACTIVE');
     else if (a === 'omtoggle') {
       // Risk & targets ON: the plan drives Trade commands (the % size is off); OFF = manual
       omMode = omMode === 'manual' ? 'live' : 'manual';
       omAnchor = null;
       omSave();
+      if (omMode === 'live' && actions.exclusive) actions.exclusive('risk');
     } else if (a === 'omside' || a === 'ommode') {
       if (a === 'omside' && omSide !== b.dataset.v) omAnchor = null; // the other side starts from the market price (or its LIMIT)
       if (a === 'omside') omSide = b.dataset.v;
@@ -293,6 +346,11 @@ function mount(opts) {
   // COPIER: click on a row = account shown by the tool (on press: the table is redrawn)
   els.card4.addEventListener('pointerdown', (e) => {
     if (e.target.closest('[data-a="copy"]')) return actions.copyToggle && actions.copyToggle();
+    const tip = e.target.closest('.sy[data-tip]');
+    if (tip) {
+      e.stopPropagation();
+      return actions.say && actions.say(tip.dataset.tip, tip.dataset.tip.includes('OUT OF SYNC') ? 'warn' : 'info');
+    }
     const tr = e.target.closest('tr[data-id]');
     if (tr && actions.select) actions.select(tr.dataset.id);
   });
@@ -338,6 +396,7 @@ let omPv = null; // side whose plan is on the chart ('long' | 'short'), null in 
 // Risk & targets OFF = 'manual' (Trade commands use the % size, nothing on the chart); ON = 'live' (LONG / SHORT / LIMIT / STOP
 // go with the plan size and its SL / TP). ('view' is no longer offered.) ON is never kept: after a reload it is OFF.
 let omMode = 'manual';
+let lastTb = {}; // column section settings as last drawn (safe runner LIVE asks before switching)
 let omSide = 'long';
 let omBv = null; // bars of the last frame (previous candle, ATR) for the plan sent by LONG / SHORT
 // Plan entry on the chart: price where ENTRY was dropped (null = follows the market price, or the pending LIMIT of that side)
@@ -371,8 +430,29 @@ function colSetup() {
   };
   secFold = readJson(SEC_KEY, {});
   omSetup();
+  // Account limits: ON / OFF and level of each bar (FLAT when reached); the level is saved, ON is not (OFF after a reload)
+  els.card3.addEventListener('click', (e) => {
+    const ey = e.target.closest && e.target.closest('button.geye');
+    if (ey && actions.guardEye) {
+      e.stopPropagation();
+      return actions.guardEye(ey.dataset.ek);
+    }
+    const b = e.target.closest && e.target.closest('button.gon');
+    if (!b || !actions.guardToggle) return;
+    e.stopPropagation();
+    try {
+      actions.guardToggle(b.dataset.gk);
+    } catch (err) {
+      say(err.message, 'err');
+    }
+  });
+  els.card3.addEventListener('input', (e) => {
+    const r = e.target;
+    if (!r.classList || !(r.classList.contains('gr') || r.classList.contains('gv')) || !actions.guardLevel) return;
+    actions.guardLevel(r.dataset.gk, r.value);
+  });
   // small arrows next to a number: target values ±0.25 (ticks ±1), chart space ±10 px
-  els.colw.addEventListener('click', (e) => {
+  root.addEventListener('click', (e) => {
     const b = e.target.closest('[data-sp]');
     if (!b) return;
     const inp = b.closest('.omsp').querySelector('input');
@@ -388,19 +468,104 @@ function colSetup() {
     inp.value = String(+v.toFixed(2));
     inp.dispatchEvent(new Event('input', { bubbles: true }));
   });
-  // chart space: the same setting as "label space" in the panel (Chart display)
-  els.roomIn.addEventListener('input', () => {
-    const v = parseInt(els.roomIn.value, 10);
-    if (v >= 50 && v <= 900 && actions.setSetting) actions.setSetting('roomPx', v);
-  });
+  // chart space: now in the main panel (section Chart space, Gerry 2026-11-21)
   // Trailing & breakeven: the panel keeps the settings (same keys); here they are only shown and changed
   const tbSet = (e) => {
     const k = e.target.dataset && e.target.dataset.tb;
     if (!k || !actions.setSetting) return;
+    if (k === 'srMode' && e.target.value === 'live' && lastTb.srMode !== 'live') {
+      const ok = window.confirm(`Safe runner LIVE (experimental)?
+
+Once the profit reaches "start after", it moves the stop on Vest and closes parts of the position at market by itself (with Orders ON, while this tab is open).
+After a reload it comes back as VIEW.`);
+      if (!ok) return void (e.target.value = lastTb.srMode || 'off');
+    }
     actions.setSetting(k, e.target.type === 'checkbox' ? e.target.checked : e.target.value.trim().replace(',', '.'));
   };
-  els.sTb.addEventListener('input', (e) => e.target.type !== 'checkbox' && e.target.tagName !== 'SELECT' && tbSet(e));
-  els.sTb.addEventListener('change', (e) => (e.target.type === 'checkbox' || e.target.tagName === 'SELECT') && tbSet(e));
+  // same mechanism for three sections: Trailing & breakeven, Bracket, Safe runner (the panel keeps the settings)
+  els.sGd.addEventListener('click', (e) => {
+    const fb = e.target.closest('[data-gdfix]');
+    if (fb) {
+      // FIX: entries (or TP / SL at the market price) stop following the price (frozen at the market price now); again =
+      // they follow it again. TP / SL: only when they are computed at the market price (nothing open or waiting).
+      e.preventDefault();
+      const P = fb.dataset.gdfix, k = `gd${P}FixPx`, w = P === 'En' ? 'entries' : P.toUpperCase();
+      const cur = getModel();
+      const mk = cur && cur.market && cur.market.mark;
+      const on = parseFloat((lastTb || {})[k]) > 0;
+      if (!on && !(mk > 0)) return say('price not available', 'err');
+      if (actions.setSetting) actions.setSetting(k, on ? '' : String(roundToTick(mk, cur.market.tick)));
+      return say(on ? `Grid ${w} follow the price again` : `Grid ${w} FIXED at ${roundToTick(mk, cur.market.tick)}${P === 'En' ? '' : ' (only while nothing is open or waiting: then they go on the position / entries)'}`, '');
+    }
+    const ey = e.target.closest('[data-gdeye]');
+    if (ey) {
+      e.preventDefault();
+      const k = `gd${ey.dataset.gdeye}Avg`;
+      return actions.setSetting && actions.setSetting(k, !(lastTb || {})[k]);
+    }
+    const b = e.target.closest('[data-gslinv]');
+    if (!b) return;
+    const el = b.closest('.gsl');
+    const tb = lastTb || {};
+    const P = el.dataset.gsl,
+      k = el.dataset.gk;
+    const v = gslList(tb[`gd${P}${k}`]);
+    if (!v.length) return;
+    gslCommit(P, k, k === 'Custom' ? v.reverse() : v.map((x) => 100 - x).reverse());
+  });
+  els.sGd.addEventListener('pointerdown', (e) => {
+    const h = e.target.closest('.gh');
+    if (!h) return;
+    if (h.classList.contains('lock')) {
+      const man = h.closest('.gsl').dataset.gk === 'Man';
+      return say(`These follow the curve: set ${man ? 'Distances to Manual (slider)' : 'Sizes to Custom %'} to move them by hand`, '');
+    }
+    e.preventDefault();
+    e.stopPropagation();
+    const el = h.closest('.gsl'),
+      bar = el.querySelector('.gbar');
+    const P = el.dataset.gsl,
+      k = el.dataset.gk,
+      i = +h.dataset.i;
+    const tb = lastTb || {};
+    gslDrag = { P, k, vals: gslList(tb[`gd${P}${k}`]) };
+    const move = (ev) => {
+      const r = bar.getBoundingClientRect();
+      let x = Math.round((((ev.clientX - r.left) / r.width) * 100) / GSL_STEP) * GSL_STEP;
+      const v = gslDrag.vals.slice();
+      if (k === 'Custom') {
+        // handle i = border between level i and i+1: the two shares change, the others stay
+        const lo = v.slice(0, i).reduce((a, b) => a + b, 0);
+        const hi = lo + v[i] + v[i + 1];
+        x = Math.min(hi - GSL_STEP, Math.max(lo + GSL_STEP, x));
+        v[i] = x - lo;
+        v[i + 1] = hi - x;
+      } else {
+        const lo = i ? v[i - 1] : 0,
+          hi = i < v.length - 1 ? v[i + 1] : 100;
+        v[i] = Math.min(hi - GSL_STEP, Math.max(lo + GSL_STEP, x));
+      }
+      gslDrag.vals = v;
+      gslDraw(el, tb);
+    };
+    // on the window: the bar is redrawn while the handle moves (the handle element itself is replaced)
+    const W = h.ownerDocument.defaultView || window;
+    const up = () => {
+      W.removeEventListener('pointermove', move, true);
+      W.removeEventListener('pointerup', up, true);
+      W.removeEventListener('pointercancel', up, true);
+      const d = gslDrag;
+      gslDrag = null;
+      if (d) gslCommit(d.P, d.k, d.vals);
+    };
+    W.addEventListener('pointermove', move, true);
+    W.addEventListener('pointerup', up, true);
+    W.addEventListener('pointercancel', up, true);
+  });
+  for (const sec of [els.sTb, els.sBr, els.sGd, els.sOco, els.sSr]) {
+    sec.addEventListener('input', (e) => e.target.type !== 'checkbox' && e.target.tagName !== 'SELECT' && tbSet(e));
+    sec.addEventListener('change', (e) => (e.target.type === 'checkbox' || e.target.tagName === 'SELECT') && tbSet(e));
+  }
   for (const sec of els.colw.querySelectorAll('.csec')) sec.classList.toggle('folded', !!secFold[sec.dataset.sec]);
   // where each moved element lives on the chart
   const list = [els.ordl, els.ordc, els.cpl, els.cpc, els.flatB, els.cpBox, els.closeB, els.closeAllB, els.msg, els.card, els.card2, els.card3, els.card4, els.card5];
@@ -626,8 +791,8 @@ function setCol(on) {
     els.sPos.append(els.card);
     els.sLim.append(els.card3);
     els.sCopy.append(els.card4);
-    els.cmd.append(els.sCopy); // copier accounts under Trade commands (they float with it)
-    els.sVol.append(els.card5);
+    // under Trade commands, in this order (they float with it): copier, bracket, OCO, safe runner, risk & targets, trailing, account limits
+    els.cmd.append(els.sCopy, els.sBr, els.sGd, els.sOco, els.sSr, els.sOm, els.sTb, els.sLim);
     syncFloat();
   } else {
     for (const [el, ph] of moves) ph.after(el);
@@ -637,8 +802,14 @@ function setCol(on) {
   }
 }
 
+let panelOpenSent = null;
 function syncFloat() {
   els.cmd.classList.toggle('float', cmdSt.float);
+  // floating: the column shows the main panel; back in the column: the panel folds to its header (Gerry 2026-11-21)
+  if (panelOpenSent !== cmdSt.float && actions.panelOpen) {
+    panelOpenSent = cmdSt.float;
+    actions.panelOpen(cmdSt.float);
+  }
   els.cmdDet.textContent = cmdSt.float ? '⇥' : '⇱';
   els.cmdDet.setAttribute('aria-label', cmdSt.float ? 'Put back in the column' : 'Detach and float');
   if (cmdSt.float) {
@@ -679,6 +850,13 @@ function cxMenu(open) {
   if (!els.cxm) return;
   els.cxm.style.display = open ? '' : 'none';
   els.card2.classList.toggle('cxopen', !!open);
+  const b = els.card2.querySelector('[data-a="cxmenu"]');
+  if (open && b && els.layer && els.layer.classList.contains('col')) {
+    // right under CANCEL, at least as wide as it
+    const c = els.card2.getBoundingClientRect(),
+      r = b.getBoundingClientRect();
+    Object.assign(els.cxm.style, { left: `${r.left - c.left}px`, top: `${r.bottom - c.top + 2}px`, minWidth: `${r.width}px`, width: 'auto' });
+  }
 }
 
 function say(text, kind) {
@@ -819,6 +997,30 @@ function manageRoom(g, show, needPx, minPx = CANDLE_RIGHT) {
 const show = (el, on) => (el.style.display = on ? '' : 'none');
 
 // clipX: if the line would run over the cards, it stops 4 px before their column
+/** Label style from the panel (Chart lines and labels); empty values leave the card style's. */
+function chipStyle(chip, ls, L) {
+  const key = ls.c + JSON.stringify(L || null);
+  if (chip.dataset.cs === key) return;
+  chip.dataset.cs = key;
+  chip.style.setProperty('--kc', (L && L.n) || ls.c); // name (S, AVG ALL, TP...) in its colour, else the line's
+  chip.style.background = (L && L.bg) || '';
+  chip.style.borderColor = (L && L.bo) || '';
+  chip.style.borderWidth = L && L.bw != null ? L.bw + 'px' : '';
+  chip.style.fontSize = L && L.fs ? L.fs + 'px' : '';
+  chip.classList.toggle('knb', !!(L && L.nb));
+  if (L && L.nb) chip.style.setProperty('--knb', L.nb);
+  chip.classList.toggle('kfw-b', !!(L && L.fw === 'b'));
+  chip.classList.toggle('kfw-n', !!(L && L.fw === 'n'));
+}
+
+/** Line style on an element drawn with a top border (segments): dash-dot is drawn as a repeating gradient. */
+function borderLine(el, ls) {
+  const dd = ls.s === 'dashdot';
+  el.style.borderTop = dd ? '0' : `${ls.w}px ${ls.s} ${ls.c}`;
+  el.style.height = dd ? ls.w + 'px' : '';
+  el.style.background = dd ? `repeating-linear-gradient(90deg, ${ls.c} 0 8px, transparent 8px 11px, ${ls.c} 11px 13px, transparent 13px 16px)` : '';
+}
+
 function hline(el, g, y, st, clipX) {
   el.style.left = g.left + 'px';
   el.style.width = (clipX ? Math.max(0, clipX - g.left - 4) : g.width) + 'px';
@@ -826,8 +1028,9 @@ function hline(el, g, y, st, clipX) {
   el.style.top = g.top + y - (el.classList.contains('grab') ? GRAB_HALF : 0) - Math.floor((st.w - 1) / 2) + 'px';
   if (el.dataset.st !== st.c + st.s + st.w) {
     el.dataset.st = st.c + st.s + st.w;
+    el.classList.toggle('dd', st.s === 'dashdot');
     el.style.setProperty('--c', st.c);
-    el.style.setProperty('--s', st.s);
+    el.style.setProperty('--s', st.s === 'dashdot' ? 'solid' : st.s);
     el.style.setProperty('--w', st.w + 'px');
   }
 }
@@ -918,6 +1121,15 @@ function draw() {
   };
   const inside = (y) => y >= 0 && y <= g.height;
   lineStyles = m.lineStyles || null;
+  // colours of every label (price, profit, loss): only when chosen in the panel, otherwise the card style's
+  {
+    const cc = m.chartCommon || {};
+    for (const [k, v] of Object.entries(cc)) {
+      if (v) els.layer.style.setProperty('--' + k, v);
+      else els.layer.style.removeProperty('--' + k);
+      els.layer.classList.toggle(k, !!v);
+    }
+  }
   if (m.btnColors) {
     const k = JSON.stringify(m.btnColors);
     if (k !== btnColKey) {
@@ -1061,6 +1273,7 @@ function draw() {
             mic: els.mic.textContent,
             dpt: els.dpt.textContent,
             dptC: els.dpt.className.replace('dpt', '').trim(),
+            trades: m.points ? { n: m.points.n, win: m.points.win, loss: m.points.loss } : null,
           }
         : null,
     );
@@ -1068,8 +1281,11 @@ function draw() {
   els.ordc.textContent = m.ordersOn ? 'ON' : 'OFF';
   els.ordc.classList.toggle('on', !!m.ordersOn);
   // COPY under ORDERS: only when a master and at least one copy are assigned
-  show(els.cpl, !!m.copy);
-  show(els.cpc, !!m.copy);
+  // ORDERS / COPY now live in the panel header (v0.20.26): hidden here
+  show(els.ordl, false);
+  show(els.ordc, false);
+  show(els.cpl, false);
+  show(els.cpc, false);
   if (m.copy) {
     els.cpc.textContent = m.copy.armed ? 'ON' : 'OFF';
     els.cpc.classList.toggle('on', !!m.copy.armed);
@@ -1082,7 +1298,7 @@ function draw() {
     if (els.cpIn.value !== want) els.cpIn.value = want;
   }
   els.closeAllB.disabled = busy || !pos;
-  for (const k of ['tp', 'sl', 'be']) els.card2.querySelector(`[data-a="${k}"]`).disabled = busy || !pos;
+  for (const k of ['tp', 'sl', 'be']) els.card2.querySelector(`[data-a="${k}"]`).disabled = busy || !(pos || (k !== 'be' && m.gdFar && m.gdFar[k]));
   const beB = els.card2.querySelector('[data-a="be"]'),
     beT = m.bePlus ? 'BE+' : 'BE';
   if (beB.textContent !== beT) {
@@ -1112,22 +1328,44 @@ function draw() {
   els.rkf.className = zrk;
   // account limits as on Vest's page: used / available
   const lim = m.limits || {};
-  // DAILY GOAL: today's P&L against the goal set in the panel
+  // DAILY PROFIT TARGET: today's P&L against the goal set in the panel
   const dg = m.dailyGoal;
   bar('dgt', 'dgf', dg > 0 ? lim.dayPl / dg : NaN, Number.isFinite(lim.dayPl) ? `<b class="${F.cls(lim.dayPl)}">${F.usd(lim.dayPl, true)}</b> / ${dg > 0 ? F.usd(dg) : 'goal?'}` : '—');
   els.dgf.className = 'goal';
   // one number (what is left) and a bar that grows towards the fail level, with the colour bands
-  const tank = (t, f, l, left, limit, name) => {
-    els[l].textContent = limit > 0 ? `${name} (${F.usd(limit)})` : name;
+  const tank = (t, f, l, left, limit, name, manual) => {
+    els[l].textContent = limit > 0 ? `${name} (${F.usd(limit)}${manual ? ' manual' : ''})` : name;
     const frac = limit > 0 && Number.isFinite(left) ? 1 - Math.max(0, left) / limit : NaN;
     const z = zone(frac, left > limit);
     bar(t, f, frac, Number.isFinite(left) ? `<b class="${z}">${F.usd(left)}</b>` : '—');
     els[f].className = z;
   };
-  tank('ddt', 'ddf', 'ddl', lim.dayLeft, lim.dayLimit, 'DAILY LOSS LEFT');
-  tank('dmt', 'dmf', 'dml', lim.maxLeft, lim.maxLimit, 'DRAWDOWN LEFT');
+  tank('ddt', 'ddf', 'ddl', lim.dayLeft, lim.dayLimit, 'DAILY DRAWDOWN BUFFER', lim.dayManual);
+  tank('dmt', 'dmf', 'dml', lim.maxLeft, lim.maxLimit, 'MAX DRAWDOWN BUFFER');
+  // DAILY LOSS LIMIT: today's loss against the level set (or the daily loss limit when no level)
+  {
+    const gl = m.guards && m.guards.dl;
+    const ref = gl && gl.level > 0 ? gl.level : lim.dayLimit;
+    const loss = Number.isFinite(lim.dayPl) ? Math.max(0, -lim.dayPl) : NaN;
+    const zl = zone(ref > 0 ? loss / ref : NaN, lim.dayPl > 0);
+    bar('dlt', 'dlf', ref > 0 ? loss / ref : NaN, Number.isFinite(loss) ? `<b class="${zl}">${F.usd(loss)}</b> / ${ref > 0 ? F.usd(ref) : '—'}` : '—');
+    els.dlf.className = zl;
+  }
+  // CURRENT PROFIT: open profit of this market against the slider's range
+  {
+    const gc = m.guards && m.guards.cp;
+    const cap = gc && gc.cap > 0 ? gc.cap : NaN;
+    const pr = Math.max(0, rk.upnl || 0);
+    bar('cpt2', 'cpf', cap > 0 ? pr / cap : NaN, cap > 0 ? `<b class="${pr > 0 ? 'zg' : ''}">${F.usd(pr)}</b> of ${F.usd(cap)}` : `<b>${F.usd(pr)}</b>`);
+    els.cpf.className = 'zg';
+  }
+  guardRows(m);
   bar('tgt', 'tgf', lim.goal > 0 ? lim.pl / lim.goal : NaN, lim.goal > 0 && Number.isFinite(lim.pl) ? `<b class="${F.cls(lim.pl)}">${F.usd(lim.pl, true)}</b> / ${F.usd(lim.goal)}` : 'no target');
   els.tgf.className = 'goal';
+  {
+    const tl = lim.goalManual ? 'ACCOUNT PROFIT TARGET (manual)' : 'ACCOUNT PROFIT TARGET';
+    if (els.tgl.textContent !== tl) els.tgl.textContent = tl;
+  }
   // on-screen heights = CSS size x SCALE (offsetHeight ignores the transform)
   const ch = (els.card.offsetHeight || 106) * SCALE,
     h2 = (els.card2.offsetHeight || 92) * SCALE,
@@ -1140,10 +1378,21 @@ function draw() {
     const td = (v) => `<td class="${F.cls(v)}">${F.usd(v, true)}</td>`;
     const tq = (q, side) => `<td class="q ${side === 'long' ? 'up' : side === 'short' ? 'down' : ''}">${q > 0 ? F.qty(q) : '—'}</td>`;
     // no Session column: in practice the same as Today
-    const row = (r) => `<tr data-id="${F.esc(r.id)}" class="${r.id === m.selected ? 'sel' : ''}"><td><i class="adot ${r.act || 'unk'}"></i>${F.esc(r.num || r.label)}${r.master ? ' <i>M</i>' : ''}</td>${tq(r.qty, r.side)}${td(r.upnl)}${td(r.dayPnl)}${td(r.totalPnl)}</tr>`;
+    // sync status of each copy against the master on this market (title = the reason)
+    const SY = { ok: '✓', off: '·', offdiff: '!', small: 'S', limit: 'L', missing: '!', extra: '!', side: '!' };
+    // no tooltips on the cards: the text goes to the panel header on a click (data-tip), the row is NOT selected
+    const sy = (r) => (r.sync ? ` <b class="sy ${r.sync.k}" data-tip="${F.esc((r.label || r.num) + ': ' + r.sync.text)}">${SY[r.sync.k] || '?'}</b>` : '');
+    // the account active on Vest (the one the tool's buttons trade on): highlighted row + tag; red when the copier is ON and it is
+    // not the master (entries refused there) (Gerry 2026-11-23)
+    const selTag = (r) => {
+      if (r.id !== m.selected) return '';
+      const bad = cp.armed && !r.master;
+      return ` <b class="act${bad ? ' bad' : ''}" title="${bad ? 'Active on Vest, but the copier is ON and this is not the master: the tool refuses new entries here. Select the master on Vest.' : 'Active on Vest: the buttons of the tool trade on this account'}">◀ ACTIVE</b>`;
+    };
+    const row = (r) => `<tr data-id="${F.esc(r.id)}" class="${r.id === m.selected ? 'sel' + (cp.armed && !r.master ? ' bad' : '') : ''}"><td><i class="adot ${r.act || 'unk'}"></i>${F.esc(r.num || r.label)}${r.master ? ' <i>M</i>' : ''}${r.mult > 0 && !r.master ? ` <b class="cmx" title="Copy size = master size x ${+r.mult}">x${F.mult(r.mult)}</b>` : ''}${sy(r)}${selTag(r)}</td>${tq(r.qty, r.side)}${td(r.upnl)}${td(r.dayPnl)}${td(r.totalPnl)}</tr>`;
     const html =
       '<colgroup><col class="c0"><col class="c1"><col class="c2"><col class="c3"><col class="c4"></colgroup>' +
-      `<tr class="h"><th><span class="cpt">ACCOUNT</span></th><th>Qty</th><th>Open</th><th>Today</th><th>Total</th></tr>` +
+      `<tr class="h"><th><span class="cpt">${cp.dry ? '<b class="sy test" title="Copier in TEST MODE: nothing is sent to the copies">TEST MODE</b>' : 'ACCOUNT'}</span></th><th>Qty</th><th>Open</th><th>Today</th><th>Total</th></tr>` +
       cp.rows.map(row).join('') +
       `<tr class="t"><td>Total</td>${tq(cp.tot.qty, null)}${td(cp.tot.upnl)}${td(cp.tot.dayPnl)}${td(cp.tot.totalPnl)}</tr>`;
     if (els.cpt.dataset.h !== html) {
@@ -1153,7 +1402,13 @@ function draw() {
     h4 = ((els.card4.offsetHeight || 100) + CARD2_GAP) * SCALE;
   }
   // fifth card: points between the last swing high and low, and volatility on 1h ... 1m over the same hours
-  const c5 = !!(m.hlOn || m.atrOn);
+  const c5 = !col && !!(m.hlOn || m.atrOn); // docked column: no swing range / volatility (Gerry 2026-11-21)
+  // swing range: shown in the main panel's Swing range section (Gerry 2026-11-23)
+  if (actions.swing) {
+    const hl = m.hlOn && bv ? bv.hl : null;
+    const gp = hl && Number.isFinite(hl.h) && Number.isFinite(hl.l) ? hl.h - hl.l : NaN;
+    actions.swing(!m.hlOn ? 'Off: no swing lines on the chart.' : Number.isFinite(gp) ? `SWING RANGE ${F.price(gp, priceDec)} pt (high ${F.price(hl.h, priceDec)}, low ${F.price(hl.l, priceDec)})` : 'SWING RANGE: reading candles…');
+  }
   show(els.card5, c5);
   let h5 = 0;
   if (c5) {
@@ -1197,9 +1452,8 @@ function draw() {
   els.card5.style.left = cardX + 'px';
   els.card5.style.top = g.top + c3y + h3 + CARD2_GAP * SCALE + h4 + 'px';
   if (col) {
-    // column sections follow their cards (copier and volatility only when on)
+    // column sections follow their cards (copier only when on)
     show(els.sCopy, !!cp);
-    show(els.sVol, c5);
   }
   if (root.activeElement !== els.pctIn) {
     const want = m.pct > 0 ? String(m.pct) : '';
@@ -1249,11 +1503,59 @@ function draw() {
   if (pos) items.push({ id: 'pos:' + pos.id, kind: pos.side, price: pos.openPrice, entry: pos });
   // fail price: where the equity reaches the drawdown limit (read-only)
   // average entry if all entry limits fill (read-only)
-  if (m.avg && m.avg.avg > 0) items.push({ id: 'avg', kind: 'avg', price: m.avg.avg, avgL: m.avg });
+  // only when it averages 2 or more entries (a single LIMIT and no position: the average is the LIMIT itself, Gerry 2026-11-23)
+  if (m.avg && m.avg.avg > 0 && m.avg.parts > 1) items.push({ id: 'avg', kind: 'avg', price: m.avg.avg, avgL: m.avg });
   // average entry with the open position and only the next limit
   if (m.avg && m.avg.next && m.avg.next.avg > 0) items.push({ id: 'avg1', kind: 'avg1', price: m.avg.next.avg, avgL: m.avg, one: true });
   if (m.ko && m.ko.price > 0) items.push({ id: 'ko', kind: 'ko', price: m.ko.price, ko: m.ko });
-  if (m.dd50 && m.dd50.price > 0) items.push({ id: 'dd50', kind: 'dd50', price: m.dd50.price, dd50: m.dd50 });
+  // drawdown levels (25 / 50 / 75 % by default, set in the panel)
+  for (const [i, h] of (m.ddLv || []).entries()) if (h && h.price > 0) items.push({ id: 'dd50:' + i, kind: 'dd50', price: h.price, dd50: h });
+  // Account limits switched ON: where each one fires on this market (read-only, "USER" = a limit set by you)
+  for (const u of m.userLines || []) items.push({ id: 'usr:' + u.k, kind: 'usr', price: u.price, usr: u });
+  // Grid: one line per level (PLAN: nothing sent; ACTIVE: the SL / TP are on Vest). Draggable; START on the nearest one in PLAN.
+  gdNow.clear();
+  if (m.tb && m.tb.gdOn) {
+    const gl = [...((m.gridEn && m.gridEn.legs) || []), ...((m.grid && m.grid.tp) || []), ...((m.grid && m.grid.sl) || [])];
+    const go = null; // START only in the section (Gerry 2026-11-23)
+    // nearest / farthest = the first / last level DRAWN of each ladder: a level below the minimum size is merged into the
+    // next one, so the first one drawn can be level 2 (Gerry 2026-11-23: TP1 / SL1 could not be dragged)
+    const lo = {}, hi = {};
+    for (const l of gl) {
+      lo[l.kind] = Math.min(lo[l.kind] ?? Infinity, l.i);
+      hi[l.kind] = Math.max(hi[l.kind] ?? -Infinity, l.i);
+    }
+    for (const l of gl) {
+      const id = `gd:${l.kind}:${l.n}`;
+      const dp = drag && drag.from === 'gd' && drag.moved && drag.existing.id === id ? drag.price : l.price;
+      const P = l.kind === 'en' ? 'En' : l.kind === 'tp' ? 'Tp' : 'Sl';
+      const isLo = l.i === lo[l.kind], isHi = l.i === hi[l.kind];
+      const end = !(l.of > 2) || isLo || isHi; // nearest / farthest drawn
+      // which end it moves: the real one if it is level 1 / last, else the nearest drawn moves Nearest, the farthest Farthest
+      const which = l.i === 0 ? 'near' : l.i === l.of - 1 ? 'far' : isLo && !isHi ? 'near' : isHi && !isLo ? 'far' : isLo ? 'near' : '';
+      const mov = end || m.tb[`gd${P}Dist`] === 'manual';
+      // other = the other end drawn: it stays where it is while this one is dragged
+      gdNow.set(id, { ...l, mov, which: end ? which : '', other: which === 'near' ? hi[l.kind] : which === 'far' ? lo[l.kind] : -1 });
+      items.push({ id, kind: 'gd' + l.kind, sk: end && l.of > 1 ? 'gd' + l.kind + 'E' : '', price: dp, gd: l, gdGo: l === go, gdLive: !!m.gdLive, gdEnd: end, gdMov: mov });
+    }
+    // average price and total size of each ladder (eye in the section). Entries: with the open position on the same side.
+    const avgOf = (legs) => {
+      const q = legs.reduce((a, l) => a + l.qty, 0);
+      return q > 0 ? { price: legs.reduce((a, l) => a + l.price * l.qty, 0) / q, qty: q, usd: legs.reduce((a, l) => a + (l.usd || 0), 0) } : null;
+    };
+    const en = (m.gridEn && m.gridEn.legs) || [];
+    if (m.tb.gdEnAvg && en.length > 1) {
+      const a = avgOf(en);
+      const p = pos && pos.qty > 0 && pos.side === en[0].side ? pos : null;
+      const q = a.qty + (p ? p.qty : 0);
+      items.push({ id: 'gd:avg:en', kind: 'gdavg', price: p ? (a.price * a.qty + p.openPrice * p.qty) / q : a.price, gdAvg: { k: 'ENTRY', qty: q, usd: NaN, withPos: !!p, n: en.length } });
+    }
+    for (const k of ['tp', 'sl']) {
+      const legs = (m.grid && m.grid[k]) || [];
+      if (!m.tb[k === 'tp' ? 'gdTpAvg' : 'gdSlAvg'] || legs.length < 2) continue;
+      const a = avgOf(legs);
+      if (a) items.push({ id: 'gd:avg:' + k, kind: 'gdavg', price: a.price, gdAvg: { k: k.toUpperCase(), qty: a.qty, usd: a.usd, n: legs.length } });
+    }
+  }
   const pv = hoverSide && m.preview && m.preview[hoverSide];
   // the FAIL NEW label always exists (invisible without hover): the space on the right already holds it and the chart does not
   // jump the first time LONG / SHORT is hovered
@@ -1261,29 +1563,144 @@ function draw() {
   const pvRes = okPv(pv) || (m.preview && (okPv(m.preview.long) || okPv(m.preview.short)));
   if (pvRes) items.push({ id: 'pv:mfp', kind: 'mfp', price: pvRes.ko.price, pv: pvRes, ghost: !okPv(pv) });
   if (pv && pv.adding) items.push({ id: 'pv:avg', kind: 'avgn', price: pv.avg, pv, pvAvg: true });
-  if (pos) for (const t of pos.triggers) items.push({ id: t.id, kind: t.kind, price: t.price, leg: t });
-  if (col && root.activeElement !== els.roomIn) {
-    const rv = String(m.roomPx ?? '');
-    if (els.roomIn.value !== rv) els.roomIn.value = rv;
+  if (pos) for (const t of pos.triggers) if (!(m.gdHide && m.gdHide[t.kind])) items.push({ id: t.id, kind: t.kind, price: t.price, leg: t });
+  if (pos) for (const r of m.sr || []) items.push({ id: r.key, kind: 'sr', price: r.price, sr: r });
+  // BRACKET of the pending entries (Gerry 2026-11-21: "non mi visualizza i rispettivi SL e TP"), read-only, only with no position:
+  //  - Vest LIMIT: the legs Vest holds on its size-0 placeholder when it lists them, else the bracket distances from the limit;
+  //  - local LIMIT / STOP: the bracket distances from its price (the real legs are computed from the price at the fill).
+  brGhosts.length = 0;
+  if (!pos && m.tb && m.tb.brOn && +m.tb.brSl > 0 && !omLive()) {
+    const bsl0 = +m.tb.brSl,
+      btp0 = +m.tb.brTp;
+    const real = m.phLegs && m.phLegs.length ? m.phLegs : null;
+    brNow.clear();
+    const now = Date.now();
+    for (const [k, h] of brHold) if (now > h.until) brHold.delete(k);
+    const seenHold = new Set();
+    const dragPx = (id, px) => (drag && drag.from === 'br' && drag.moved && drag.existing.id === id ? drag.price : px);
+    for (const o of m.pendings || []) {
+      if (o.label === 'CLOSE' || !(o.price > 0)) continue;
+      const d = o.side === 'long' ? 1 : -1;
+      const ov = o.local && o.br ? o.br : {}; // distances dragged for this local entry
+      const bsl = ov.sl > 0 ? ov.sl : bsl0,
+        btp = ov.tp > 0 ? ov.tp : btp0;
+      const sub = `${o.local ? (o.lim ? 'local LIMIT' : 'local STOP') : 'LIMIT'} ${o.side === 'long' ? 'BUY' : 'SELL'} ${F.price(o.price, priceDec)}`;
+      // a drop just made on this entry: its new SL / TP are drawn at once, until the feed shows them (no jump back, no gap)
+      const hk = o.side + '|' + o.price;
+      const h = brHold.get(hk);
+      if (h) seenHold.add(hk);
+      const legs = []; // { id, k, price, vest, fixed, own, held }
+      let cur;
+      if (!o.local && real) {
+        const sls = real.filter((l) => l.kind === 'sl'),
+          tps = real.filter((l) => l.kind === 'tp');
+        const one = sls.length <= 1 && tps.length <= 1; // several partial legs: shown, not draggable
+        cur = { sl: sls.length ? sls[0].price : NaN, tp: tps.length ? tps[0].price : NaN };
+        for (const l of real) legs.push({ id: 'br:' + o.id + ':' + l.id, k: l.kind, price: l.price, vest: true, fixed: !one });
+      } else {
+        cur = { sl: roundToTick(o.price - d * bsl, tick, d > 0 ? 'down' : 'up'), tp: btp > 0 ? roundToTick(o.price + d * btp, tick, d > 0 ? 'up' : 'down') : NaN };
+        legs.push({ id: 'br:' + o.id + ':sl', k: 'sl', price: cur.sl, own: ov.sl > 0 });
+        if (cur.tp > 0) legs.push({ id: 'br:' + o.id + ':tp', k: 'tp', price: cur.tp, own: ov.tp > 0 });
+      }
+      if (h) {
+        const same = (x, y) => (Number.isFinite(x) ? Math.abs(x - y) < tick / 2 : !Number.isFinite(y));
+        if (same(h.sl, cur.sl) && same(h.tp, cur.tp)) brHold.delete(hk); // the feed has it now
+        else {
+          cur = { sl: h.sl, tp: h.tp };
+          legs.length = 0;
+          legs.push({ id: 'br:' + o.id + ':sl', k: 'sl', price: h.sl, own: true, held: true });
+          if (h.tp > 0) legs.push({ id: 'br:' + o.id + ':tp', k: 'tp', price: h.tp, own: true, held: true });
+        }
+      }
+      for (const l of legs) {
+        items.push({ id: l.id, kind: 'br', price: dragPx(l.id, l.price), br: { k: l.k, ref: o.price, side: o.side, sub, vest: !!l.vest, fixed: !!l.fixed, own: !!l.own, held: !!l.held } });
+        if (!l.fixed) brNow.set(l.id, { o, k: l.k, price: l.price, cur });
+      }
+    }
+    // Vest LIMIT being placed again (cancel + new order): the old one is gone from the feed for a moment, drawn as before
+    for (const [hk, h] of brHold) {
+      if (seenHold.has(hk) || h.local) continue;
+      const o = h.o;
+      const sub = `LIMIT ${o.side === 'long' ? 'BUY' : 'SELL'} ${F.price(o.price, priceDec)}`;
+      brGhosts.push(o);
+      items.push({ id: 'br:' + o.id + ':sl', kind: 'br', price: h.sl, br: { k: 'sl', ref: o.price, side: o.side, sub, own: true, held: true } });
+      if (h.tp > 0) items.push({ id: 'br:' + o.id + ':tp', kind: 'br', price: h.tp, br: { k: 'tp', ref: o.price, side: o.side, sub, own: true, held: true } });
+    }
   }
   // Trailing & breakeven: fields follow the panel's settings (not while typing in them)
   if (col && m.tb) {
-    for (const el of els.sTb.querySelectorAll('[data-tb]')) {
+    lastTb = m.tb;
+    // bracket sliders: 0 .. about 2 % of the price (rounded up to 1 / 2 / 5 x 10^n), wider if the value is already beyond it
+    if (m.market && m.market.mark > 0) {
+      const nice = (v) => {
+        const p = Math.pow(10, Math.floor(Math.log10(v)));
+        return (v / p <= 1 ? 1 : v / p <= 2 ? 2 : v / p <= 5 ? 5 : 10) * p;
+      };
+      for (const r of els.sBr.querySelectorAll('input.brr')) {
+        const v = +m.tb[r.dataset.tb] || 0;
+        const mx = String(nice(Math.max(m.market.mark * 0.02, v * 1.2, 1)));
+        if (r.max !== mx) r.max = mx;
+        const tk = m.market.tick > 0 ? m.market.tick : 0;
+        const st = String(tk ? Math.max(tk, Math.round(5 / tk) * tk) : 5); // Gerry 2026-11-21: sliders in steps of 5 points
+        if (r.step !== st) r.step = st;
+      }
+    }
+    for (const el of [els.sTb, els.sBr, els.sGd, els.sOco, els.sSr].flatMap((s) => [...s.querySelectorAll('[data-tb]')])) {
       if (root.activeElement === el) continue;
       const v = m.tb[el.dataset.tb];
       if (el.type === 'checkbox') {
         if (el.checked !== !!v) el.checked = !!v;
       } else if (el.value !== String(v ?? '')) el.value = String(v ?? '');
     }
+    for (const c of els.sGd.querySelectorAll('[data-gdc]')) show(c, false); // the slider replaces the text (kept: same setting)
+    for (const el of els.sGd.querySelectorAll('.gsl')) gslDraw(el, m.tb);
+    for (const ey of els.sGd.querySelectorAll('[data-gdeye]')) ey.classList.toggle('off', !m.tb[`gd${ey.dataset.gdeye}Avg`]);
+    for (const P of ['En', 'Tp', 'Sl']) {
+      const b = els['gdFix' + P];
+      const fx = parseFloat(m.tb[`gd${P}FixPx`]);
+      const fxt = fx > 0 ? `FIXED ${Fmt.price(fx, m.market ? m.market.priceDec : 2)}` : 'FIX';
+      if (b.textContent !== fxt) b.textContent = fxt;
+      b.classList.toggle('on', fx > 0);
+    }
+    const gtx = m.gdLive ? 'ACTIVE' : m.tb.gdOn ? 'PLAN' : 'OFF';
+    if (els.gdTgl.textContent !== gtx) {
+      els.gdTgl.textContent = gtx;
+      els.gdTgl.classList.toggle('plan', gtx === 'PLAN');
+      els.gdTgl.classList.toggle('on', gtx === 'ACTIVE');
+    }
+    const stx = m.gdLive ? 'ACTIVE' : 'START';
+    if (els.gdStart.textContent !== stx) els.gdStart.textContent = stx;
+    els.gdStart.classList.toggle('on', !!m.gdLive);
+    els.gdStart.disabled = !m.tb.gdOn || !!m.gdLive;
     const n = m.tb.note || {};
     if (els.tbNote.textContent !== (n.text || '')) els.tbNote.textContent = n.text || '';
     els.tbNote.classList.toggle('warn', !!n.warn);
+    {
+      // tight share = what is left after runner and pause low (as core/runner.js engineCfg)
+      const pc = (v, d) => Math.min(100, Math.max(0, v === '' || v == null || !Number.isFinite(+v) ? d : +v));
+      const run = pc(m.tb.srRunPct, 33),
+        pau = pc(m.tb.srPausePct, 0),
+        tig = Math.max(0, 100 - run - pau);
+      const tx = `Tight part = the rest: ${+tig.toFixed(2)} %. Each part is rounded down to the minimum size, what is left goes to the runner (at the minimum size there is only the runner).`;
+      if (els.srSplit.textContent !== tx) els.srSplit.textContent = tx;
+    }
+    const tr = m.tb.srTrend || {};
+    const tw = tr.dir === 'up' ? '1h ▲ LONG' : tr.dir === 'down' ? '1h ▼ SHORT' : '';
+    if (els.srTr.textContent !== tw) els.srTr.textContent = tw;
+    els.srTr.className = 'srtr ' + (tr.dir || '');
+    els.srTr.title = tr.text || '';
+    for (const el of root.querySelectorAll('[data-note]')) {
+      const x = (m.tb.notes && m.tb.notes[el.dataset.note]) || {};
+      if (el.textContent !== (x.text || '')) el.textContent = x.text || '';
+      el.classList.toggle('warn', !!x.warn);
+    }
   }
   // Risk & targets: plan for both sides in the column section, lines only for the side being shown (no orders)
   if (col) {
     omBv = bv;
     omPv = omMode === 'manual' ? null : omNewLimitSide(m) || omSide;
     const tg = omMode === 'manual' ? 'OFF' : 'ON';
+    activeTags(m);
     if (els.omTgl.textContent !== tg) {
       els.omTgl.textContent = tg;
       els.omTgl.classList.toggle('on', tg === 'ON');
@@ -1380,6 +1797,7 @@ function draw() {
     }
   }
   for (const o of m.pendings || []) items.push({ id: 'o:' + o.id, kind: o.kind, price: o.price, order: o });
+  for (const o of brGhosts) if (!items.some((i) => i.id === 'o:' + o.id)) items.push({ id: 'o:' + o.id, kind: o.kind, price: o.price, order: o, held: true });
   const seen = new Set();
   planNow.clear();
   items.sort((a, b) => b.price - a.price); // top to bottom: labels stack without overlapping
@@ -1390,7 +1808,7 @@ function draw() {
     if (!le) {
       le = { line: document.createElement('div'), chip: document.createElement('div'), html: '' };
       const omDrag = !!(it.om && it.om.drag); // ENTRY and plan SL: dragged, nothing sent
-      const ro = it.entry || it.ko || it.dd50 || it.avgL || it.pv || (it.om && !omDrag); // (also AVG NEXT, the FAIL NEW preview, the plan targets) read-only: no drag, no X
+      const ro = it.entry || it.ko || it.dd50 || it.usr || it.gdAvg || it.avgL || it.pv || it.sr || (it.br && it.br.fixed) || (it.om && !omDrag); // (also AVG NEXT, the FAIL NEW preview, the plan targets) read-only: no drag, no X
       le.line.className = ro ? 'hl entry' : 'hl grab';
       le.chip.className = 'chip ' + it.kind + (ro ? ' pos' : '') + (it.om ? ' plan' : '');
       const id = it.id;
@@ -1413,6 +1831,22 @@ function draw() {
           const p = planNow.get(id);
           if (!p) return;
           return startDrag(e, el, id === 'om:sl' ? 'sl' : 'lm', { id, price: p.price, entry: p.entry, qty: p.qty }, 'plan');
+        }
+        if (id.startsWith('gd:')) {
+          const l = gdNow.get(id);
+          if (!l) return;
+          if (e.target.closest('.go')) {
+            e.preventDefault();
+            e.stopPropagation();
+            return actions.gridStart && run(actions.gridStart(), 'GRID ACTIVE');
+          }
+          if (!l.mov) return say('Levels in between follow the curve: move the nearest or the farthest, or set Distances to Manual (slider)', '');
+          return startDrag(e, el, l.kind === 'en' ? 'lm' : l.kind, { id, price: l.price, gd: l }, 'gd');
+        }
+        if (id.startsWith('br:')) {
+          const b = brNow.get(id);
+          if (!b) return;
+          return startDrag(e, el, b.k, { id, price: b.price, order: b.o, cur: b.cur }, 'br');
         }
         if (id.startsWith('o:')) {
           const o = (cur.pendings || []).find((x) => 'o:' + x.id === id);
@@ -1494,16 +1928,64 @@ function draw() {
       price = L.avg;
       html = `<span class="k">AVG ALL</span><b>${F.price(price, priceDec)}</b><span>${F.qty(L.qty)}</span>`;
       le.chip.title = `Average entry if all ${L.n} entry limits fill${pos ? ', on top of the open position' : ''}: total size ${F.qty(L.qty)}. Excludes local stops and fees.`;
+    } else if (it.gdAvg) {
+      const g = it.gdAvg;
+      price = it.price;
+      html = `<span class="k">GRID AVG ${g.k}</span><b>${F.price(price, priceDec)}</b><span class="qy">${F.qty(g.qty)}</span>${Number.isFinite(g.usd) ? `<span class="${F.cls(g.usd)}">${F.usd(g.usd, true)}</span>` : ''}`;
+      le.chip.title = g.k === 'ENTRY'
+        ? `Average price if all ${g.n} grid entries fill${g.withPos ? ', together with the open position' : ''}: total size ${F.qty(g.qty)}.`
+        : `Average price of the ${g.n} grid ${g.k} levels, weighted by their size: total ${F.qty(g.qty)}, ${F.usd(g.usd, true)} if all are hit.`;
+    } else if (it.gd) {
+      const l = it.gd;
+      price = it.price;
+      le.chip.classList.toggle('gdend', !!it.gdEnd);
+      le.chip.classList.toggle('gdfix', !it.gdMov);
+      le.line.classList.toggle('gdfix', !it.gdMov);
+      const gdTail = it.gdGo ? '<span class="go">START</span>' : it.gdLive && l.kind !== 'en' ? `<span class="loc">${l.on ? 'on Vest' : 'sending'}</span>` : '';
+      le.chip.classList.toggle('drag', !!(drag && drag.from === 'gd' && drag.moved && drag.existing.id === it.id));
+      le.chip.classList.toggle('bad', !!(drag && drag.from === 'gd' && drag.moved && drag.existing.id === it.id && !drag.ok));
+      html = l.kind === 'en'
+        ? `<span class="k">GRID ${l.side === 'long' ? 'BUY' : 'SELL'}${l.n}</span><b>${F.price(price, priceDec)}</b><span class="qy">${F.qty(l.qty)}</span><span class="un">${Math.round(l.pct)}%</span>${l.bad ? '<span class="down">!</span>' : ''}${gdTail}`
+        : `<span class="k">GRID ${l.kind.toUpperCase()}${l.n}</span><b>${F.price(price, priceDec)}</b><span class="qy">${l.all ? 'ALL ' : ''}${F.qty(l.qty)}</span><span class="un">${Math.round(l.pct)}%</span><span class="${F.cls(l.usd)}">${F.usd(l.usd, true)}</span>${l.bad ? '<span class="down">!</span>' : ''}${gdTail}`;
+    } else if (it.usr) {
+      const u = it.usr;
+      price = u.price;
+      html = `<span class="k">USER</span><span class="un">· ${F.esc(u.name)}</span><b>${F.price(price, priceDec)}</b><span>$${(+u.level).toFixed(2)}</span>`;
+      le.chip.title = `Your Account limits row ${u.name} is ON: at this price (with the open position, everything else unchanged, fees excluded) it reaches $${(+u.level).toFixed(2)} and everything is closed (FLAT).`;
     } else if (it.dd50) {
       const h = it.dd50;
       price = h.price;
-      html = `<span class="k">50% DRAWDOWN</span><b>${F.price(price, priceDec)}</b><span>${F.qty(h.qty)}</span><span class="down">${F.usd(h.loss, true)}</span>`;
-      le.chip.title = `Half of the available drawdown: ${F.usd(h.half)} of ${F.usd(h.avail)}` +
+      html = `<span class="k">${+h.pct}% DRAWDOWN</span><b>${F.price(price, priceDec)}</b><span>${F.qty(h.qty)}</span><span class="down">${F.usd(h.loss, true)}</span>`;
+      le.chip.title = `${+h.pct}% of the available drawdown: ${F.usd(h.half)} of ${F.usd(h.avail)}` +
         (Number.isFinite(h.ddInit) ? ` (initial drawdown ${F.usd(h.ddInit)} ${h.pl >= 0 ? '+' : '-'} total profit ${F.usd(Math.abs(h.pl))})` : '') +
         `. At this price the position loses ${F.usd(-h.loss)} in total, ${F.usd(-h.fromNow)} from now.` +
         (h.filled ? ` Counts ${h.filled} entry limit(s) that fill before it (size ${F.qty(h.qty)}, average entry ${F.price(h.avg, priceDec)}).` : ' With the current size.') +
         (h.afterKo ? ' WARNING: the closer (daily) drawdown limit comes FIRST: see the fail price.' : '') +
         ' Excludes local stops, fees and funding.';
+    } else if (it.br) {
+      // bracket leg of a pending entry (read-only): SL / TP, price, points from that entry
+      const b = it.br;
+      price = it.price;
+      const gp = (b.side === 'long' ? 1 : -1) * (price - b.ref);
+      html = `<span class="k">${b.k === 'sl' ? 'SL' : 'TP'}</span><b>${F.price(price, priceDec)}</b><span class="${F.cls(gp)}">${gp > 0 ? '+' : gp < 0 ? '−' : ''}${Math.abs(gp).toFixed(priceDec)} pt</span><span class="loc">${b.held ? 'sending' : b.vest ? 'on Vest' : b.own ? 'this entry' : 'bracket'}</span>`;
+      le.chip.title = b.vest
+        ? `${b.k.toUpperCase()} that Vest holds for the pending ${b.sub}: it becomes the position's ${b.k.toUpperCase()} when the order fills.`
+        : `Bracket ${b.k.toUpperCase()} of the pending ${b.sub}: placed with the entry when it fills (from the fill price for a local entry). Not on Vest yet.`;
+      const bdrag = !!(drag && drag.from === 'br' && drag.moved && drag.existing.id === it.id);
+      le.chip.classList.toggle('drag', bdrag);
+      le.chip.classList.toggle('bad', bdrag && !drag.ok);
+      le.chip.classList.toggle('pending', !!b.held);
+      if (b.held) le.chip.title = `${b.k.toUpperCase()} just moved: being sent / waiting for the feed.`;
+      le.chip.title += b.fixed ? ' Several partial legs: not movable from here.' : b.vest ? ' Drag it to move it: the LIMIT is placed again with the new SL / TP.' : ' Drag it to set a different distance for this entry only.';
+    } else if (it.sr) {
+      // safe runner level (read-only): name, price, size of the tranche(s), P&L of that size if it exits there
+      const r = it.sr;
+      price = r.price;
+      const q = +r.qty > 0 ? +r.qty : NaN;
+      const usd = q > 0 ? pnlUsd(pos.side, q, pos.openPrice, price) : NaN;
+      const gp = (pos.side === 'long' ? 1 : -1) * (price - pos.openPrice);
+      html = `<span class="k">${r.text.toUpperCase()}</span><b>${F.price(price, priceDec)}</b>` + (q > 0 ? `<span>${F.qty(q)}</span><span class="${F.cls(usd)}">${F.usd(usd, true)}</span>` : `<span class="${F.cls(gp)}">${gp > 0 ? '+' : gp < 0 ? '−' : ''}${Math.abs(gp).toFixed(priceDec)} pt</span>`);
+      le.chip.title = q > 0 ? 'Safe runner: local exit level of this tranche (closed at market when the price touches it)' : 'Safe runner: it takes over when the price reaches this level';
     } else if (it.ko) {
       const k = it.ko;
       price = k.price;
@@ -1523,6 +2005,7 @@ function draw() {
         `<span class="qy">${F.qty(pos.qty)}</span>` +
         `<span class="pt ${F.cls(gp)}" title="Points from the entry to the current price">${Number.isFinite(gp) ? (gp > 0 ? '+' : gp < 0 ? '−' : '') + Math.abs(gp).toFixed(priceDec) + ' pt' : '—'}</span>` +
         `<span class="pl ${F.cls(usd)}" title="P&L of the selected account">${F.usd(usd, true)}</span>` +
+        (mark > 0 ? sumAll(mark) : '') + // Σ all accounts holding the trade at the current price, as on the SL / TP labels
         `<span class="x${armed ? ' arm' : ''}${off ? ' off' : ''}" title="${off ? 'Orders off or sending in progress' : 'Closes 100% of the position at market, WITHOUT cancelling pending orders (two clicks)'}">${armed ? 'close?' : '✕'}</span>`;
     } else if (it.leg) {
       const t = it.leg;
@@ -1531,7 +2014,11 @@ function draw() {
       price = dragging ? drag.price : isPending ? pending.price : t.price;
       const usd = pnlUsd(pos.side, t.qty > 0 ? t.qty : pos.qty, pos.openPrice, price);
       const armed = removeArm && removeArm.id === t.id && Date.now() < removeArm.until;
-      html = `<span class="k">${t.kind.toUpperCase()}</span><b>${F.price(price, priceDec)}</b><span class="${F.cls(usd)}">${F.usd(usd, true)}</span>${t.qty > 0 ? `<span>${F.qty(t.qty)}</span>` : ''}${sumAll(price)}<span class="x${armed ? ' arm' : ''}" title="${t.kind === 'sl' ? 'Remove the stop (two clicks)' : 'Remove the target'}">${armed ? 'remove?' : '✕'}</span>`;
+      // size it closes (Gerry 2026-11-23, DCA): a leg without quantity closes the WHOLE position, so it grows with every add
+      const full = !(t.qty > 0) || t.qty >= pos.qty - 1e-12;
+      const cq = full ? pos.qty : t.qty;
+      const sz = `<span class="qy" title="${full ? `Closes the whole position: ${F.qty(pos.qty)} now (it follows every add / DCA)` : `Closes ${F.qty(t.qty)} of ${F.qty(pos.qty)} (partial)`}">${full ? 'ALL ' : ''}${F.qty(cq)}${full ? '' : ` <i class="pc">${Math.round((cq / pos.qty) * 100)}%</i>`}</span>`;
+      html = `<span class="k">${t.kind.toUpperCase()}</span><b>${F.price(price, priceDec)}</b>${sz}<span class="${F.cls(usd)}">${F.usd(usd, true)}</span>${sumAll(price)}<span class="x${armed ? ' arm' : ''}" title="${t.kind === 'sl' ? 'Remove the stop (two clicks)' : 'Remove the target'}">${armed ? 'remove?' : '✕'}</span>`;
       le.chip.classList.toggle('pending', !!isPending);
       le.chip.classList.toggle('drag', !!dragging);
       le.chip.classList.toggle('bad', !!(dragging && !drag.ok));
@@ -1540,10 +2027,10 @@ function draw() {
       const dragging = drag && drag.from === 'order' && drag.existing.id === o.id;
       const isPending = pending && pending.legId === it.id && Date.now() < pending.until && Math.abs(o.price - pending.price) > tick / 2;
       price = dragging ? drag.price : isPending ? pending.price : o.price;
-      le.chip.classList.toggle('pending', !!isPending);
+      le.chip.classList.toggle('pending', !!isPending || !!it.held);
       le.chip.classList.toggle('drag', !!dragging);
       le.chip.classList.toggle('bad', !!(dragging && !drag.ok));
-      html = `<span class="k" title="${o.label === 'CLOSE' ? 'Closing limit: reduces the position' : o.local ? 'Local entry stop' : 'Entry limit'}">${o.label || NAME[o.kind]}</span><span class="${o.side === 'long' ? 'up' : 'down'}">${sideWord(o.side)}</span><b>${F.price(price, priceDec)}</b><span>${F.qty(o.qty)}</span>${o.local ? '<span class="loc" title="Local stop: lives in this browser tab and triggers at market">local</span>' : ''}<span class="x" title="Cancel">✕</span>`;
+      html = `<span class="k" title="${o.label === 'CLOSE' ? 'Closing limit: reduces the position' : o.local ? 'Local entry stop' : 'Entry limit'}">${o.label || NAME[o.kind]}</span><span class="${o.side === 'long' ? 'up' : 'down'}">${sideWord(o.side)}</span><b>${F.price(price, priceDec)}</b><span>${F.qty(o.qty)}</span>${o.local ? `<span class="loc" title="${o.lim ? 'Local LIMIT (OCO, Vest keeps one pending side per market): lives in this browser tab, sent at market when the price gets there' : 'Local stop: lives in this browser tab and triggers at market'}">local</span>` : ''}${it.held ? '<span class="loc">sending</span>' : '<span class="x" title="Cancel">✕</span>'}`;
     }
     const y = yOf(price);
     // FAIL NEW preview off scale: label on the chart edge with an arrow, no line
@@ -1552,7 +2039,8 @@ function draw() {
     show(le.line, inside(y) && !it.ghost);
     show(le.chip, inside(y) || pin || !!it.ghost);
     le.chip.style.visibility = it.ghost ? 'hidden' : '';
-    le.chip.style.setProperty('--kc', LS(it.kind).c); // label name (S, AVG ALL, TP...) in the colour of its line
+    const ls = it.sr ? { c: it.sr.color, s: 'dashed', w: 1 } : it.br ? { ...LS(it.br.k), w: 1 } : LS(it.sk || it.kind); // safe runner: its own colour per tranche; bracket preview: as SL / TP
+    chipStyle(le.chip, ls, it.br ? LS(it.br.k).lab : ls.lab); // label: name colour / fill, background, border, size, weight (panel)
     if (le.html !== html) {
       le.chip.innerHTML = html; // rewritten only when it changes: the X stays the same element and the click is not lost
       le.html = html;
@@ -1571,7 +2059,7 @@ function draw() {
     // label shifted to avoid overlap: the line stops earlier and a slanted stroke joins it to the label
     const mid = top + chh / 2;
     const bent = Math.abs(mid - y) > 1.5 && inside(y) && !it.ghost;
-    hline(le.line, g, y, LS(it.kind), bent ? chipLeft - LEAD_W : chipLeft); // the line reaches the label
+    hline(le.line, g, y, ls, bent ? chipLeft - LEAD_W : chipLeft); // the line reaches the label
     show(le.lead, bent);
     if (bent) {
       const x0 = chipLeft - LEAD_W - 4,
@@ -1581,7 +2069,6 @@ function draw() {
       le.lead.style.top = g.top + y + 'px';
       le.lead.style.width = Math.hypot(dx, dy) + 'px';
       le.lead.style.transform = `rotate(${Math.atan2(dy, dx)}rad)`;
-      const ls = LS(it.kind);
       le.lead.style.borderTop = `${ls.w}px ${ls.s === 'dotted' ? 'dotted' : 'solid'} ${ls.c}`;
     }
     le.chip.style.left = chipLeft + 'px';
@@ -1611,7 +2098,7 @@ function draw() {
       const ls = (lineStyles && lineStyles[SEG[k]]) || null;
       const w = ls ? ls.w : 3;
       const sx0 = ls && ls.l > 0 ? x1 - ls.l : x0; // chosen length: the segment always ends next to the labels
-      if (ls) els[k].style.borderTop = `${w}px ${ls.s} ${ls.c}`;
+      if (ls) borderLine(els[k], ls);
       els[k].style.left = sx0 + 'px';
       els[k].style.width = x1 - sx0 + 'px';
       els[k].style.top = g.top + y - Math.floor(w / 2) + 'px';
@@ -1622,15 +2109,16 @@ function draw() {
   // ── last swing high / low: two short lines between the cards and the price axis
   {
     const hl = m.hlOn && bv ? bv.hl : null;
-    const x0 = g.left + g.width - CARD_RIGHT + 3,
-      x1 = g.left + g.width - 1;
+    const sw = CARD_RIGHT - 4; // line length
+    const x0 = g.left + g.width - CARD_RIGHT + 3 - 2 * sw,
+      x1 = g.left + g.width - 1 - 2 * sw;
     for (const [k, p, kind] of [['hlH', hl && hl.h, 'hhigh'], ['hlL', hl && hl.l, 'hlow']]) {
       const y = Number.isFinite(p) ? yOf(p) : NaN;
       const on = Number.isFinite(y) && inside(y);
       show(els[k], on);
       if (!on) continue;
       const ls = (lineStyles && lineStyles[kind]) || { c: kind === 'hhigh' ? '#3ecf8e' : '#ff6b61', s: 'solid', w: 2 };
-      els[k].style.borderTop = `${ls.w}px ${ls.s} ${ls.c}`;
+      borderLine(els[k], ls);
       els[k].style.left = x0 + 'px';
       els[k].style.width = x1 - x0 + 'px';
       els[k].style.top = g.top + y - Math.floor(ls.w / 2) + 'px';
@@ -1671,7 +2159,80 @@ function draw() {
 // ── removing a stop/target. The target goes on the first click; the STOP needs a second click within 3 s
 // (removing the stop increases the risk: hence two clicks).
 let removeArm = null; // { id, until }
+// ── Grid sliders (Gerry 2026-11-23): Custom % = n-1 handles between the levels' shares; Manual distances = one handle per level
+// between nearest and farthest. 5 % steps, ⇄ inverts. Saved as text in the same settings (gd<P>Custom, gd<P>Man).
+let gslDrag = null; // { P, k, vals } while a handle is held
+const GSL_STEP = 5;
+function gslLevels(tb, P) {
+  const n = (v) => parseFloat(String(v ?? '').replace(',', '.'));
+  const near = n(tb[`gd${P}Near`]);
+  if (!(near > 0)) return 0;
+  const far = n(tb[`gd${P}Far`]) > 0 ? n(tb[`gd${P}Far`]) : near;
+  return far > near ? Math.max(0, Math.min(10, Math.floor(n(tb[`gd${P}Mid`]) || 0))) + 2 : 1;
+}
+const gslList = (txt) => String(txt || '').split(/[;,\s]+/).map(parseFloat).filter((x) => Number.isFinite(x));
+// default when the number of levels changed: equal shares / equal gaps on the 5 % grid
+function gslDefault(k, n) {
+  if (k === 'Custom') {
+    const base = Math.max(GSL_STEP, Math.floor(100 / n / GSL_STEP) * GSL_STEP);
+    const a = Array(n).fill(base);
+    for (let r = 100 - base * n, i = n - 1; r > 0; r -= GSL_STEP, i = (i - 1 + n) % n) a[i] += GSL_STEP;
+    return a;
+  }
+  return Array.from({ length: n - 2 }, (_, i) => Math.round((100 * (i + 1)) / (n - 1) / GSL_STEP) * GSL_STEP);
+}
+function gslDraw(el, tb) {
+  const P = el.dataset.gsl,
+    k = el.dataset.gk;
+  // always shown (the curve made visible); the handles move only with Distances = Manual / Sizes = Custom % (Gerry 2026-11-23)
+  const edit = k === 'Custom' ? tb[`gd${P}Size`] === 'custom' : tb[`gd${P}Dist`] === 'manual';
+  const n = gslLevels(tb, P);
+  const ok = n >= (k === 'Custom' ? 2 : 3);
+  show(el, ok);
+  if (!ok) return;
+  el.classList.toggle('lock', !edit);
+  let vals;
+  if (!edit) {
+    if (k === 'Custom') {
+      const w = GR.shapeWeights(n, tb[`gd${P}Size`]);
+      const sum = w.reduce((a, b) => a + b, 0);
+      vals = w.map((x) => (x / sum) * 100);
+    } else vals = GR.distances(0, 100, n, tb[`gd${P}Dist`]).slice(1, -1);
+  } else if (gslDrag && gslDrag.P === P && gslDrag.k === k) vals = gslDrag.vals;
+  else {
+    vals = gslList(tb[`gd${P}${k}`]);
+    const want = k === 'Custom' ? n : n - 2;
+    const valid = vals.length === want && (k === 'Custom' ? Math.abs(vals.reduce((a, b) => a + b, 0) - 100) < 0.01 : vals.every((x, i) => x > 0 && x < 100 && (i === 0 || x > vals[i - 1])));
+    if (!valid) {
+      vals = gslDefault(k, n);
+      if (actions.setSetting) actions.setSetting(`gd${P}${k}`, vals.join(', ')); // number of levels changed: equal again
+    }
+  }
+  // handle positions on the bar (0-100)
+  const pos = k === 'Custom' ? vals.slice(0, -1).map((_, i) => vals.slice(0, i + 1).reduce((a, b) => a + b, 0)) : vals;
+  const near = parseFloat(String(tb[`gd${P}Near`]).replace(',', '.')),
+    far = parseFloat(String(tb[`gd${P}Far`]).replace(',', '.'));
+  const lab =
+    k === 'Custom'
+      ? vals.map((v, i) => [(i ? pos[i - 1] : 0) + v / 2, `${+v.toFixed(1)}%`])
+      : [[0, `${+near}`], ...vals.map((v, i) => [v, `${+(near + ((far - near) * v) / 100).toFixed(2)}`, i % 2 === 0]), [100, `${+far}`]];
+  const sig = JSON.stringify([pos, lab, edit]);
+  const bar = el.querySelector('.gbar');
+  if (bar.dataset.sig === sig) return;
+  bar.dataset.sig = sig;
+  bar.innerHTML =
+    '<div class="gline"></div><b class="gend s"></b><b class="gend e"></b>' +
+    pos.map((x, i) => `<b class="gh${edit ? '' : ' lock'}" data-i="${i}" style="left:${x}%"></b>`).join('') +
+    lab.map(([x, t, top]) => `<span class="gsv${k === 'Custom' || top ? ' gtop' : ''}" style="left:${x}%">${t}</span>`).join('');
+}
+function gslCommit(P, k, vals) {
+  if (actions.setSetting) actions.setSetting(`gd${P}${k}`, vals.map((x) => +x.toFixed(1)).join(', '));
+}
+const gdNow = new Map(); // 'gd:<kind>:<n>' -> grid level as drawn in the last frame (start of a grid drag)
 const planNow = new Map(); // 'om:entry' | 'om:sl' -> { price, entry, qty } as drawn in the last frame (start of a plan drag)
+const brHold = new Map(); // 'side|entry price' -> { sl, tp, until, o, local } SL / TP just dropped on a pending entry, drawn until the feed has them
+const brGhosts = []; // Vest LIMITs being placed again (out of the feed for a moment)
+const brNow = new Map(); // 'br:<order>:<leg>' -> { o, k, price, cur: { sl, tp } } bracket legs of pending entries as drawn (drag)
 const removing = new Map(); // id -> wait deadline
 function askRemove(leg) {
   const now = Date.now();
@@ -1712,11 +2273,97 @@ function askCancel(o) {
   p.catch(() => removing.delete(key));
 }
 
+// ── Account limits guard rows: ON / OFF; margins and open loss: slider ON the bar (0 .. the cap); the others: a number
+// (never beyond the account's limit: the level in force is shown on the right)
+function guardRows(m) {
+  const gd = m.guards;
+  if (!gd) return;
+  for (const bx of els.card3.querySelectorAll('.bar[data-g]')) {
+    const k = bx.dataset.g,
+      r = gd[k];
+    if (!r) continue;
+    bx.classList.toggle('garm', r.on);
+    bx.classList.toggle('ghit', r.on && r.hit);
+    const eye = bx.querySelector('.geye');
+    if (eye) eye.classList.toggle('off', r.eye === false);
+    const btn = bx.querySelector('.gon');
+    const bt = r.on ? 'ON' : 'OFF';
+    if (btn.textContent !== bt) btn.textContent = bt;
+    btn.title = r.on ? 'ON: at the level everything open on this account is closed (FLAT). Click to switch it off.' : r.level > 0 ? 'OFF: click to switch the FLAT at this level on (back to OFF after a reload)' : k === 'tg' ? 'No profit target on Vest: set the manual one in Account limits settings' : 'Set the level first';
+    const tx = bx.querySelector('.gt');
+    if (r.kind === 'slider') {
+      const rg = bx.querySelector('.gr');
+      const mx = String(r.cap > 0 ? +r.cap.toFixed(2) : 100),
+        st = String(r.step);
+      if (rg.max !== mx) rg.max = mx;
+      if (rg.step !== st) rg.step = st;
+      rg.disabled = !(r.cap > 0);
+      if (root.activeElement !== rg && rg.value !== String(r.level)) rg.value = String(r.level);
+      const t = r.text + (r.cap > 0 && (k === 'rk' || k === 'cp') ? ` (max $${r.cap.toFixed(2)})` : '');
+      if (tx.textContent !== t) tx.textContent = t;
+    } else {
+      const inp = bx.querySelector('.gv');
+      if (!inp) {
+        // ACCOUNT PROFIT TARGET: no level to type (Gerry 2026-11-23), ON closes everything at the target itself
+        if (tx.textContent !== r.text) tx.textContent = r.text;
+        continue;
+      }
+      if (root.activeElement !== inp && inp.value !== r.raw) inp.value = r.raw;
+      const ph = k === 'tg' ? (r.cap > 0 ? r.cap.toFixed(2) + ' auto' : 'none') : r.cap > 0 ? 'max ' + r.cap.toFixed(2) : '';
+      if (inp.placeholder !== ph) inp.placeholder = ph;
+      // right side: the level in force when it differs from what was typed (capped at the limit / automatic target)
+      const typed = parseFloat(r.raw);
+      const t = !(r.level > 0)
+        ? r.text
+        : !(typed > 0)
+          ? `$${r.level.toFixed(2)} (${r.auto || 'Vest target'})`
+          : Math.abs(typed - r.level) > 1e-9
+            ? `$${r.level.toFixed(2)} (the limit)`
+            : r.cap > 0
+              ? `max $${r.cap.toFixed(2)}`
+              : '';
+      if (tx.textContent !== t) tx.textContent = t;
+    }
+  }
+}
+
+// ── "ACTIVE" next to the title of every section whose function is on (Gerry 2026-11-23)
+function activeTags(m) {
+  const t = m.tb || {};
+  const g = m.guards || {};
+  const on = {
+    actOm: omMode === 'live',
+    actTb: !!(t.trOn || t.beOn || t.beAuto),
+    actLim: Object.values(g).some((r) => r && r.on),
+    actCopy: !!(m.copy && m.copy.armed),
+    actBr: !!t.brOn,
+    actOco: !!t.ocoOn,
+    actSr: t.srMode === 'live',
+    actGd: !!m.gdLive,
+  };
+  for (const [k, v] of Object.entries(on)) if (els[k]) show(els[k], v);
+  if (els.actSr) {
+    // VIEW draws the levels only: shown as VIEW, not ACTIVE
+    const view = t.srMode === 'view';
+    show(els.actSr, on.actSr || view);
+    const tx = view ? 'VIEW' : 'ACTIVE';
+    if (els.actSr.textContent !== tx) els.actSr.textContent = tx;
+    els.actSr.classList.toggle('view', view);
+  }
+  if (els.actCopy) {
+    // copier off: said in the title, the accounts listed are NOT being copied (Gerry 2026-11-23)
+    const tx = on.actCopy ? 'ACTIVE' : 'COPY OFF: accounts not copied';
+    show(els.actCopy, true);
+    if (els.actCopy.textContent !== tx) els.actCopy.textContent = tx;
+    els.actCopy.classList.toggle('off', !on.actCopy);
+  }
+}
+
 // ── dragging
 function startDrag(e, el, kind, existing, from) {
   const m = getModel();
   if (!m || !state.visible || !m.market) return;
-  if ((kind === 'tp' || kind === 'sl') && !m.pos && from !== 'plan') return;
+  if ((kind === 'tp' || kind === 'sl') && !m.pos && from !== 'plan' && from !== 'br' && from !== 'gd' && !(m.gdFar && m.gdFar[kind])) return;
   e.preventDefault();
   e.stopPropagation();
   try {
@@ -1724,7 +2371,7 @@ function startDrag(e, el, kind, existing, from) {
   } catch {
     /* nothing */
   }
-  const start = existing ? existing.price : m.pos ? m.pos.openPrice : m.market.mark;
+  const start = existing ? existing.price : m.pos ? m.pos.openPrice : m.gdFar ? m.gdFar[kind + 'Ref'] || m.gdFar.ref : m.market.mark;
   drag = { el, kind, existing, from, startY: e.clientY, moved: false, price: start, ok: true, g: null };
   const move = (ev) => {
     if (!drag) return;
@@ -1733,9 +2380,16 @@ function startDrag(e, el, kind, existing, from) {
     if (!drag.moved || !drag.g || !cur || !cur.market) return;
     const { tick, mark } = cur.market;
     drag.price = roundToTick(G.yToPrice(ev.clientY - drag.g.top, drag.g.vr, drag.g.height), tick);
-    if (drag.from === 'plan') drag.ok = drag.kind === 'lm' || (drag.price - drag.existing.entry) * (omPv === 'long' ? -1 : 1) > 0; // plan SL on the stop side of the entry
-    else if (drag.from === 'order') drag.ok = entrySide(drag.kind, drag.price, mark) === drag.existing.order.side && !tooClose(drag.price, mark, tick);
-    else if (drag.kind === 'lm' || drag.kind === 'st') drag.ok = !!entrySide(drag.kind, drag.price, mark) && !tooClose(drag.price, mark, tick);
+    if (drag.from === 'br') {
+      const o = drag.existing.order;
+      drag.ok = (o.side === 'long' ? 1 : -1) * (drag.kind === 'sl' ? o.price - drag.price : drag.price - o.price) > 0;
+    } else if (drag.from === 'plan') drag.ok = drag.kind === 'lm' || (drag.price - drag.existing.entry) * (omPv === 'long' ? -1 : 1) > 0; // plan SL on the stop side of the entry
+    else if (drag.from === 'order') drag.ok = entrySide(drag.existing.order.lim ? 'lm' : drag.kind, drag.price, mark) === drag.existing.order.side && !tooClose(drag.price, mark, tick);
+    else if (drag.from === 'gd') {
+      const l = drag.existing.gd;
+      drag.ok = l.kind === 'en' ? (l.side === 'long' ? drag.price < mark : drag.price > mark) : (l.side === 'long' ? 1 : -1) * (l.kind === 'tp' ? 1 : -1) * (drag.price - l.ref) > 0;
+    } else if (drag.kind === 'lm' || drag.kind === 'st') drag.ok = !!entrySide(drag.kind, drag.price, mark) && !tooClose(drag.price, mark, tick);
+    else if (drag.from === 'card' && cur.gdFar && cur.gdFar[drag.kind]) drag.ok = (cur.gdFar.side === 'long' ? 1 : -1) * (drag.kind === 'tp' ? 1 : -1) * (drag.price - cur.gdFar[drag.kind + 'Ref']) > 0;
     else drag.ok = !!cur.pos && !checkLeg({ kind: drag.kind, side: cur.pos.side, price: drag.price, mark, tick });
   };
   const up = () => {
@@ -1828,6 +2482,29 @@ function endDrag(commit) {
   drag = null;
   if (!d || !commit) return;
   if (d.from === 'plan') return d.moved && omDrop(d);
+  if (d.from === 'gd' || (d.from === 'card' && (d.kind === 'tp' || d.kind === 'sl') && (getModel() || {}).gdFar && getModel().gdFar[d.kind])) {
+    if (!d.moved) return d.from === 'card' && say(`Grid on: drag ${NAME[d.kind]} to the chart, it becomes the farthest GRID ${d.kind.toUpperCase()} level`, '');
+    if (!d.ok) return say('GRID: wrong side', 'err');
+    try {
+      const l = d.existing && d.existing.gd;
+      const r = d.from === 'gd' ? actions.gridDrag(l.kind, l.i, l.of, d.price, l.which || '', l.other) : actions.gridFar(d.kind, d.price);
+      if (r) say(r, '');
+    } catch (e) {
+      say(e.message, 'err');
+    }
+    return;
+  }
+  if (d.from === 'br') {
+    if (!d.moved || Math.abs(d.price - d.existing.price) < 1e-9) return;
+    if (!d.ok) return say(`${d.kind.toUpperCase()}: wrong side of the entry`, 'err');
+    const o = d.existing.order;
+    const prices = { ...d.existing.cur, [d.kind]: d.price };
+    const hk = o.side + '|' + o.price;
+    brHold.set(hk, { sl: prices.sl, tp: prices.tp, until: Date.now() + (o.local ? 4000 : 15000), o, local: !!o.local });
+    const p = actions.pendingBracket(o, prices);
+    p.catch(() => brHold.delete(hk));
+    return run(p, o.local ? `${d.kind.toUpperCase()} of this entry set at ${d.price}` : `LIMIT placed again with ${d.kind.toUpperCase()} ${d.price}`);
+  }
   if (!d.moved) {
     if (d.from !== 'leg' && d.from !== 'order') say(`Hold ${NAME[d.kind]} and drag it to the level you want`, '');
     return;
@@ -1889,6 +2566,21 @@ function endDrag(commit) {
 
 module.exports = {
   mount,
+  // waiting for Vest data after a reload: column greyed out, nothing clickable
+  setWaiting: (on) => {
+    if (els.layer && els.layer.classList.contains('waiting') !== !!on) els.layer.classList.toggle('waiting', !!on);
+  },
+  // start: the whole column invisible until Vest data are in, then it fades in
+  reveal: (on) => {
+    if (!els.layer) return;
+    els.layer.classList.toggle('hidden0', !on);
+  },
+  riskOn: () => omMode === 'live',
+  riskOff: () => {
+    omMode = 'manual';
+    omAnchor = null;
+    omSave();
+  },
   state: () => state,
   setEnabled: (v) => {
     enabled = !!v;

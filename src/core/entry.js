@@ -8,6 +8,29 @@ const Z = require('../domain/sizing');
 const { floorStep } = require('../domain/num');
 const { closeOrder } = require('../domain/orders');
 const { entryLegs } = require('../domain/plan');
+const { roundToTick } = require('../domain/num');
+
+// BRACKET (experimental build): fixed SL / TP in points attached to every NEW position opened from the tool (market
+// LONG / SHORT, LIMIT, local STOP when it triggers, a moved LIMIT). Adds to a position go through /append, which has no
+// legs: the position keeps the legs of its first order. Risk & targets plans keep their own SL / TP.
+let bracketOf = () => null; // -> { sl, tp } in points (tp may be NaN = no TP) or null
+const setBracket = (fn) => (bracketOf = fn);
+/** Puts the bracket legs on an /open order. ref = entry price (limit price, or the current price at market). Returns the label part. */
+function withBracket(order, side, ref, m, ov) {
+  const b0 = bracketOf();
+  // ov = distances set for this entry by dragging its SL / TP on the chart (local entries), over the panel's ones
+  const b = b0 && ov ? { sl: ov.sl > 0 ? ov.sl : b0.sl, tp: ov.tp > 0 ? ov.tp : b0.tp } : b0;
+  if (!b || !(b.sl > 0) || !(ref > 0) || order.path !== '/v3/positions/open') return '';
+  const d = side === 'long' ? 1 : -1;
+  const qty = +order.body.quantity;
+  const sl = roundToTick(ref - d * b.sl, m.tick, d > 0 ? 'down' : 'up');
+  const tp = b.tp > 0 ? roundToTick(ref + d * b.tp, m.tick, d > 0 ? 'up' : 'down') : NaN;
+  const legs = entryLegs({ qty, sl, targets: tp > 0 ? [{ price: tp, qty }] : [], each: false, step: m.step, tick: m.tick });
+  if (legs.why) throw new Error('bracket: ' + legs.why);
+  order.body.stopLosses = legs.stopLosses;
+  order.body.takeProfits = legs.takeProfits;
+  return ` + SL ${sl}${tp > 0 ? ' TP ' + tp : ''}`;
+}
 
 const { S } = store;
 
@@ -73,18 +96,48 @@ async function placeLimit({ accountId, symbol, price, pct, cap }) {
   const order = pos
     ? Z.appendOrder({ pos, qty: sz.qty, leverage: sz.lev, step: m.step, tick: m.tick, type: 'limit', price })
     : Z.openOrder({ symbol, side, qty: sz.qty, leverage: sz.lev, step: m.step, tick: m.tick, type: 'limit', price });
-  const label = `LIMIT ${side === 'long' ? 'BUY' : 'SELL'} ${sz.qty} @ ${price}${pos ? (pos.qty > 0 ? ' (add)' : ' (next to the pending orders)') : ''}`;
+  const br = withBracket(order, side, price, m);
+  const label = `LIMIT ${side === 'long' ? 'BUY' : 'SELL'} ${sz.qty} @ ${price}${pos ? (pos.qty > 0 ? ' (add)' : ' (next to the pending orders)') : ''}${br}`;
   return orders.send(accountId, order, label, pos ? pos.id : null);
 }
 
+/**
+ * Entry grid: LIMITs sent one after the other. The first one opens (with the bracket if it is on), the others are added next
+ * to it (/append on Vest's placeholder): before each of them the placeholder must be visible, otherwise Vest would refuse
+ * a second /open on the market. legs = [{ n, side, price, qty }].
+ */
+async function placeGrid({ accountId, symbol, legs, lev }) {
+  const m = S.symbols[symbol];
+  let sent = 0;
+  for (const l of legs) {
+    let pos = target(accountId, symbol, l.side, 'a grid limit');
+    if (!pos && sent > 0) {
+      for (let i = 0; i < 30 && !pos; i++) {
+        await new Promise((r) => setTimeout(r, 200));
+        pos = target(accountId, symbol, l.side, 'a grid limit');
+      }
+      if (!pos) throw new Error(`${sent} grid LIMIT(s) sent; the others NOT sent: the first one is not visible on Vest yet`);
+    }
+    const order = pos
+      ? Z.appendOrder({ pos, qty: l.qty, leverage: lev, step: m.step, tick: m.tick, type: 'limit', price: l.price })
+      : Z.openOrder({ symbol, side: l.side, qty: l.qty, leverage: lev, step: m.step, tick: m.tick, type: 'limit', price: l.price });
+    const br = pos ? '' : withBracket(order, l.side, l.price, m);
+    await orders.send(accountId, order, `GRID ${l.side === 'long' ? 'BUY' : 'SELL'}${l.n} LIMIT ${l.qty} @ ${l.price}${br}`, pos ? pos.id : null);
+    sent++;
+  }
+  return sent;
+}
+
 /** Market entry (used by ADD and by the local stop). Adds if there is a position on the same side. */
-async function marketEntry({ accountId, symbol, side, qty, lev, why }) {
+async function marketEntry({ accountId, symbol, side, qty, lev, why, br }) {
   const m = S.symbols[symbol];
   const pos = target(accountId, symbol, side, 'an entry');
   const order = pos
     ? Z.appendOrder({ pos, qty, leverage: lev, step: m.step, tick: m.tick, type: 'market' })
     : Z.openOrder({ symbol, side, qty, leverage: lev, step: m.step, tick: m.tick, type: 'market' });
-  return orders.send(accountId, order, `${why} ${side === 'long' ? 'BUY' : 'SELL'} ${qty} at market${pos ? ' (add)' : ''}`, pos ? pos.id : null);
+  const mk = S.marks[symbol];
+  const bl = withBracket(order, side, mk && mk.px, m, br);
+  return orders.send(accountId, order, `${why} ${side === 'long' ? 'BUY' : 'SELL'} ${qty} at market${pos ? ' (add)' : ''}${bl}`, pos ? pos.id : null);
 }
 
 /** SHORT / LONG of the second card: market entry with the size in %, on the chosen side (add if already on the same side). */
@@ -175,7 +228,8 @@ async function moveLimit({ accountId, symbol, order, price }) {
   const nu = pos
     ? Z.appendOrder({ pos, qty: order.qty, leverage: lev, step: m.step, tick: m.tick, type: 'limit', price })
     : Z.openOrder({ symbol, side, qty: order.qty, leverage: lev, step: m.step, tick: m.tick, type: 'limit', price });
-  await orders.send(accountId, nu, `LIMIT ${w} ${order.qty} moved ${order.price} -> ${price} (new)`, pos ? pos.id : null);
+  const br = withBracket(nu, side, price, m);
+  await orders.send(accountId, nu, `LIMIT ${w} ${order.qty} moved ${order.price} -> ${price} (new)${br}`, pos ? pos.id : null);
   try {
     await cancelOrder({ accountId, orderId: order.id, label: `LIMIT ${w} @ ${order.price} (moved to ${price})` });
   } catch (e) {
@@ -248,4 +302,4 @@ function cancelOrder({ accountId, orderId, label }) {
   return orders.send(accountId, { method: 'POST', path: '/v3/positions/cancel-order', body: { orderId } }, `cancel ${label || orderId}`, null);
 }
 
-module.exports = { planOpen, planMove, sizeFor, positionOn, placeholderOn, target, marketOpen, closePct, reduceAll, moveLimit, placeLimit, marketEntry, addMarket, cutHalf, cancelOrder, checkPct };
+module.exports = { placeGrid, setBracket, planOpen, planMove, sizeFor, positionOn, placeholderOn, target, marketOpen, closePct, reduceAll, moveLimit, placeLimit, marketEntry, addMarket, cutHalf, cancelOrder, checkPct };

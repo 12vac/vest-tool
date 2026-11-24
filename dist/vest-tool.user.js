@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         VestTool
 // @namespace    vest-tool
-// @version      0.10.99
+// @version      0.20.63
 // @description  Account status and P&L in dollars, trade overlay on the chart (BE, draggable SL/TP, FLAT) for Vest Markets. Unofficial: not made, endorsed or supported by Vest Markets.
 // @match        https://next.vestmarkets.com/*
 // @run-at       document-start
@@ -448,7 +448,7 @@ module.exports = { render, clear, find: tv.find };
 
   },
   "chart/overlay.css": function (module, exports, require) {
-module.exports = ":host { all: initial; }\n.root { position: fixed; inset: 0; pointer-events: none; z-index: 2147482000; font: 11px/1.25 system-ui, -apple-system, \"Segoe UI\", sans-serif; color: #d7dbe3; }\n.lead { position: absolute; height: 0; border-top: 1px solid; transform-origin: 0 0; pointer-events: none; opacity: .85; }\n.hl { position: absolute; height: 0; border-top: var(--w, 1px) var(--s, dashed) var(--c, #8b93a3); pointer-events: none; } /* style from the panel */\n/* SL/TP/LIMIT/STOP: the line can be grabbed (invisible 9 px band, dashed line in the middle) */\n.hl.grab { pointer-events: auto; cursor: ns-resize; height: 9px; border-top: 0; }\n.hl.grab::before { content: \"\"; position: absolute; left: 0; right: 0; top: 4px; border-top: var(--w, 1px) var(--s, dashed) var(--c); }\n.hl.entry { opacity: .9; }\n.chip { position: absolute; pointer-events: auto; background: #12151b; border: 1px solid #2a2f3a; border-radius: 6px; box-shadow: 0 4px 14px rgba(0,0,0,.45); user-select: none; }\n\n/* ── BLOCK ON THE CHART: measured on a pixel mock-up. Do not change by eye.\n   bar 232x19 · 6 px · card 232x82 · 6 px · second card 232x92 (the two gaps EQUAL). Font: all 11 px except\n   Orders 9, P&L 18, points 14.\n   On screen the block is scaled with a transform (SCALE in overlay.js): here are the drawing's measures.\n   Coordinates from the inner border (1 px border). Columns shared by the two cards:\n     left 6.5 · 41.2 · 76.5 (28.8 wide: Orders covers the first two)   right edge of the middle column 140 (P&L, size, % box)\n     right: edge at 223 (points, entry, FLAT, cancel all, SHORT)   second card rows: top 7.2 · 37.2 · 64.8, 17.5 high */\nbutton { all: unset; box-sizing: border-box; cursor: pointer; font: 400 11px/1 system-ui, -apple-system, \"Segoe UI\", sans-serif;\n  border-radius: 3px; border: 1px solid #3a4150; color: #cfd5df; display: inline-flex; align-items: center; justify-content: center; }\nbutton:hover { filter: brightness(1.2); }\nbutton[disabled] { opacity: .45; cursor: default; }\n.up { color: #3ecf8e; } .down { color: #ff6b61; }\n\n/* scale from the main panel (--bs block, --cs labels): transform, so everything stays in proportion */\n.chip { transform: scale(var(--cs, 1)); transform-origin: 0 0; }\n.card, .card2, .card3, .card4, .card5 { transform: scale(var(--bs, 1.25)); transform-origin: 0 0; }\n/* fifth card: swing range and volatility heatmap (ATR recent / ATR over the same hours on each timeframe) */\n.card5 { position: absolute; pointer-events: auto; width: 232px; box-sizing: border-box; border-radius: 7px; padding: 6px 7px 7px;\n  background: #12151b; border: 1px solid #59647b; box-shadow: 0 4px 14px rgba(0,0,0,.45); user-select: none;\n  font: 700 10.5px/1 system-ui, -apple-system, \"Segoe UI\", sans-serif; font-variant-numeric: tabular-nums; white-space: nowrap; color: #bcbcbc; }\n.card5 .c5r { display: flex; align-items: baseline; justify-content: space-between; height: 15px; }\n.card5 .c5r b { color: #fff; font-size: 12px; } .card5 .c5r i { font-style: normal; font-weight: 400; font-size: 9px; color: #8b93a3; }\n.card5 .c5r + .c5r { margin-top: 4px; }\n.card5 .hm { display: grid; grid-template-columns: repeat(5, 1fr); gap: 3px; margin-top: 3px; }\n.card5 .hc { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 4px 0 4px; border-radius: 4px; background: #1d222c; border: 1px solid #2a2f3a; }\n.card5 .hc b { font-size: 9px; color: #8b93a3; } .card5 .hc span { font-size: 11.5px; color: #e6e9ef; } .card5 .hc i { font-style: normal; font-weight: 400; font-size: 8.5px; color: #8b93a3; }\n.card5 .hc.calm { background: #14263a; border-color: #2c4a6b; } .card5 .hc.norm { background: #1d222c; }\n.card5 .hc.hot { background: #4a3210; border-color: #8a6a1a; } .card5 .hc.hot span { color: #ffd36b; }\n.card5 .hc.xhot { background: #5a1c1f; border-color: #a33; } .card5 .hc.xhot span { color: #ffb3ad; }\n.card5 .hc.na span { color: #59647b; }\n.card5 .hm-na { grid-column: 1 / -1; color: #8b93a3; font-weight: 400; padding: 4px 0; }\n\n.card, .card2, .card3 { position: absolute; pointer-events: auto; width: 232px; height: 82px; box-sizing: border-box; border-radius: 7px;\n  background: #12151b; border: 1px solid #2a2f3a; box-shadow: 0 4px 14px rgba(0,0,0,.45); user-select: none;\n  font-family: system-ui, -apple-system, \"Segoe UI\", sans-serif; font-variant-numeric: tabular-nums; white-space: nowrap; }\n.card { border-color: var(--side); }\n.card.long { --side: #2f6b52; } .card.short { --side: #7a3438; } .card.flat { --side: #3a4150; }\n.card > span, .card2 > span { position: absolute; line-height: 1; }\n/* text: top = measured baseline - 0.914 x font size (Segoe UI with line-height 1) */\n/* instrument top left, Orders in place of the P&L, P&L (80%) in place of the points,\n   points above $/pt with the same font size */\n.card .pnl { right: 7px; top: 41px; font-size: 14.4px; font-weight: 700; }\n.card .gap { right: 7px; top: 58.5px; font-size: 11px; font-weight: 700; }\n/* taller card, LONG/SHORT row lower, large account ID, points under the P&L,\n   in their place the points of the day */\n.card { height: 106px; } /* +12 px */\n.card .w { top: 43px; font-size: 11px; font-weight: 700; color: #e6e9ef; }\n.card .w.e { top: 58.5px; } /* entry under the size */\n.card .dpt { right: 90.5px; top: 23px; max-width: 66px; overflow: hidden; text-align: right; font-size: 11px; font-weight: 700; color: #d7dbe3; }\n.card .w.q, .card .w.e { right: 90.5px; }\n.card .w.vs { left: 11.5px; } .card .w.vs svg { display: inline-block; width: 6.4px; height: 10px; margin-left: 4px; vertical-align: -1px; } .card.long .w.vs { color: #3ecf8e; } .card.short .w.vs { color: #ff6b61; } /* side under the arrow, size row */\n/* bottom row: micro on the left, $ per point on the right, same font as the size */\n.card .mic { left: 11.5px; width: 130px; top: 82px; height: 16px; line-height: 16px; font-size: 11px; font-weight: 700; color: #d7dbe3;\n  white-space: nowrap; overflow: hidden; display: flex; justify-content: space-between; gap: 6px; }\n.card .pnl.xs { font-size: 12px; top: 42.2px; }\n.card .mic i { font-style: normal; color: #ffb402; margin-left: auto; } /* $ per point of the open size */\n.card .w i { font-style: normal; margin-left: 6px; }\n.card.long .w.q, .card.long .w.e { color: #3ecf8e; } .card.short .w.q, .card.short .w.e { color: #ff6b61; } /* size and entry in the side's colour */\n.card .pnl.lbl { color: #d7dbe3; }\n.card .gap.mk { color: #bcbcbc; }\n.card.flat .w { color: #8b93a3; }\n.card > button, .card2 > button, .card2 > .pctbox, .card3 > button, .card3 > .pctbox { position: absolute; height: 17.5px; padding: 0 0 1px; }\n.card .acc { left: 11.5px; top: 23px; font-size: 11px; font-weight: 700; color: #c9d1e0; text-transform: uppercase; max-width: 62px; overflow: hidden; text-overflow: ellipsis; }\n.card button.ordc { left: 169.2px; top: 9.6px; width: 55.8px; height: 13.5px; font-size: 9px; color: #9fb3d9; background: #1d222c; border-color: #333a48; }\n.card button.ordc.on { color: #bcbcbc; background: #8a2a2a; border-color: #c44; } /* ON: red, grey text */\n.card button.flat { right: 6.6px; top: 78px; width: 42.5px; height: 21.8px; font-weight: 700; color: #ffb402; background: #000; border-color: #ffb402; }\n/* side arrow and vertical divider */\n.card .side { left: 11.5px; top: 5px; height: 14.4px; line-height: 14.4px; font-size: 13px; font-weight: 700; color: #e6e9ef; } /* instrument */\n.card .side b { font-weight: 700; }\n.card .side i { font-style: normal; font-weight: 600; font-size: 12.5px; color: #fff; margin-left: 6px; font-variant-numeric: tabular-nums; } /* computer clock */\n.card::after { content: \"\"; position: absolute; left: 149px; top: 3.5px; width: 1px; height: 97.3px; background: var(--side); }\n\n/* third card: CLOSE % in the LIMIT / STOP columns, then margin of positions, margin with orders, risk */\n.card4 { position: absolute; pointer-events: auto; width: 232px; box-sizing: border-box; border-radius: 7px; padding: 4px 6px 5px;\n  background: #12151b; border: 1px solid #59647b; box-shadow: 0 4px 14px rgba(0,0,0,.45); user-select: none;\n  font: 400 10.5px/1 system-ui, -apple-system, \"Segoe UI\", sans-serif; font-variant-numeric: tabular-nums; white-space: nowrap; color: #bcbcbc; }\n.chip .sig { border-left: 1px solid rgba(255,255,255,.18); padding-left: 5px; color: #8b93a3; } /* copier accounts: Σ open, TOT total */\n.chip .sig b { font-weight: 700; color: #d7dbe3; } .chip .sig b.up { color: #3ecf8e; } .chip .sig b.down { color: #ff6b61; }\n.card4 table { width: 100%; border-collapse: collapse; }\n.card4 td, .card4 th { padding: 3px 0 3px 4px; text-align: right; }\n.card4 td:first-child, .card4 th:first-child { text-align: left; padding-left: 0; color: #d7dbe3; }\n.card4 th { font-weight: 400; color: #8b93a3; }\n.card4 th i, .card4 td i { font-style: normal; font-size: 9px; color: #8b93a3; }\n.card4 th i.on { color: #3ecf8e; font-weight: 700; } .card4 td i { color: #ffb402; font-weight: 700; }\n.card4 tr[data-id] { cursor: pointer; } .card4 tr[data-id]:hover td { background: #1b2030; }\n.card4 tr.sel td:first-child { color: #7fb2ff; font-weight: 700; }\n.card4 b.cpon { display: inline-block; margin-left: 4px; padding: 1px 5px; border: 1px solid #3e4555; border-radius: 3px; font-size: 9px;\n  color: #8b93a3; cursor: pointer; } /* clickable ON/OFF */\n.card4 b.cpon:hover { filter: brightness(1.3); }\n.card4 b.cpon.on { color: #fff; background: #1f5a3f; border-color: #3ecf8e; }\n.card4 tr.t td { border-top: 1px solid #2a2f3a; font-weight: 700; padding-top: 4px; }\n.card4 .up { color: #3ecf8e; } .card4 .down { color: #ff6b61; }\n.card3 { display: block; height: auto; padding-bottom: 7px; border-color: #59647b; }\n/* % box like the size one, wide PARTIAL CLOSE; below daily / max drawdown / goal like Vest's page */\n.card3 > .pctbox.cp { position: absolute; left: 6.2px; top: 7.6px; width: 46.4px; height: 17.5px; padding: 0 4px 0 4px; }\n.card3 button.close.all { left: 179px; width: 44.4px; } /* CLOSE: up to the right edge, aligned with SHORT */\n.card3 button.close { left: 60.1px; top: 7.6px; width: 111.4px; height: 17.5px; font-weight: 700; color: #ffb402; background: #12151b; border-color: #8a6a1a; }\n.card3 .bars { margin: 36px 6.6px 0 6.2px; display: grid; gap: 6px; }\n.card3 .bar { border: 1px solid #2a2f3a; border-radius: 4px; padding: 4px 6px 5px; }\n.card3 .bl { display: flex; justify-content: space-between; gap: 6px; font: 400 11px/1.1 system-ui, -apple-system, \"Segoe UI\", sans-serif; color: #8b93a3; }\n.card3 .bl span:last-child { color: #d7dbe3; text-align: right; overflow: hidden; text-overflow: ellipsis; }\n.card3 .track { height: 4px; background: #222733; border-radius: 2px; margin-top: 4px; overflow: hidden; }\n.card3 .track i { display: block; height: 100%; width: 0; background: #3ecf8e; } .card3 .track i.warn { background: #e8b84a; } .card3 .track i.hot { background: #ff5a4f; } .card3 .track i.goal { background: #3ecf8e; } .card3 .track i.ko { background: #ff5a4f; }\n/* drawdown bands: green in profit, yellow up to 50%, orange up to 75%, red beyond (bar and figures) */\n.card3 .track i.zy { background: #e8c24a; } .card3 .track i.zo { background: #ff8c42; } .card3 .track i.zr { background: #ff4d4d; } .card3 .track i.zg { background: #3ecf8e; }\n.card3 .bl b.zy { color: #e8c24a; } .card3 .bl b.zo { color: #ff8c42; } .card3 .bl b.zr { color: #ff4d4d; } .card3 .bl b.zg { color: #3ecf8e; }\n.card3 .bl b.up { color: #3ecf8e; } .card3 .bl b.down { color: #ff6b61; }\n/* second card */\n.card2 { display: block; height: 118px; border-color: #59647b; }\n/* row of the fractions 0.1-0.9 at the top, the rest moves down by 26.5 px */\n.card2 button.pf { top: 7.2px; width: 21.6px; font-size: 10px; }\n.card2 button.f0 { left: 6.2px; } .card2 button.f1 { left: 30.45px; } .card2 button.f2 { left: 54.7px; }\n.card2 button.f3 { left: 78.95px; } .card2 button.f4 { left: 103.2px; } .card2 button.f5 { left: 127.45px; }\n.card2 button.f6 { left: 151.7px; } .card2 button.f7 { left: 175.95px; } .card2 button.f8 { left: 200.2px; }\n.card2 button.pp:not(.pf), .card2 > .pctbox { top: 33.7px; } .card2 > span.sz { top: 35.2px; }\n.card2 button.cx, .card2 button.tp, .card2 button.sl, .card2 button.be { top: 59.8px !important; }\n.card2 button.lm, .card2 button.st, .card2 button.long, .card2 button.short { top: 88.3px !important; }\n.card2 button.pp { top: 7.2px; width: 23.5px; color: #aab1be; }\n/* four presets, % box moved to the right */\n.card2 button.pp:not(.pf) { width: 17.4px; }\n.card2 button.p0 { left: 6.2px; } .card2 button.p1 { left: 25.8px; } .card2 button.p2 { left: 45.4px; }\n.card2 button.p3 { left: 65px; } .card2 button.p4 { left: 84.6px; } .card2 button.p5 { left: 104.2px; } /* 6 presets */\n.card2 button.pp.sm { font-size: 9px; letter-spacing: -.2px; }\n.card2 button.pp.on { color: #fff; border-color: #7fb2ff; background: #16223f; }\n.pctbox { top: 7.2px; left: 93.1px; width: 46.4px; box-sizing: border-box; display: flex; align-items: center; justify-content: space-between;\n  border: 1px solid #b9bcc4; border-radius: 3px; background: #0d1015; }\n.card2 > .pctbox { left: 124.6px; width: 34.6px; padding: 0 3px 0 3px; } /* same spacing as the presets */\n/* % boxes: normal (not bold) number aligned right, next to the % sign */\n.pctbox input { all: unset; flex: 1; min-width: 0; text-align: right; font: 400 11px/1 system-ui, sans-serif; color: #fff; }\n.pctbox span { font: 400 11px/1 system-ui, sans-serif; color: #fff; margin-left: 2px; }\n.card2 .sz { right: 9.5px; top: 8.7px; height: 17.5px; display: flex; align-items: center; font: 700 11px/1 system-ui, sans-serif; color: #e6e9ef;\n  overflow: hidden; text-overflow: ellipsis; max-width: 80px; }\n.card2 .sz.why { font-weight: 400; color: #8b93a3; font-size: 11px; }\n/* rows 33.3 (cancel buttons · TP SL BE) and 61.8 (LIMIT STOP · LONG SHORT), buttons 21.8 high */\n.card2 button.lm, .card2 button.st, .card2 button.cx, .card2 button.tp, .card2 button.sl, .card2 button.be,\n.card2 button.long, .card2 button.short { height: 21.8px; font-weight: 700; }\n.card2 button.lm, .card2 button.st { top: 61.8px; cursor: ns-resize; }\n.card2 button.lm { left: 6.2px; width: 47.8px; color: #7fb2ff; border-color: #2f4a70; background: #0c163f; }\n.card2 button.st { left: 60.1px; width: 43.3px; color: #e8b84a; border-color: #5a4520; background: #2a2114; }\n.card2 button.cx { top: 33.3px; color: #7a80b4; border-color: #3e4555; }\n.card2 button.cxb { left: 6.2px; width: 97.2px; }\n/* CANCEL menu: opens under its button, above the next row and the third card */\n.card2.cxopen { z-index: 10; }\n.card2 .cxm { position: absolute; left: 6.2px; top: 83px; width: 120px; z-index: 5; display: flex; flex-direction: column; gap: 2px;\n  padding: 3px; background: #12151b; border: 1px solid #59647b; border-radius: 5px; box-shadow: 0 6px 18px rgba(0,0,0,.5); }\n.card2 .cxm button { position: static; display: flex; align-items: center; height: 21px; text-align: left; padding: 0 6px; font: 600 10.5px/1 system-ui, -apple-system, \"Segoe UI\", sans-serif;\n  color: #d7dbe3; background: #1d222c; border: 1px solid #333a48; border-radius: 3px; cursor: pointer; }\n.card2 .cxm button:hover:not([disabled]) { background: #3a1c1e; border-color: #a33; }\n.card2 .cxm button[disabled] { opacity: .4; cursor: default; }\n.card2 button.tp, .card2 button.sl, .card2 button.be { top: 33.3px; width: 26.6px; }\n.card2 button.tp { left: 130.3px; color: #3ecf8e; border-color: #2f6b52; background: #0f2a20; cursor: ns-resize; }\n.card2 button.sl { left: 163.7px; color: #ff6b61; border-color: #7a3438; background: #2f1416; cursor: ns-resize; }\n.card2 button.be { right: 6.6px; color: #c0c0c0; border-color: #4f4f4f; background: #252525; }\n.card2 button.long, .card2 button.short { top: 61.8px; }\n.card2 button.long { left: 130.3px; width: 41.3px; color: #3ecf8e; border-color: #2f6b52; background: #0f2a20; }\n.card2 button.short { right: 6.6px; width: 45.2px; color: #ff6b61; border-color: #7a3438; background: #2f1416; }\n.chip.lm { border-color: #2f4a70; } .chip.lm .k { color: #7fb2ff; }\n.chip.st { border-color: #5a4520; } .chip.st .k { color: #e8b84a; }\n.chip.avg, .chip.avg1, .chip.avgn { border-color: #2b6672; } .chip.avg .k, .chip.avg1 .k, .chip.avgn .k { color: #5ad1e6; }\n.chip.mfp { border-color: #8a5520; } .chip.mfp .k { color: #ff9f43; } /* fail price preview */ /* average entry with all limits: light blue, read only */\n.chip.dd50 { border-color: #7a2f58; } .chip.ko { border-color: #5b3f80; } .chip.ko .k { color: #c58cff; } /* account fail price: purple, read only */\n.chip .loc { font-size: 9px; color: #e8b84a; border: 1px solid #5a4520; border-radius: 3px; padding: 0 3px; }\n\n/* messages under the card, outside its fixed size */\n.msg { position: absolute; left: 0; top: calc(100% + 3px); width: 232px; font: 400 10px/1.3 system-ui, sans-serif; color: #aab1be; white-space: normal; }\n.msg.err { color: #ff8a80; } .msg.ok { color: #3ecf8e; }\n\n/* ── SL and TP labels */\n.chip { padding: 2px 6px; display: flex; gap: 6px; align-items: center; cursor: ns-resize; white-space: nowrap; font-variant-numeric: tabular-nums; }\n.chip.tp { border-color: #2f6b52; } .chip.sl { border-color: #7a3438; }\n.chip.long { border-color: #2f6b52; } .chip.long .k { color: #3ecf8e; } .chip.short { border-color: #7a3438; } .chip.short .k { color: #ff6b61; }\n.chip.pos { cursor: default; }\n.chip .k { font-weight: 700; } .chip.tp .k { color: #3ecf8e; } .chip.sl .k { color: #ff6b61; }\n.chip.pending { opacity: .6; } .chip.bad { border-color: #e8b84a; }\n.chip.drag { outline: 1px solid #fff3; }\n.up { color: #3ecf8e; } .down { color: #ff6b61; }\n.chip .x { margin-left: 2px; padding: 0 4px; border-radius: 3px; color: #8b93a3; cursor: pointer; }\n.chip .x:hover { color: #fff; background: #2a303c; }\n.chip .x.off { opacity: .35; cursor: default; }\n.chip .x.arm { color: #fff; background: #8a2a2a; font-weight: 700; }\n/* lines and segments BELOW labels and cards (they got mixed up with the text) */\n.hl, .lead { z-index: 1; }\n.chip { z-index: 2; }\n.chip.drag { z-index: 3; }\n.card, .card2, .card3, .card4 { z-index: 4; }\n/* size in play clearly visible: card and label size in bold yellow, $/pt white */\n/* the three quantities (card, second card, label) with the style chosen in the panel (--qc, --qs, --qw) */\n.card.long .w.q, .card.short .w.q, .card .w.q { color: var(--qc, #ffb402); font-weight: var(--qw, 800); font-size: var(--qs, 11px); }\n.card2 > span.sz:not(.why) { color: var(--qc, #ffb402); font-weight: var(--qw, 800); font-size: var(--qs, 11px); }\n.card .mic i { color: #ffffff; }\n.chip .qy { color: var(--qc, #ffb402); font-weight: var(--qw, 800); font-size: var(--qs, 11px); }\n/* position label on two rows */\n.chip.two { display: grid; grid-template-columns: repeat(5, auto); column-gap: 6px; row-gap: 2px; padding: 3px 6px; }\n.chip.two .mk { color: #7fb2ff; font-weight: 700; } /* current price: bold, LIMIT colour */\n/* entry and current price aligned (col. 2), Σ under the size and TOT under the P&L, on the right */\n.chip.two .qy, .chip.two .pl, .chip.two .sig { justify-self: end; }\n.chip.two .sig { border-left: 0; padding-left: 0; }\n/* COPY: Qty column */\n.card4 td.q { color: #d7dbe3; } .card4 td.q.up { color: #3ecf8e; } .card4 td.q.down { color: #ff6b61; }\n/* small % presets like the fractions, wider % box */\n.card2 button.pp:not(.pf) { width: 15px; font-size: 10px; }\n.card2 button.p0 { left: 6.2px; } .card2 button.p1 { left: 23.6px; } .card2 button.p2 { left: 41px; }\n.card2 button.p3 { left: 58.4px; } .card2 button.p4 { left: 75.8px; } .card2 button.p5 { left: 93.2px; }\n.card2 button.pp.sm:not(.pf) { font-size: 8.5px; }\n.card2 > .pctbox { left: 112px; width: 44px; padding: 0 4px; }\n/* with the Qty column the table must fit in 232 px: tighter font and spacing, account name truncated */\n.card4 table { font-size: 9.5px; table-layout: fixed; }\n.card4 td, .card4 th { padding: 3px 0 3px 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }\n.card4 col.c0 { width: 19%; } .card4 col.c1 { width: 17%; } .card4 col.c2, .card4 col.c3, .card4 col.c4 { width: 21.33%; }\n.card4 .cpt { font-size: 8px; color: #8b93a3; letter-spacing: .3px; } /* small COPY */\n.card4 b.cpon { margin-left: 3px; }\n.card4 th:first-child { overflow: visible; }\n.card2 > span.sz { top: 33.7px; line-height: 17.5px; } /* aligned with the % box */\n/* ORDERS and COPY in the card's right column, label outside and ON/OFF in the button */\n.card .tgl { position: absolute; left: 155px; font-size: 8px; font-weight: 700; letter-spacing: .3px; color: #8b93a3; line-height: 13px; height: 13px; }\n.card .ordl { top: 6px; } .card .cpl { top: 22px; }\n.card button.ordc, .card button.cpc { left: auto; right: 7px; width: 30px; height: 13px; font-size: 8.5px; font-weight: 700; padding: 0; }\n.card button.ordc { top: 6px; } .card button.cpc { top: 22px; color: #8b93a3; background: #1d222c; border-color: #333a48; }\n.card button.cpc.on { color: #fff; background: #1f5a3f; border-color: #3ecf8e; }\n/* ON white on green, OFF white on red (ORDERS and COPY) */\n.card button.ordc, .card button.cpc { color: #fff; background: #8a2a2a; border-color: #c44; }\n.card button.ordc.on, .card button.cpc.on { color: #fff; background: #1f6a45; border-color: #3ecf8e; }\n/* label: account P&L at the size's font size; Σ and TOT not bold */\n.chip.two .pl { font-size: var(--qs, 11px); }\n.chip.two .sig b { font-weight: 400; }\n/* COPY: active account yellow, sizes white */\n.card4 tr.sel td:first-child { color: #ffb402; }\n.card4 td.q, .card4 td.q.up, .card4 td.q.down { color: #fff; }\n/* % box a little further right and wider */\n.card2 > .pctbox { left: 114.5px; width: 50px; }\n/* third card: all bar text at the same size as the DAILY GOAL figures (11 px, labels no longer thin) */\n.card3 .bl, .card3 .bl span, .card3 .bl b { font-size: 11px; }\n.card3 .bl span:first-child { font-weight: 600; color: #aab1be; }\n/* COPY: larger text (10.5 px), columns reworked so nothing is cut */\n.card4 table { font-size: 10.5px; }\n.card4 .cpt { font-size: 9px; }\n.card4 col.c0 { width: 16%; } .card4 col.c1 { width: 18%; } .card4 col.c2, .card4 col.c3, .card4 col.c4 { width: 22%; }\n/* columns sized to their content: no amount truncated (fixed widths removed) */\n.card4 table { table-layout: auto; }\n.card4 col.c0, .card4 col.c1, .card4 col.c2, .card4 col.c3, .card4 col.c4 { width: auto; }\n.card4 td, .card4 th { overflow: visible; text-overflow: clip; padding-left: 3px; }\n/* \"S\"/\"L\" label with the card's arrow; third card at the COPY card's size (10.5 px) */\n.chip .k svg { display: inline-block; width: 6.4px; height: 10px; margin-left: 3px; vertical-align: -1px; }\n.card3 .bl, .card3 .bl span, .card3 .bl b { font-size: 10.5px; }\n/* position label on one row; P&L at the size's font size */\n.chip .pl { font-size: var(--qs, 11px); }\n/* clock on the right, aligned with the size column, yellow like FLAT; MNQ row grey; entry white */\n.card .side { width: 130px; display: flex; }\n.card .side i { margin-left: auto; color: #ffb402; }\n.card .mic, .card .mic i { color: #8b93a3; }\n.card.long .w.e, .card.short .w.e, .card .w.e { color: #fff; }\n/* trailing segments between candles and labels */\n.tseg { position: absolute; height: 0; border-top: 3px solid; pointer-events: none; z-index: 1; border-radius: 2px; }\n.tseg.stop { border-color: #ff9f43; } .tseg.act { border-color: #5ad1e6; } .tseg.next { border-color: #a3e635; }\n.tseg.be { border-color: #e879f9; } /* BE+ */\n.tseg.bet { border-top-style: dashed; border-color: #e879f9; } /* auto BE trigger */\n.tseg.hl { border-radius: 0; } /* last swing high / low, between the cards and the price axis */\n.card .side i.cd { color: #9fb3d9; font-weight: 600; } /* countdown to the candle close */\n\n/* label name in the line colour chosen in the panel (--kc from LS(kind)) */\n.chip .k { color: var(--kc, inherit) !important; }\n\n/* account activity dot next to the name (store.activityOf) */\n.adot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 5px; vertical-align: 1px; background: #5b6373; flex: none; }\n.adot.free { background: #3ecf8e; } .adot.busy { background: #ff5a4f; } .adot.ph { background: #e8b84a; }\n\n/* ══ SONAR card style (Chart display → card style). Colours, fonts and decoration only: every position and size above stays.\n   Amber is the base colour; green and red keep their meaning (profit / loss, buy / sell). ══ */\n.root.sonar { --o: #ff8a3d; --od: #7a3b17; --oe: #c4521d; --obg: #0b0605; --ohi: #ffd2a8; --olo: #c4703d; --oup: #8dff6a; --odn: #ff4b3d; color: var(--o); }\n.root.sonar, .root.sonar * { font-family: Consolas, \"Cascadia Mono\", \"Lucida Console\", monospace !important; }\n.root.sonar :is(.card, .card2, .card3, .card4, .card5) { color: var(--o); border-radius: 0; border-color: var(--oe);\n  background: radial-gradient(130% 70% at 50% 0, #1a0b07, var(--obg));\n  box-shadow: 0 0 0 1px rgba(0,0,0,.65), 0 0 16px rgba(255,110,40,.13), 0 4px 14px rgba(0,0,0,.6); text-shadow: 0 0 5px rgba(255,120,40,.3); }\n/* cut corners (top left, bottom right) and faint scan lines */\n.root.sonar :is(.card, .card2, .card3, .card4, .card5)::before { content: \"\"; position: absolute; inset: 0; pointer-events: none;\n  background: linear-gradient(135deg, var(--side, var(--oe)) 0 5px, transparent 5px) top left / 9px 9px no-repeat,\n    linear-gradient(315deg, var(--side, var(--oe)) 0 5px, transparent 5px) bottom right / 9px 9px no-repeat,\n    repeating-linear-gradient(0deg, rgba(255,140,60,.04) 0 1px, transparent 1px 3px); }\n.root.sonar .card.long { --side: #3f8a2c; } .root.sonar .card.short { --side: #8a2424; } .root.sonar .card.flat { --side: var(--oe); }\n.root.sonar .up { color: var(--oup) !important; } .root.sonar .down { color: var(--odn) !important; }\n.root.sonar button { border-radius: 0; border-color: var(--od); color: var(--o); background: #140806; }\n/* first card */\n.root.sonar .card .side, .root.sonar .card .side b { color: var(--ohi); }\n.root.sonar .card .side i { color: var(--ohi); } .root.sonar .card .side i.cd { color: #ffb98a; }\n.root.sonar .card .acc { color: var(--o); }\n.root.sonar .card .w, .root.sonar .card .w.e, .root.sonar .card .dpt, .root.sonar .card .pnl.lbl { color: var(--ohi); }\n.root.sonar .card.long .w.vs { color: var(--oup); } .root.sonar .card.short .w.vs { color: var(--odn); }\n.root.sonar .card.flat .w { color: var(--olo); }\n.root.sonar .card .mic, .root.sonar .card .mic i, .root.sonar .card .gap.mk { color: var(--olo); }\n.root.sonar .card .tgl { color: #d96a2c; }\n.root.sonar .card button.ordc, .root.sonar .card button.cpc { color: var(--od); background: transparent; border-color: var(--od); }\n.root.sonar .card button.ordc.on, .root.sonar .card button.cpc.on { color: #170804; background: var(--o); border-color: var(--o); box-shadow: 0 0 8px rgba(255,120,40,.5); text-shadow: none; }\n.root.sonar .card button.flat { color: #170804; background: var(--o); border-color: var(--o); box-shadow: 0 0 12px rgba(255,120,40,.5); text-shadow: none; }\n/* second card */\n.root.sonar .card2 button.pp { color: var(--o); }\n.root.sonar .card2 button.pp.on { color: #170804; background: var(--o); border-color: var(--o); box-shadow: 0 0 8px rgba(255,120,40,.5); text-shadow: none; }\n.root.sonar .pctbox { border-radius: 0; border-color: var(--oe); background: #000; }\n.root.sonar .pctbox input, .root.sonar .pctbox span { color: var(--ohi); }\n.root.sonar .card2 .sz.why { color: var(--olo); }\n.root.sonar .card2 button.cx { color: var(--o); border-color: var(--oe); background: repeating-linear-gradient(-45deg, #2a1206 0 5px, #170904 5px 10px); }\n.root.sonar .card2 button.tp { color: var(--oup); border-color: #3f8a2c; background: #0e1d09; }\n.root.sonar .card2 button.sl { color: var(--odn); border-color: #8a2424; background: #210909; }\n.root.sonar .card2 button.be { color: var(--o); border-color: var(--oe); background: #140806; }\n.root.sonar .card2 button.lm { color: var(--ohi); border-color: var(--oe); background: #1c0c07; }\n.root.sonar .card2 button.st { color: #ffb02e; border-color: #8a5a10; background: #1f1406; }\n.root.sonar .card2 button.long { color: var(--oup); border-color: var(--oup); background: #183a10; box-shadow: 0 0 8px rgba(141,255,106,.25); }\n.root.sonar .card2 button.short { color: var(--odn); border-color: var(--odn); background: #3a1010; box-shadow: 0 0 8px rgba(255,75,61,.25); }\n.root.sonar .card2 .cxm { border-radius: 0; background: var(--obg); border-color: var(--oe); }\n.root.sonar .card2 .cxm button { border-radius: 0; color: var(--o); background: #140806; border-color: var(--od); }\n.root.sonar .card2 .cxm button:hover:not([disabled]) { background: #3a1010; border-color: var(--odn); }\n/* third card: segmented bars */\n.root.sonar .card3 button.close { color: var(--o); border-color: var(--oe); background: #140806; }\n.root.sonar .card3 .bar { border-radius: 0; border-color: rgba(122,59,23,.7); }\n.root.sonar .card3 .bl span:first-child { color: #d96a2c; } .root.sonar .card3 .bl span:last-child { color: var(--ohi); }\n.root.sonar .card3 .track { height: 5px; border-radius: 0; background: repeating-linear-gradient(90deg, rgba(255,138,61,.16) 0 4px, transparent 4px 6px); }\n.root.sonar .card3 .track i { background: var(--o);\n  -webkit-mask: repeating-linear-gradient(90deg, #000 0 4px, transparent 4px 6px); mask: repeating-linear-gradient(90deg, #000 0 4px, transparent 4px 6px); }\n.root.sonar .card3 .track i.goal, .root.sonar .card3 .track i.zg { background: var(--oup); }\n.root.sonar .card3 .track i.warn, .root.sonar .card3 .track i.zy { background: #ffd04a; }\n.root.sonar .card3 .track i.zo { background: #ff6a1a; }\n.root.sonar .card3 .track i.hot, .root.sonar .card3 .track i.ko, .root.sonar .card3 .track i.zr { background: var(--odn); }\n.root.sonar .card3 .bl b.zg { color: var(--oup); } .root.sonar .card3 .bl b.zy { color: #ffd04a; }\n.root.sonar .card3 .bl b.zo { color: #ff6a1a; } .root.sonar .card3 .bl b.zr { color: var(--odn); }\n/* copier card */\n.root.sonar .card4 th, .root.sonar .card4 th i, .root.sonar .card4 .cpt { color: #d96a2c; }\n.root.sonar .card4 td:first-child, .root.sonar .card4 td.q { color: var(--ohi); }\n.root.sonar .card4 tr.sel td:first-child { color: #ffd04a; }\n.root.sonar .card4 tr[data-id]:hover td { background: #1f0d07; }\n.root.sonar .card4 tr.t td { border-top-color: var(--od); }\n.root.sonar .card4 th i.on { color: var(--oup); }\n.root.sonar .card4 b.cpon { border-radius: 0; color: var(--olo); border-color: var(--od); }\n.root.sonar .card4 b.cpon.on { color: #170804; background: var(--o); border-color: var(--o); text-shadow: none; }\n/* swing and volatility card */\n.root.sonar .card5 .c5r b { color: var(--ohi); } .root.sonar .card5 .c5r i { color: var(--olo); }\n.root.sonar .card5 .hc { border-radius: 0; background: #140806; border-color: var(--od); }\n.root.sonar .card5 .hc b, .root.sonar .card5 .hc i { color: var(--olo); } .root.sonar .card5 .hc span { color: var(--ohi); }\n.root.sonar .card5 .hc.calm { background: #0b1520; border-color: #24496b; } .root.sonar .card5 .hc.calm span { color: #6fb7ff; }\n.root.sonar .card5 .hc.hot { background: #22160a; border-color: #8a5a10; } .root.sonar .card5 .hc.hot span { color: #ffb02e; }\n.root.sonar .card5 .hc.xhot { background: #2a0c0a; border-color: #8a2424; } .root.sonar .card5 .hc.xhot span { color: var(--odn); }\n.root.sonar .card5 .hc.na span, .root.sonar .card5 .hm-na { color: var(--od); }\n/* labels on the chart: square, dark, border colours unchanged (they match the lines) */\n.root.sonar .chip { border-radius: 0; background: var(--obg); color: var(--ohi); }\n.root.sonar .chip .x { border-radius: 0; color: var(--olo); } .root.sonar .chip .x:hover { color: var(--ohi); background: #2a1206; }\n.root.sonar .msg { color: #ffb98a; } .root.sonar .msg.err { color: var(--odn); } .root.sonar .msg.ok { color: var(--oup); }\n/* the monospaced font is wider than the classic one: tighter spacing where the rows are full (limits bars, copier table) */\n.root.sonar .card3 .bl { letter-spacing: -.3px; }\n.root.sonar .card4 table { font-size: 10px; letter-spacing: -.4px; }\n.root.sonar .card4 td, .root.sonar .card4 th { padding-left: 4px; }\n\n/* ══ CONSOLE card style (default): the same palette as the Console panel, so column, panel and cards look like one thing.\n   Colours and borders only: every position and size above stays. ══ */\n.root.console { --c-bg: #26272c; --c-in: #17181b; --c-bd: #3a3c43; --c-bd2: #45474e; --c-tx: #e2e4e9; --c-lb: #a4a8b1; --c-acc: #f97316;\n  --c-up: #4ade80; --c-dn: #f87171; --c-yl: #f0c03a; }\n.root.console :is(.card, .card2, .card3, .card4, .card5) { background: var(--c-bg); border-color: var(--c-bd); border-radius: 6px;\n  color: var(--c-tx); box-shadow: 0 2px 8px rgba(0,0,0,.35); }\n.root.console .card.long { --side: #2f7a4f; } .root.console .card.short { --side: #8a3434; } .root.console .card.flat { --side: var(--c-bd2); }\n.root.console .card { box-shadow: inset 3px 0 0 var(--c-acc), 0 2px 8px rgba(0,0,0,.35); } /* accent without moving the measured layout */\n.root.console .up { color: var(--c-up) !important; } .root.console .down { color: var(--c-dn) !important; }\n.root.console button { border-radius: 4px; border-color: var(--c-bd2); background: #34363c; color: var(--c-tx); }\n/* first card */\n.root.console .card .side, .root.console .card .side b, .root.console .card .w, .root.console .card .w.e, .root.console .card .dpt { color: var(--c-tx); }\n.root.console .card .side i { color: var(--c-yl); } .root.console .card .side i.cd { color: #93b4f5; }\n.root.console .card .acc, .root.console .card .tgl, .root.console .card .mic, .root.console .card .mic i { color: var(--c-lb); }\n.root.console .card.long .w.vs { color: var(--c-up); } .root.console .card.short .w.vs { color: var(--c-dn); }\n.root.console .card button.ordc, .root.console .card button.cpc { color: #fff; background: #7f1d1d; border-color: #b91c1c; }\n.root.console .card button.ordc.on, .root.console .card button.cpc.on { color: #fff; background: #15803d; border-color: #22c55e; }\n.root.console .card button.flat { color: #17181b; background: #d4a514; border-color: var(--c-yl); }\n/* second card */\n.root.console .card2 button.pp { color: var(--c-tx); background: var(--c-in); }\n.root.console .card2 button.pp.on { color: #fff; background: #c2410c; border-color: var(--c-acc); }\n.root.console .pctbox { border-radius: 4px; border-color: var(--c-bd2); background: var(--c-in); }\n.root.console .card2 button.cx { color: var(--c-lb); background: var(--c-in); }\n.root.console .card2 button.tp { color: var(--c-up); border-color: #2f7a4f; background: #14261b; }\n.root.console .card2 button.sl { color: var(--c-dn); border-color: #8a3434; background: #2a1517; }\n.root.console .card2 button.be { color: var(--c-tx); background: #34363c; }\n.root.console .card2 button.lm { color: #93b4f5; border-color: #2c4a80; background: #172238; }\n.root.console .card2 button.st { color: var(--c-yl); border-color: #6b5214; background: #2a2210; }\n.root.console .card2 button.long { color: #fff; border-color: #22c55e; background: #15803d; }\n.root.console .card2 button.short { color: #fff; border-color: #ef4444; background: #b91c1c; }\n.root.console .card2 .cxm { background: var(--c-bg); border-color: var(--c-bd2); border-radius: 6px; }\n.root.console .card2 .cxm button { background: #34363c; border-color: var(--c-bd2); }\n/* third card */\n.root.console .card3 button.close { color: var(--c-yl); border-color: #6b5214; background: #2a2210; }\n.root.console .card3 .bar { border-color: var(--c-bd); background: var(--c-in); border-radius: 5px; }\n.root.console .card3 .bl span:first-child { color: var(--c-lb); } .root.console .card3 .bl span:last-child { color: var(--c-tx); }\n.root.console .card3 .track { background: #34363c; border-radius: 3px; }\n/* copier card */\n.root.console .card4 th, .root.console .card4 .cpt { color: var(--c-lb); }\n.root.console .card4 td:first-child, .root.console .card4 td.q { color: var(--c-tx); }\n.root.console .card4 tr[data-id]:hover td { background: #303136; }\n.root.console .card4 tr.t td { border-top-color: var(--c-bd2); }\n.root.console .card4 b.cpon { border-color: var(--c-bd2); }\n.root.console .card4 b.cpon.on { background: #15803d; border-color: #22c55e; }\n/* swing and volatility card */\n.root.console .card5 { color: var(--c-lb); } .root.console .card5 .c5r b { color: var(--c-tx); }\n.root.console .card5 .hc { background: var(--c-in); border-color: var(--c-bd); }\n/* labels on the chart */\n.root.console .chip { background: var(--c-bg); border-radius: 5px; color: var(--c-tx); }\n\n/* ── DOCKED COLUMN (.root.col): the same elements as the chart block, moved into fluid sections at the panel's size\n   (no scale). Buttons in the commands panel, at the top of the column or floating. Frame colours from --k-* (card style:\n   Console, Classic or Sonar); the colours inside the cards come from the card style rules above. */\n.root.col { --k-bg: #26272c; --k-hd: #303136; --k-bd: #34363c; --k-bd2: #45474e; --k-acc: #f97316; --k-tx: #e2e4e9; --k-hi: #f1f2f5; --k-lb: #a4a8b1;\n  --k-in: #17181b; --k-rad: 6px; --k-btn: #34363c; }\n.root.col:not(.console):not(.sonar) { --k-bg: #12151b; --k-hd: #1b2029; --k-bd: #2a2f3a; --k-bd2: #3a4150; --k-acc: #7fb2ff; --k-tx: #d7dbe3; --k-hi: #fff;\n  --k-lb: #8b93a3; --k-in: #0d1015; --k-rad: 7px; --k-btn: #1d222c; }\n.root.col.sonar { --k-bg: #0b0605; --k-hd: #1a0b07; --k-bd: #7a3b17; --k-bd2: #c4521d; --k-acc: #ff8a3d; --k-tx: #ffd2a8; --k-hi: #ffd2a8; --k-lb: #d96a2c;\n  --k-in: #000; --k-rad: 0; --k-btn: #140806; }\n.colw { position: fixed; z-index: 4; pointer-events: auto; box-sizing: border-box; padding: 10px; display: flex; flex-direction: column; gap: 10px;\n  overflow-y: auto; overflow-x: hidden; scrollbar-width: thin; font: 13px/1.3 system-ui, -apple-system, \"Segoe UI\", sans-serif; color: var(--k-tx); }\n.csec, .cmd { flex: none; box-sizing: border-box; border: 1px solid var(--k-bd); border-radius: var(--k-rad); background: var(--k-bg); overflow: hidden;\n  font: 13px/1.3 system-ui, -apple-system, \"Segoe UI\", sans-serif; color: var(--k-tx); }\n.csh, .cmdh { display: flex; align-items: center; gap: 8px; min-height: 18px; padding: 6px 10px 6px 8px; background: var(--k-hd); border-left: 4px solid var(--k-acc);\n  font-weight: 700; font-size: 13px; color: var(--k-hi); user-select: none; white-space: nowrap; }\n.root.sonar :is(.csh, .cmdh) { text-transform: uppercase; letter-spacing: .5px; font-size: 12px; text-shadow: 0 0 5px rgba(255,120,40,.3); }\n.root.sonar :is(.csec, .cmd) { box-shadow: 0 0 14px rgba(255,110,40,.12); }\n.csh { cursor: pointer; }\n.csh::after { content: \"▾\"; margin-left: auto; color: var(--k-lb); font-size: 12px; }\n.csec.folded .csh::after { content: \"▸\"; }\n.csec.folded > :not(.csh) { display: none !important; }\n.cmd { pointer-events: auto; }\n.cmd.float { position: fixed; z-index: 6; min-width: 260px; max-width: 92vw; max-height: 96vh; resize: both; overflow: auto; box-shadow: 0 10px 28px rgba(0,0,0,.55); border-color: var(--k-bd2); }\n.cmd.float .cmdh { cursor: move; }\n.cmdh .ct { margin-right: auto; overflow: hidden; text-overflow: ellipsis; }\n.ctg { display: flex; align-items: flex-start; gap: 5px; } /* tops aligned: the ON/OFF buttons are 1 px shorter than the labels */\n.root.col .ctg .tgl { position: static; display: block; height: 22px; line-height: 20px; padding-bottom: 2px; box-sizing: border-box; font-size: 9.5px; font-weight: 700; letter-spacing: .3px; color: var(--k-lb); }\n/* fixed even line heights (no flex centring, which rounds half pixels differently on each element): label and button text\n   on the same pixel row, 1 px above the middle so capitals look centred */\n.root.col .ctg button { position: static; display: block; width: auto; height: 21px; margin-left: 1px; box-sizing: border-box; line-height: 18px; padding: 0 8px 1px 7px; text-align: center;\n  font-size: 11px; font-weight: 700; border-radius: 4px; color: #fff; background: #7f1d1d; border-color: #b91c1c; }\n.root.col .ctg button.on { background: #15803d; border-color: #22c55e; }\n.root.col.sonar .ctg button { border-radius: 0; color: var(--od); background: transparent; border-color: var(--od); }\n.root.col.sonar .ctg button.on { color: #170804; background: var(--o); border-color: var(--o); box-shadow: 0 0 8px rgba(255,120,40,.5); }\n.cmdh button.cdet { width: 26px; height: 22px; font-size: 14px; border-radius: var(--k-rad); background: var(--k-btn); border-color: var(--k-bd2); color: var(--k-hi); }\n.cmdb { padding: 10px; display: flex; flex-direction: column; gap: 8px; }\n\n/* cards inside the column: static, full width, no frame (the section is the frame) */\n.root.col :is(.card, .card2, .card3, .card4, .card5) { position: relative !important; left: auto !important; top: auto !important; transform: none; width: auto; height: auto; box-sizing: border-box;\n  border: 0; border-radius: 0; box-shadow: none !important; background: transparent; z-index: auto; }\n.root.col :is(.card, .card2, .card3) > * { position: static !important; max-width: none; }\n.root.col .card::after { display: none; }\n\n/* position: timeframe/clock and account, size and P&L, entry and points, micro and points of the day */\n.root.col .card { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 6px 10px; align-items: baseline; padding: 10px 12px; font-size: 13px; white-space: nowrap; }\n.root.col .card > span { line-height: 1.2; height: auto; width: auto; }\n.root.col .card .side { grid-area: 1 / 1 / 2 / 3; font-size: 14px; }\n.root.col .card .side i { font-size: 13px; }\n.root.col .card .acc { grid-area: 1 / 3; text-align: right; font-size: 12px; max-width: none; }\n.root.col .card .w.vs { grid-area: 2 / 1; font-size: 13px; }\n.root.col .card .w.vs svg { width: 7.5px; height: 12px; }\n.root.col .card .w.q { grid-area: 2 / 2; font-size: calc(var(--qs, 11px) + 2px); }\n.root.col .card .pnl, .root.col .card .pnl.xs { grid-area: 2 / 3; text-align: right; font-size: 22px; }\n.root.col .card .w.e { grid-area: 3 / 1 / 4 / 3; font-size: 13px; }\n.root.col .card .gap { grid-area: 3 / 3; text-align: right; font-size: 13px; }\n.root.col .card .mic { grid-area: 4 / 1 / 5 / 3; display: flex; justify-content: flex-start; gap: 10px; font-size: 12px; overflow: hidden; }\n.root.col .card .mic i { margin-left: 0; }\n.root.col .card .dpt { grid-area: 4 / 3; text-align: right; font-size: 12px; }\n\n/* commands: 36-column grid, so rows of 9, 6 and 4 buttons share the same edges */\n.root.col .card2 { display: grid; grid-template-columns: repeat(36, minmax(0, 1fr)); gap: 5px; white-space: nowrap; }\n.root.col .cmd :is(.card2, .cmdx) button { width: auto !important; height: 30px !important; padding: 0 4px; font-size: 12.5px; border-radius: 4px;\n  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }\n.root.col .card2 > * { grid-column: span 4; order: 1; }\n.root.col .card2 > button.pf { font-size: 12px; }\n.root.col .card2 > button.pp:not(.pf), .root.col .card2 > .pctbox, .root.col .card2 > .sz { order: 2; }\n.root.col .card2 > .pctbox, .root.col .card2 > .sz { grid-column: span 6; }\n.root.col .card2 > button.pp.sm { font-size: 11px; }\n.root.col .card2 > .sz { display: block; height: 30px; box-sizing: border-box; line-height: 26px; padding: 3px 0 1px; text-align: right; font-size: 13px; }\n.root.col .card2 > span.sz:not(.why) { font-size: 13px; font-weight: 400; } /* same size and weight as the number in the % box */\n.root.col .card2 > button.cx { grid-column: span 12; order: 3; }\n.root.col .card2 > :is(button.tp, button.sl, button.be) { grid-column: span 8; order: 3; }\n.root.col .card2 > .cxm { grid-column: 1 / -1; order: 4; position: static !important; width: auto; flex-direction: row; gap: 5px; padding: 5px; box-shadow: none; }\n.root.col .card2 > .cxm button { flex: 1; height: 28px !important; justify-content: center; font-size: 12px; }\n.root.col .card2 > :is(button.lm, button.st, button.long, button.short) { grid-column: span 9; order: 5; }\n.root.col .card2 > :is(button.lm, button.st, button.long, button.short) { font-size: 13.5px; } /* the four entry buttons: same size */\n.root.col .pctbox { width: auto; height: 30px; padding: 0 6px; border-radius: var(--k-rad); border-color: var(--k-bd2); background: var(--k-in); }\n/* % box text on the same middle line as the button labels next to it */\n.root.col .pctbox { align-items: flex-start; }\n.root.col .pctbox input, .root.col .pctbox span { display: block; height: 28px; line-height: 26px; padding: 0 0 2px; box-sizing: border-box; font-size: 13px; }\n.root.col .pctbox input { line-height: 24px; padding-bottom: 4px; } /* the typed number 1 px higher than the % sign (Gerry, on Vest) */\n/* managing the open position: partial close %, PARTIAL CLOSE, CLOSE, FLAT */\n.root.col .cmdx { display: grid; grid-template-columns: repeat(36, minmax(0, 1fr)); gap: 5px; padding-top: 8px; border-top: 1px solid var(--k-bd); }\n.root.col .cmdx > .pctbox { grid-column: span 5; position: static; width: auto; }\n.root.col .cmdx > button.close { grid-column: span 13; position: static; font-weight: 700; color: #f0c03a; border-color: #6b5214; background: #2a2210; }\n.root.col .cmdx > button.close.all { grid-column: span 9; }\n.root.col .cmdx > button.flat { grid-column: span 9; position: static; font-weight: 800; color: #17181b; background: #d4a514; border-color: #f0c03a; }\n.root.col .cmd .msg { position: static; width: auto; font-size: 12px; color: var(--k-lb); }\n.root.col .cmd .msg:empty { display: none; }\n.root.col .cmd .msg.err { color: #f87171; } .root.col .cmd .msg.ok { color: #4ade80; }\n\n/* account limits: two bars per row only when the column is wide enough for the full labels */\n.root.col .card3 { padding: 10px; }\n.root.col .card3 .bars { margin: 0; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 6px; }\n.root.col .card3 .bl { font-size: 12px; }\n.root.col .card3 .track { height: 6px; }\n/* copier and volatility */\n.root.col .card4 { padding: 8px 10px; font-size: 13px; }\n.root.col .card4 table { font-size: 13px; letter-spacing: 0; }\n.root.col .card4 td, .root.col .card4 th { padding: 4px 0 4px 6px; }\n.root.col .card5 { padding: 8px 10px 10px; font-size: 12px; }\n.root.col .card5 .c5r { height: auto; } .root.col .card5 .c5r b { font-size: 13px; } .root.col .card5 .c5r i { font-size: 11px; }\n.root.col .card5 .hm { gap: 5px; margin-top: 6px; }\n.root.col .card5 .hc b { font-size: 11px; } .root.col .card5 .hc span { font-size: 13px; } .root.col .card5 .hc i { font-size: 10px; }\n/* Classic and Sonar for the buttons moved out of the cards (their chart rules are written for .card / .card3) */\n.root.col:not(.console):not(.sonar) .cmdx > button.close { color: #ffb402; border-color: #8a6a1a; background: #12151b; }\n.root.col:not(.console):not(.sonar) .cmdx > button.flat { color: #ffb402; background: #000; border-color: #ffb402; }\n.root.col.sonar .cmdx > button.close { color: var(--o); border-color: var(--oe); background: #140806; }\n.root.col.sonar .cmdx > button.flat { color: #170804; background: var(--o); border-color: var(--o); box-shadow: 0 0 12px rgba(255,120,40,.5); text-shadow: none; }\n.root.col.sonar .cmd .msg { color: #ffb98a; }\n/* % box of the size row: text 1 px lower and 1 px further left than the partial-close one (Gerry, on Vest) */\n.root.col .card2 > .pctbox { padding: 0 7px 0 5px; }\n.root.col .card2 > .pctbox input { padding: 1px 0 3px; }\n.root.col .card2 > .pctbox span { padding: 1px 0 1px; }\n\n/* Risk & targets section (column): label above the field, 4 per row, readout of the plan */\n.omb { padding: 10px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }\n.omf { display: flex; flex-direction: column; gap: 4px; min-width: 0; }\n.omf > span:first-child, .ompv > span { font-size: 11.5px; color: var(--k-lb); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }\n.omb input, .omb select { box-sizing: border-box; width: 100%; min-width: 0; height: 30px; padding: 0 6px; font: 12.5px/1 system-ui, -apple-system, \"Segoe UI\", sans-serif;\n  color: var(--k-hi); background: var(--k-in); border: 1px solid var(--k-bd2); border-radius: var(--k-rad); outline: none; }\n.omb select { padding: 0 2px 0 4px; }\n.omb input:focus, .omb select:focus { border-color: var(--k-acc); }\n.omb input:disabled { opacity: .35; }\n.omb input[type=\"checkbox\"] { width: 14px; height: 14px; padding: 0; margin: 0 5px 0 0; accent-color: var(--k-acc); flex: none; }\n.omcb { display: flex; align-items: center; height: 30px; font-size: 12.5px; color: var(--k-tx); cursor: pointer; white-space: nowrap; }\n.omro { display: flex; align-items: center; height: 30px; padding: 0 8px; box-sizing: border-box; border: 1px dashed var(--k-bd2); border-radius: var(--k-rad); font-size: 13px; color: var(--k-hi); }\n.omt { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; padding: 8px 0; border-top: 1px solid var(--k-bd); border-bottom: 1px solid var(--k-bd); }\n.omtg { display: flex; flex-direction: column; gap: 4px; min-width: 0; }\n.omtg > label { display: flex; align-items: center; font-size: 11.5px; font-weight: 700; color: var(--k-lb); cursor: pointer; }\n.ompv { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1fr) 90px 90px; gap: 6px; align-items: center; }\n/* .root.col prefix: wins over the theme button rules (Console / Classic / Sonar) */\n.root.col .ompv button { height: 28px; font: 800 11px/1 system-ui, -apple-system, \"Segoe UI\", sans-serif; letter-spacing: .2px; text-transform: uppercase; border-radius: 4px; background: #000; border: 1px solid #3a3f4a; color: #6f7787; cursor: pointer; }\n.root.col .ompv button.ompl.on { color: #4ade80; border-color: currentColor; box-shadow: 0 0 6px rgba(34,197,94,.45); }\n.root.col .ompv button.omps.on { color: #f87171; border-color: currentColor; box-shadow: 0 0 6px rgba(239,68,68,.55); }\n.omout { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 6px; padding-top: 8px; border-top: 1px solid var(--k-bd); font-size: 12.5px; line-height: 1.4; color: var(--k-tx); }\n.omout b { font-weight: 700; color: var(--k-hi); } .omout b.q { color: var(--qc, #ffb402); }\n.omout i { font-style: normal; font-weight: 700; } .omout .up { color: #4ade80; } .omout .down { color: #f87171; }\n.omout .warn { color: #f0c03a; } .omout .note { font-size: 11.5px; color: var(--k-lb); }\n.root.sonar .omout .up { color: var(--oup); } .root.sonar .omout .down { color: var(--odn); }\n/* plan lines on the chart: read-only, dashed label */\n.chip.plan { border-style: dashed; opacity: .9; }\n/* Trailing & breakeven section (column): same settings as the panel */\n.tbb { padding: 10px; display: grid; grid-template-columns: 1.3fr 1fr 1fr 1fr 1fr; gap: 8px; align-items: end; }\n.tbb input, .tbb select { box-sizing: border-box; width: 100%; min-width: 0; height: 30px; padding: 0 6px; font: 12.5px/1 system-ui, -apple-system, \"Segoe UI\", sans-serif;\n  color: var(--k-hi); background: var(--k-in); border: 1px solid var(--k-bd2); border-radius: var(--k-rad); outline: none; }\n.tbb select { padding: 0 2px 0 4px; }\n.tbb input:focus, .tbb select:focus { border-color: var(--k-acc); }\n.tbb input[type=\"checkbox\"] { width: 14px; height: 14px; padding: 0; margin: 0 5px 0 0; accent-color: var(--k-acc); flex: none; }\n.tbb .tbon { font-weight: 700; }\n.tbnote { grid-column: 1 / -1; font-size: 11.5px; color: var(--k-lb); line-height: 1.35; }\n.tbnote:empty { display: none; }\n.tbnote.warn { color: #f0c03a; }\n/* Risk & targets mode: Manual % / Preview / Active (Active = real orders with the plan) */\n.ommode { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1fr) repeat(3, 84px); gap: 6px; align-items: center; }\n.ommode > span { font-size: 11.5px; color: var(--k-lb); }\n.root.col .ommode button { height: 28px; font: 800 11px/1 system-ui, -apple-system, \"Segoe UI\", sans-serif; letter-spacing: .2px; text-transform: uppercase; border-radius: 4px; background: #000; border: 1px solid #3a3f4a; color: #6f7787; cursor: pointer; }\n/* same boxes as the phase next to Trade commands: black, border and text in the phase colour */\n.root.col .ommode button.on { border-color: currentColor; }\n.root.col .ommode button.on[data-v=\"manual\"] { color: var(--m-manual, #cbd5e1); }\n.root.col .ommode button.on[data-v=\"view\"] { color: var(--m-view, #fb923c); box-shadow: 0 0 6px color-mix(in srgb, currentColor 45%, transparent); }\n.root.col .ommode button.on[data-v=\"live\"] { color: var(--m-live, #22e5ff); box-shadow: 0 0 6px color-mix(in srgb, currentColor 55%, transparent); }\n.omout b.warn { color: #ff6b61; }\n/* Active plan: the % size is not used (dimmed); the title says so */\n.cmd.plan .pp, .cmd.plan .pctbox:not(.cp), .cmd.plan .sz { opacity: .35; }\n.cmdh .ct { flex: none; } /* the title is never cut: the phase gives way first */\n.cph { flex: 0 1 auto; min-width: 0; margin-left: 1px; margin-right: auto; height: 21px; box-sizing: border-box; line-height: 18px; padding: 0 6px 1px 5px;\n  font-size: 11px; font-weight: 800; letter-spacing: .2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;\n  background: #000; border: 1px solid currentColor; border-radius: 4px; } /* boxed like ON / OFF, black background */\n.cph:empty { display: none; }\n.cph.manual { color: var(--m-manual, #cbd5e1); } .cph.view { color: var(--m-view, #fb923c); } .cph.live { color: var(--m-live, #22e5ff); box-shadow: 0 0 6px color-mix(in srgb, currentColor 55%, transparent); }\n.cmdh .ct { margin-right: 0; }\n/* SEND on PLAN ENTRY (Active): places the LIMIT with the plan, after CONFIRM */\n.chip .go { margin-left: 6px; padding: 0 7px; border-radius: 3px; background: #c2410c; color: #fff; font-weight: 700; cursor: pointer; }\n.chip .go.arm { background: #b91c1c; }\n/* small up / down arrows inside a number field */\n.omsp { position: relative; display: block; min-width: 0; }\n.omsp input { padding-right: 20px !important; }\n.spb { position: absolute; right: 2px; top: 3px; bottom: 3px; width: 15px; display: flex; flex-direction: column; gap: 1px; }\n.spb button { flex: 1; padding: 0; margin: 0; border: 0; border-radius: 2px; background: transparent; color: var(--k-lb); font-size: 7px; line-height: 1; cursor: pointer; }\n.spb button:hover { color: var(--k-hi); background: var(--k-bd2); }\n.omsp input:disabled + .spb { display: none; }\n/* Chart space section */\n.chb { padding: 10px; display: grid; grid-template-columns: minmax(0, 1fr) 90px; gap: 8px; align-items: center; font-size: 11.5px; color: var(--k-lb); }\n.chb input { box-sizing: border-box; width: 100%; height: 30px; padding: 0 6px; font: 12.5px/1 system-ui, -apple-system, \"Segoe UI\", sans-serif;\n  color: var(--k-hi); background: var(--k-in); border: 1px solid var(--k-bd2); border-radius: var(--k-rad); outline: none; }\n.chb input:focus { border-color: var(--k-acc); }\n/* phase word on the plan labels: same type and colour as the box next to Trade commands */\n.chip .ph { font-size: 11px; font-weight: 800; letter-spacing: .2px; margin-right: -3px; }\n.chip .ph.view { color: var(--m-view, #fb923c); } .chip .ph.live { color: var(--m-live, #22e5ff); } .chip .ph.act { color: var(--m-act, #c084fc); }\n/* ENTRY button: ACTIVATE (PREVIEW, orange) switches to ACTIVE; START (ACTIVE, red) places the LIMIT */\n.chip .go.live { background: #0e7490; }\n/* ORDERS / COPY in the Trade commands title: small, one above the other */\n.root.col .ctg { display: grid; grid-template-columns: auto auto; column-gap: 3px; row-gap: 1px; align-items: center; }\n.root.col .ctg .tgl { height: 11px; line-height: 11px; padding: 0; font-size: 7.5px; text-align: right; }\n.root.col .ctg button { height: 11px; min-width: 24px; line-height: 9px; padding: 0 3px; margin-left: 0; font-size: 7.5px; border-radius: 2px; }\n.omout b.act { color: #22e5ff; } /* ACTIVE: bright cyan, never green or red */\n/* LIMIT / STOP in the column: brighter when they can be used (dimmed only when disabled) */\n/* colours from Settings → Button and mode colours (doubled classes: above every card style); disabled = dimmed */\n.root.root.col.col .card2 button.lm { color: var(--b-lm-tx, #e0ecff); background: var(--b-lm-bg, #1d4ed8); border-color: color-mix(in srgb, var(--b-lm-bg, #1d4ed8) 60%, #fff); }\n.root.root.col.col .card2 button.st { color: var(--b-st-tx, #1a1405); background: var(--b-st-bg, #eab308); border-color: color-mix(in srgb, var(--b-st-bg, #eab308) 60%, #fff); }\n.root.root.col.col .card2 button.long { color: var(--b-long-tx, #fff); background: var(--b-long-bg, #15803d); border-color: color-mix(in srgb, var(--b-long-bg, #15803d) 60%, #fff); }\n.root.root.col.col .card2 button.short { color: var(--b-short-tx, #fff); background: var(--b-short-bg, #b91c1c); border-color: color-mix(in srgb, var(--b-short-bg, #b91c1c) 60%, #fff); }\n.root.root.col.col .cmdx > button.flat { color: var(--b-flat-tx, #17181b); background: var(--b-flat-bg, #d4a514); border-color: color-mix(in srgb, var(--b-flat-bg, #d4a514) 60%, #fff); box-shadow: none; text-shadow: none; }\n/* Risk & targets title: mode menu and OFF / ACTIVE, boxed like the phase next to Trade commands */\n.csh .omsel, .csh .omst { height: 21px; box-sizing: border-box; border-radius: 4px; background: #000; border: 1px solid currentColor;\n  font: 800 11px/1 system-ui, -apple-system, \"Segoe UI\", sans-serif; letter-spacing: .2px; text-transform: uppercase; }\n.csh .omsel { margin-left: 4px; padding: 0 2px 0 4px; cursor: pointer; color: var(--m-view, #fb923c); }\n.csh .omsel.manual { color: var(--m-manual, #cbd5e1); } .csh .omsel.live { color: var(--m-live, #22e5ff); box-shadow: 0 0 6px color-mix(in srgb, currentColor 55%, transparent); }\n.csh .omsel option { background: #000; }\n.csh .omsel option[value=\"manual\"] { color: var(--m-manual, #cbd5e1); } .csh .omsel option[value=\"view\"] { color: var(--m-view, #fb923c); } .csh .omsel option[value=\"live\"] { color: var(--m-live, #22e5ff); }\n.csh .omst { display: inline-flex; align-items: center; padding: 0 6px 1px; color: #6f7787; cursor: default; }\n.csh .omst.on { color: var(--m-act, #c084fc); box-shadow: 0 0 6px color-mix(in srgb, currentColor 55%, transparent); }\n/* Trade commands title: phase, then ACTIVE when an order of the plan is there; ORDERS / COPY pushed to the right */\n.cmdh .cph { margin-right: 0; }\n.cmdh .cph.act { margin-left: 4px; color: var(--m-act, #c084fc); box-shadow: 0 0 6px color-mix(in srgb, currentColor 55%, transparent); }\n.cmdh .ctg { margin-left: auto; }\n/* labels of an order of the plan really placed (ACTIVE): black background */\n.chip.plan.act { background: #000; opacity: 1; }\n/* Risk & targets ON / OFF in the section title (like ORDERS / COPY) */\n.csh .omtgl { margin-left: 6px; height: 21px; padding: 0 8px 1px; box-sizing: border-box; border-radius: 4px; font: 800 11px/1 system-ui, -apple-system, \"Segoe UI\", sans-serif;\n  letter-spacing: .3px; color: #fff; background: #7f1d1d; border: 1px solid #b91c1c; cursor: pointer; }\n.csh .omtgl.on { background: #15803d; border-color: #22c55e; }\n.cph.act { color: var(--m-act, #c084fc); box-shadow: 0 0 6px color-mix(in srgb, currentColor 55%, transparent); }\n/* copier accounts inside the Trade commands block */\n.cmd > .csec { margin: 0; border-width: 1px 0 0; border-radius: 0; } /* full width of the block, nothing cut */\n/* font size of the entry buttons and FLAT (Settings → Button and mode colours; empty = default) */\n.root.root.col.col .card2 button.lm { font-size: var(--b-lm-fs, 12.5px); }\n.root.root.col.col .card2 button.st { font-size: var(--b-st-fs, 12.5px); }\n.root.root.col.col .card2 button.long { font-size: var(--b-long-fs, 12.5px); }\n.root.root.col.col .card2 button.short { font-size: var(--b-short-fs, 12.5px); }\n.root.root.col.col .cmdx > button.flat { font-size: var(--b-flat-fs, 15.5px); }\n/* copier accounts in the column / floating panel: always the whole table, the text shrinks with the width */\n.root.col .csec[data-sec=\"copy\"] { container-type: inline-size; }\n.root.col .card4 { padding: 8px 8px; }\n.root.col .card4 table { table-layout: fixed; width: 100%; font-size: clamp(8.5px, 3.1cqi, 13px); }\n.root.col .card4 td, .root.col .card4 th { padding: 4px 0 4px 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }\n.root.col .card4 col.c0 { width: 20%; } .root.col .card4 col.c1 { width: 14%; } .root.col .card4 col.c2, .root.col .card4 col.c3, .root.col .card4 col.c4 { width: 22%; }\n/* the position data are in the panel header: no Position section in the column */\n.root.col .csec[data-sec=\"pos\"] { display: none; }\n/* v0.10.96 Trade commands from Gerry's UX Sketch drawing: the % rows, a line, then two blocks side by side split by a vertical\n   line (orders: CANCEL over LIMIT / STOP | position: TP SL BE over LONG / SHORT), a line, the closing row with FLAT apart.\n   Explicit grid rows: 1 fractions, 2 presets, 3 line, 4 CANCEL | TP SL BE, 5 LIMIT STOP | LONG SHORT;\n   columns 1-17 | 18-19 (vertical line) | 20-36 */\n.root.root.col.col .cmd .card2 { row-gap: 6px; }\n.root.root.col.col .cmd .card2 > button.pp.pf { grid-row: 1; height: 21px !important; font-size: 11px; }\n.root.root.col.col .cmd .card2 > :is(button.pp:not(.pf), .pctbox, .sz) { grid-row: 2; }\n.root.root.col.col .cmd .card2 > button.pp:not(.pf) { height: 25px !important; font-size: 11px; }\n.root.root.col.col .cmd .card2 > .pctbox { height: 25px; }\n.root.root.col.col .cmd .card2 > .pctbox input, .root.root.col.col .cmd .card2 > .pctbox span { height: 23px; line-height: 21px; }\n.root.root.col.col .cmd .card2 > .sz { height: 25px; line-height: 21px; }\n.root.root.col.col .cmd .card2::after { content: \"\"; grid-row: 3; grid-column: 1 / -1; height: 1px; margin: 4px 0; background: var(--k-bd, #34363c); }\n.root.root.col.col .cmd .card2::before { content: \"\"; grid-row: 4 / 6; grid-column: 18 / 20; justify-self: center; width: 1px; background: var(--k-bd, #34363c); }\n.root.root.col.col .cmd .card2 > button:is(.cx, .tp, .sl, .be, .lm, .st, .long, .short) { height: 26px !important; }\n.root.root.col.col .cmd .card2 > button.cx { grid-row: 4; grid-column: 1 / 18; }\n.root.root.col.col .cmd .card2 > button:is(.tp, .sl, .be) { grid-row: 4; grid-column: 20 / 37; width: calc((100% - 16px) / 3) !important; }\n.root.root.col.col .cmd .card2 > button.tp { justify-self: start; }\n.root.root.col.col .cmd .card2 > button.sl { justify-self: center; }\n.root.root.col.col .cmd .card2 > button.be { justify-self: end; }\n.root.root.col.col .cmd .card2 > button:is(.lm, .st, .long, .short) { grid-row: 5; width: calc(50% - 4px) !important; margin-top: 1px; border: 1px solid #fff; }\n.root.root.col.col .cmd .card2 > button:is(.lm, .st) { grid-column: 1 / 18; }\n.root.root.col.col .cmd .card2 > button:is(.long, .short) { grid-column: 20 / 37; }\n.root.root.col.col .cmd .card2 > button:is(.lm, .long) { justify-self: start; }\n.root.root.col.col .cmd .card2 > button:is(.st, .short) { justify-self: end; }\n/* closing row: 100 % | PARTIAL CLOSE | CLOSE, then FLAT on its own under LONG / SHORT, taller */\n.root.root.col.col .cmd .cmdx { margin-top: 2px; }\n.root.root.col.col .cmdx > button.close { grid-column: span 11; }\n.root.root.col.col .cmdx > button.close.all { grid-column: span 8; }\n.root.root.col.col .cmdx > button.flat { grid-column: 28 / span 9; height: 32px !important; margin: -1px 0; border: 1.5px solid #fff; }\n/* mode words: size and weight from Settings → Button and mode colours (box next to Trade commands and chart labels) */\n.root .cmdh .cph { height: auto; min-height: 21px; line-height: max(18px, 1.2em); }\n.root .cmdh .cph.manual { font-size: var(--m-manual-fs, 11px); font-weight: var(--m-manual-fw, 800); }\n.root .cmdh .cph.view { font-size: var(--m-view-fs, 11px); font-weight: var(--m-view-fw, 800); }\n.root .cmdh .cph.act { font-size: var(--m-act-fs, 11px); font-weight: var(--m-act-fw, 800); }\n.root .chip .ph.view { font-size: var(--m-view-lfs, 11px); font-weight: var(--m-view-fw, 800); }\n.root .chip .ph.act { font-size: var(--m-act-lfs, 11px); font-weight: var(--m-act-fw, 800); }\n";
+module.exports = ":host { all: initial; }\n.root { position: fixed; inset: 0; pointer-events: none; z-index: 2147482000; font: 11px/1.25 system-ui, -apple-system, \"Segoe UI\", sans-serif; color: #d7dbe3; }\n.lead { position: absolute; height: 0; border-top: 1px solid; transform-origin: 0 0; pointer-events: none; opacity: .85; }\n.hl { position: absolute; height: 0; border-top: var(--w, 1px) var(--s, dashed) var(--c, #8b93a3); pointer-events: none; } /* style from the panel */\n/* SL/TP/LIMIT/STOP: the line can be grabbed (invisible 9 px band, dashed line in the middle) */\n.hl.grab { pointer-events: auto; cursor: ns-resize; height: 9px; border-top: 0; }\n.hl.grab::before { content: \"\"; position: absolute; left: 0; right: 0; top: 4px; border-top: var(--w, 1px) var(--s, dashed) var(--c); }\n.hl.entry { opacity: .9; }\n.chip { position: absolute; pointer-events: auto; background: #12151b; border: 1px solid #2a2f3a; border-radius: 6px; box-shadow: 0 4px 14px rgba(0,0,0,.45); user-select: none; }\n\n/* ── BLOCK ON THE CHART: measured on a pixel mock-up. Do not change by eye.\n   bar 232x19 · 6 px · card 232x82 · 6 px · second card 232x92 (the two gaps EQUAL). Font: all 11 px except\n   Orders 9, P&L 18, points 14.\n   On screen the block is scaled with a transform (SCALE in overlay.js): here are the drawing's measures.\n   Coordinates from the inner border (1 px border). Columns shared by the two cards:\n     left 6.5 · 41.2 · 76.5 (28.8 wide: Orders covers the first two)   right edge of the middle column 140 (P&L, size, % box)\n     right: edge at 223 (points, entry, FLAT, cancel all, SHORT)   second card rows: top 7.2 · 37.2 · 64.8, 17.5 high */\nbutton { all: unset; box-sizing: border-box; cursor: pointer; font: 400 11px/1 system-ui, -apple-system, \"Segoe UI\", sans-serif;\n  border-radius: 3px; border: 1px solid #3a4150; color: #cfd5df; display: inline-flex; align-items: center; justify-content: center; }\nbutton:hover { filter: brightness(1.2); }\nbutton[disabled] { opacity: .45; cursor: default; }\n.up { color: #3ecf8e; } .down { color: #ff6b61; }\n\n/* scale from the main panel (--bs block, --cs labels): transform, so everything stays in proportion */\n.chip { transform: scale(var(--cs, 1)); transform-origin: 0 0; }\n.card, .card2, .card3, .card4, .card5 { transform: scale(var(--bs, 1.25)); transform-origin: 0 0; }\n/* fifth card: swing range and volatility heatmap (ATR recent / ATR over the same hours on each timeframe) */\n.card5 { position: absolute; pointer-events: auto; width: 232px; box-sizing: border-box; border-radius: 7px; padding: 6px 7px 7px;\n  background: #12151b; border: 1px solid #59647b; box-shadow: 0 4px 14px rgba(0,0,0,.45); user-select: none;\n  font: 700 10.5px/1 system-ui, -apple-system, \"Segoe UI\", sans-serif; font-variant-numeric: tabular-nums; white-space: nowrap; color: #bcbcbc; }\n.card5 .c5r { display: flex; align-items: baseline; justify-content: space-between; height: 15px; }\n.card5 .c5r b { color: #fff; font-size: 12px; } .card5 .c5r i { font-style: normal; font-weight: 400; font-size: 9px; color: #8b93a3; }\n.card5 .c5r + .c5r { margin-top: 4px; }\n.card5 .hm { display: grid; grid-template-columns: repeat(5, 1fr); gap: 3px; margin-top: 3px; }\n.card5 .hc { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 4px 0 4px; border-radius: 4px; background: #1d222c; border: 1px solid #2a2f3a; }\n.card5 .hc b { font-size: 9px; color: #8b93a3; } .card5 .hc span { font-size: 11.5px; color: #e6e9ef; } .card5 .hc i { font-style: normal; font-weight: 400; font-size: 8.5px; color: #8b93a3; }\n.card5 .hc.calm { background: #14263a; border-color: #2c4a6b; } .card5 .hc.norm { background: #1d222c; }\n.card5 .hc.hot { background: #4a3210; border-color: #8a6a1a; } .card5 .hc.hot span { color: #ffd36b; }\n.card5 .hc.xhot { background: #5a1c1f; border-color: #a33; } .card5 .hc.xhot span { color: #ffb3ad; }\n.card5 .hc.na span { color: #59647b; }\n.card5 .hm-na { grid-column: 1 / -1; color: #8b93a3; font-weight: 400; padding: 4px 0; }\n\n.card, .card2, .card3 { position: absolute; pointer-events: auto; width: 232px; height: 82px; box-sizing: border-box; border-radius: 7px;\n  background: #12151b; border: 1px solid #2a2f3a; box-shadow: 0 4px 14px rgba(0,0,0,.45); user-select: none;\n  font-family: system-ui, -apple-system, \"Segoe UI\", sans-serif; font-variant-numeric: tabular-nums; white-space: nowrap; }\n.card { border-color: var(--side); }\n.card.long { --side: #2f6b52; } .card.short { --side: #7a3438; } .card.flat { --side: #3a4150; }\n.card > span, .card2 > span { position: absolute; line-height: 1; }\n/* text: top = measured baseline - 0.914 x font size (Segoe UI with line-height 1) */\n/* instrument top left, Orders in place of the P&L, P&L (80%) in place of the points,\n   points above $/pt with the same font size */\n.card .pnl { right: 7px; top: 41px; font-size: 14.4px; font-weight: 700; }\n.card .gap { right: 7px; top: 58.5px; font-size: 11px; font-weight: 700; }\n/* taller card, LONG/SHORT row lower, large account ID, points under the P&L,\n   in their place the points of the day */\n.card { height: 106px; } /* +12 px */\n.card .w { top: 43px; font-size: 11px; font-weight: 700; color: #e6e9ef; }\n.card .w.e { top: 58.5px; } /* entry under the size */\n.card .dpt { right: 90.5px; top: 23px; max-width: 66px; overflow: hidden; text-align: right; font-size: 11px; font-weight: 700; color: #d7dbe3; }\n.card .w.q, .card .w.e { right: 90.5px; }\n.card .w.vs { left: 11.5px; } .card .w.vs svg { display: inline-block; width: 6.4px; height: 10px; margin-left: 4px; vertical-align: -1px; } .card.long .w.vs { color: #3ecf8e; } .card.short .w.vs { color: #ff6b61; } /* side under the arrow, size row */\n/* bottom row: micro on the left, $ per point on the right, same font as the size */\n.card .mic { left: 11.5px; width: 130px; top: 82px; height: 16px; line-height: 16px; font-size: 11px; font-weight: 700; color: #d7dbe3;\n  white-space: nowrap; overflow: hidden; display: flex; justify-content: space-between; gap: 6px; }\n.card .pnl.xs { font-size: 12px; top: 42.2px; }\n.card .mic i { font-style: normal; color: #ffb402; margin-left: auto; } /* $ per point of the open size */\n.card .w i { font-style: normal; margin-left: 6px; }\n.card.long .w.q, .card.long .w.e { color: #3ecf8e; } .card.short .w.q, .card.short .w.e { color: #ff6b61; } /* size and entry in the side's colour */\n.card .pnl.lbl { color: #d7dbe3; }\n.card .gap.mk { color: #bcbcbc; }\n.card.flat .w { color: #8b93a3; }\n.card > button, .card2 > button, .card2 > .pctbox, .card3 > button, .card3 > .pctbox { position: absolute; height: 17.5px; padding: 0 0 1px; }\n.card .acc { left: 11.5px; top: 23px; font-size: 11px; font-weight: 700; color: #c9d1e0; text-transform: uppercase; max-width: 62px; overflow: hidden; text-overflow: ellipsis; }\n.card button.ordc { left: 169.2px; top: 9.6px; width: 55.8px; height: 13.5px; font-size: 9px; color: #9fb3d9; background: #1d222c; border-color: #333a48; }\n.card button.ordc.on { color: #bcbcbc; background: #8a2a2a; border-color: #c44; } /* ON: red, grey text */\n.card button.flat { right: 6.6px; top: 78px; width: 42.5px; height: 21.8px; font-weight: 700; color: #ffb402; background: #000; border-color: #ffb402; }\n/* side arrow and vertical divider */\n.card .side { left: 11.5px; top: 5px; height: 14.4px; line-height: 14.4px; font-size: 13px; font-weight: 700; color: #e6e9ef; } /* instrument */\n.card .side b { font-weight: 700; }\n.card .side i { font-style: normal; font-weight: 600; font-size: 12.5px; color: #fff; margin-left: 6px; font-variant-numeric: tabular-nums; } /* computer clock */\n.card::after { content: \"\"; position: absolute; left: 149px; top: 3.5px; width: 1px; height: 97.3px; background: var(--side); }\n\n/* third card: CLOSE % in the LIMIT / STOP columns, then margin of positions, margin with orders, risk */\n.card4 { position: absolute; pointer-events: auto; width: 232px; box-sizing: border-box; border-radius: 7px; padding: 4px 6px 5px;\n  background: #12151b; border: 1px solid #59647b; box-shadow: 0 4px 14px rgba(0,0,0,.45); user-select: none;\n  font: 400 10.5px/1 system-ui, -apple-system, \"Segoe UI\", sans-serif; font-variant-numeric: tabular-nums; white-space: nowrap; color: #bcbcbc; }\n.chip .sig { border-left: 1px solid rgba(255,255,255,.18); padding-left: 5px; color: #8b93a3; } /* copier accounts: Σ open, TOT total */\n.chip .sig b { font-weight: 700; color: #d7dbe3; } .chip .sig b.up { color: #3ecf8e; } .chip .sig b.down { color: #ff6b61; }\n.card4 table { width: 100%; border-collapse: collapse; }\n.card4 td, .card4 th { padding: 3px 0 3px 4px; text-align: right; }\n.card4 td:first-child, .card4 th:first-child { text-align: left; padding-left: 0; color: #d7dbe3; }\n.card4 th { font-weight: 400; color: #8b93a3; }\n.card4 th i, .card4 td i { font-style: normal; font-size: 9px; color: #8b93a3; }\n.card4 th i.on { color: #3ecf8e; font-weight: 700; } .card4 td i { color: #ffb402; font-weight: 700; }\n.card4 tr[data-id] { cursor: pointer; } .card4 tr[data-id]:hover td { background: #1b2030; }\n.card4 tr.sel td:first-child { color: #7fb2ff; font-weight: 700; }\n.card4 b.cpon { display: inline-block; margin-left: 4px; padding: 1px 5px; border: 1px solid #3e4555; border-radius: 3px; font-size: 9px;\n  color: #8b93a3; cursor: pointer; } /* clickable ON/OFF */\n.card4 b.cpon:hover { filter: brightness(1.3); }\n.card4 b.cpon.on { color: #fff; background: #1f5a3f; border-color: #3ecf8e; }\n.card4 tr.t td { border-top: 1px solid #2a2f3a; font-weight: 700; padding-top: 4px; }\n.card4 .up { color: #3ecf8e; } .card4 .down { color: #ff6b61; }\n.card3 { display: block; height: auto; padding-bottom: 7px; border-color: #59647b; }\n/* % box like the size one, wide PARTIAL CLOSE; below daily / max drawdown / goal like Vest's page */\n.card3 > .pctbox.cp { position: absolute; left: 6.2px; top: 7.6px; width: 46.4px; height: 17.5px; padding: 0 4px 0 4px; }\n.card3 button.close.all { left: 179px; width: 44.4px; } /* CLOSE: up to the right edge, aligned with SHORT */\n.card3 button.close { left: 60.1px; top: 7.6px; width: 111.4px; height: 17.5px; font-weight: 700; color: #ffb402; background: #12151b; border-color: #8a6a1a; }\n.card3 .bars { margin: 36px 6.6px 0 6.2px; display: grid; gap: 6px; }\n.card3 .bar { border: 1px solid #2a2f3a; border-radius: 4px; padding: 4px 6px 5px; }\n.card3 .bl { display: flex; justify-content: space-between; gap: 6px; font: 400 11px/1.1 system-ui, -apple-system, \"Segoe UI\", sans-serif; color: #8b93a3; }\n.card3 .bl span:last-child { color: #d7dbe3; text-align: right; overflow: hidden; text-overflow: ellipsis; }\n.card3 .track { height: 4px; background: #222733; border-radius: 2px; margin-top: 4px; overflow: hidden; }\n.card3 .track i { display: block; height: 100%; width: 0; background: #3ecf8e; } .card3 .track i.warn { background: #e8b84a; } .card3 .track i.hot { background: #ff5a4f; } .card3 .track i.goal { background: #3ecf8e; } .card3 .track i.ko { background: #ff5a4f; }\n/* drawdown bands: green in profit, yellow up to 50%, orange up to 75%, red beyond (bar and figures) */\n.card3 .track i.zy { background: #e8c24a; } .card3 .track i.zo { background: #ff8c42; } .card3 .track i.zr { background: #ff4d4d; } .card3 .track i.zg { background: #3ecf8e; }\n.card3 .bl b.zy { color: #e8c24a; } .card3 .bl b.zo { color: #ff8c42; } .card3 .bl b.zr { color: #ff4d4d; } .card3 .bl b.zg { color: #3ecf8e; }\n.card3 .bl b.up { color: #3ecf8e; } .card3 .bl b.down { color: #ff6b61; }\n/* second card */\n.card2 { display: block; height: 118px; border-color: #59647b; }\n/* row of the fractions 0.1-0.9 at the top, the rest moves down by 26.5 px */\n.card2 button.pf { top: 7.2px; width: 21.6px; font-size: 10px; }\n.card2 button.f0 { left: 6.2px; } .card2 button.f1 { left: 30.45px; } .card2 button.f2 { left: 54.7px; }\n.card2 button.f3 { left: 78.95px; } .card2 button.f4 { left: 103.2px; } .card2 button.f5 { left: 127.45px; }\n.card2 button.f6 { left: 151.7px; } .card2 button.f7 { left: 175.95px; } .card2 button.f8 { left: 200.2px; }\n.card2 button.pp:not(.pf), .card2 > .pctbox { top: 33.7px; } .card2 > span.sz { top: 35.2px; }\n.card2 button.cx, .card2 button.tp, .card2 button.sl, .card2 button.be { top: 59.8px !important; }\n.card2 button.lm, .card2 button.st, .card2 button.long, .card2 button.short { top: 88.3px !important; }\n.card2 button.pp { top: 7.2px; width: 23.5px; color: #aab1be; }\n/* four presets, % box moved to the right */\n.card2 button.pp:not(.pf) { width: 17.4px; }\n.card2 button.p0 { left: 6.2px; } .card2 button.p1 { left: 25.8px; } .card2 button.p2 { left: 45.4px; }\n.card2 button.p3 { left: 65px; } .card2 button.p4 { left: 84.6px; } .card2 button.p5 { left: 104.2px; } /* 6 presets */\n.card2 button.pp.sm { font-size: 9px; letter-spacing: -.2px; }\n.card2 button.pp.on { color: #fff; border-color: #7fb2ff; background: #16223f; }\n.pctbox { top: 7.2px; left: 93.1px; width: 46.4px; box-sizing: border-box; display: flex; align-items: center; justify-content: space-between;\n  border: 1px solid #b9bcc4; border-radius: 3px; background: #0d1015; }\n.card2 > .pctbox { left: 124.6px; width: 34.6px; padding: 0 3px 0 3px; } /* same spacing as the presets */\n/* % boxes: normal (not bold) number aligned right, next to the % sign */\n.pctbox input { all: unset; flex: 1; min-width: 0; text-align: right; font: 400 11px/1 system-ui, sans-serif; color: #fff; }\n.pctbox span { font: 400 11px/1 system-ui, sans-serif; color: #fff; margin-left: 2px; }\n.card2 .sz { right: 9.5px; top: 8.7px; height: 17.5px; display: flex; align-items: center; font: 700 11px/1 system-ui, sans-serif; color: #e6e9ef;\n  overflow: hidden; text-overflow: ellipsis; max-width: 80px; }\n.card2 .sz.why { font-weight: 400; color: #8b93a3; font-size: 11px; }\n/* rows 33.3 (cancel buttons · TP SL BE) and 61.8 (LIMIT STOP · LONG SHORT), buttons 21.8 high */\n.card2 button.lm, .card2 button.st, .card2 button.cx, .card2 button.tp, .card2 button.sl, .card2 button.be,\n.card2 button.long, .card2 button.short { height: 21.8px; font-weight: 700; }\n.card2 button.lm, .card2 button.st { top: 61.8px; cursor: ns-resize; }\n.card2 button.lm { left: 6.2px; width: 47.8px; color: #7fb2ff; border-color: #2f4a70; background: #0c163f; }\n.card2 button.st { left: 60.1px; width: 43.3px; color: #e8b84a; border-color: #5a4520; background: #2a2114; }\n.card2 button.cx { top: 33.3px; color: #7a80b4; border-color: #3e4555; }\n.card2 button.cxb { left: 6.2px; width: 97.2px; }\n/* CANCEL menu: opens under its button, above the next row and the third card */\n.card2.cxopen { z-index: 10; }\n.card2 .cxm { position: absolute; left: 6.2px; top: 83px; width: 120px; z-index: 5; display: flex; flex-direction: column; gap: 2px;\n  padding: 3px; background: #12151b; border: 1px solid #59647b; border-radius: 5px; box-shadow: 0 6px 18px rgba(0,0,0,.5); }\n.card2 .cxm button { position: static; display: flex; align-items: center; height: 21px; text-align: left; padding: 0 6px; font: 600 10.5px/1 system-ui, -apple-system, \"Segoe UI\", sans-serif;\n  color: #d7dbe3; background: #1d222c; border: 1px solid #333a48; border-radius: 3px; cursor: pointer; }\n.card2 .cxm button:hover:not([disabled]) { background: #3a1c1e; border-color: #a33; }\n.card2 .cxm button[disabled] { opacity: .4; cursor: default; }\n.card2 button.tp, .card2 button.sl, .card2 button.be { top: 33.3px; width: 26.6px; }\n.card2 button.tp { left: 130.3px; color: #3ecf8e; border-color: #2f6b52; background: #0f2a20; cursor: ns-resize; }\n.card2 button.sl { left: 163.7px; color: #ff6b61; border-color: #7a3438; background: #2f1416; cursor: ns-resize; }\n.card2 button.be { right: 6.6px; color: #c0c0c0; border-color: #4f4f4f; background: #252525; }\n.card2 button.long, .card2 button.short { top: 61.8px; }\n.card2 button.long { left: 130.3px; width: 41.3px; color: #3ecf8e; border-color: #2f6b52; background: #0f2a20; }\n.card2 button.short { right: 6.6px; width: 45.2px; color: #ff6b61; border-color: #7a3438; background: #2f1416; }\n.chip.lm { border-color: #2f4a70; } .chip.lm .k { color: #7fb2ff; }\n.chip.st { border-color: #5a4520; } .chip.st .k { color: #e8b84a; }\n.chip.avg, .chip.avg1, .chip.avgn { border-color: #2b6672; } .chip.avg .k, .chip.avg1 .k, .chip.avgn .k { color: #5ad1e6; }\n.chip.mfp { border-color: #8a5520; } .chip.mfp .k { color: #ff9f43; } /* fail price preview */ /* average entry with all limits: light blue, read only */\n.chip.dd50 { border-color: #7a2f58; } .chip.ko { border-color: #5b3f80; } .chip.ko .k { color: #c58cff; } /* account fail price: purple, read only */\n.chip .loc { font-size: 9px; color: #e8b84a; border: 1px solid #5a4520; border-radius: 3px; padding: 0 3px; }\n\n/* messages under the card, outside its fixed size */\n.msg { position: absolute; left: 0; top: calc(100% + 3px); width: 232px; font: 400 10px/1.3 system-ui, sans-serif; color: #aab1be; white-space: normal; }\n.msg.err { color: #ff8a80; } .msg.ok { color: #3ecf8e; }\n\n/* ── SL and TP labels */\n.chip { padding: 2px 6px; display: flex; gap: 6px; align-items: center; cursor: ns-resize; white-space: nowrap; font-variant-numeric: tabular-nums; }\n.chip.tp { border-color: #2f6b52; } .chip.sl { border-color: #7a3438; }\n.chip.sr { border-color: color-mix(in srgb, var(--kc) 55%, #12151b); }\n.csec[data-sec=\"br\"] .tbb { grid-template-columns: auto 1fr 1fr; }\n.tbb input.brr { height: 16px; padding: 0; margin: 2px 0 0; border: 0; background: transparent; accent-color: var(--k-acc); cursor: pointer; }\n.chip.br { border-color: color-mix(in srgb, var(--kc) 45%, #12151b); opacity: .85; } /* safe runner: border in the colour of its tranche */\n.chip.long { border-color: #2f6b52; } .chip.long .k { color: #3ecf8e; } .chip.short { border-color: #7a3438; } .chip.short .k { color: #ff6b61; }\n.chip.pos { cursor: default; }\n.chip .k { font-weight: 700; } .chip.tp .k { color: #3ecf8e; } .chip.sl .k { color: #ff6b61; }\n.chip.pending { opacity: .6; } .chip.bad { border-color: #e8b84a; }\n.chip.drag { outline: 1px solid #fff3; }\n.up { color: #3ecf8e; } .down { color: #ff6b61; }\n.chip .x { margin-left: 2px; padding: 0 4px; border-radius: 3px; color: #8b93a3; cursor: pointer; }\n.chip .x:hover { color: #fff; background: #2a303c; }\n.chip .x.off { opacity: .35; cursor: default; }\n.chip .x.arm { color: #fff; background: #8a2a2a; font-weight: 700; }\n/* lines and segments BELOW labels and cards (they got mixed up with the text) */\n.hl, .lead { z-index: 1; }\n.chip { z-index: 2; }\n.chip.drag { z-index: 3; }\n.card, .card2, .card3, .card4 { z-index: 4; }\n/* size in play clearly visible: card and label size in bold yellow, $/pt white */\n/* the three quantities (card, second card, label) with the style chosen in the panel (--qc, --qs, --qw) */\n.card.long .w.q, .card.short .w.q, .card .w.q { color: var(--qc, #ffb402); font-weight: var(--qw, 800); font-size: var(--qs, 11px); }\n.card2 > span.sz:not(.why) { color: var(--qc, #ffb402); font-weight: var(--qw, 800); font-size: var(--qs, 11px); }\n.card .mic i { color: #ffffff; }\n.chip .qy { color: var(--qc, #ffb402); font-weight: var(--qw, 800); font-size: var(--qs, 11px); }\n/* position label on two rows */\n.chip.two { display: grid; grid-template-columns: repeat(5, auto); column-gap: 6px; row-gap: 2px; padding: 3px 6px; }\n.chip.two .mk { color: #7fb2ff; font-weight: 700; } /* current price: bold, LIMIT colour */\n/* entry and current price aligned (col. 2), Σ under the size and TOT under the P&L, on the right */\n.chip.two .qy, .chip.two .pl, .chip.two .sig { justify-self: end; }\n.chip.two .sig { border-left: 0; padding-left: 0; }\n/* COPY: Qty column */\n.card4 td.q { color: #d7dbe3; } .card4 td.q.up { color: #3ecf8e; } .card4 td.q.down { color: #ff6b61; }\n/* small % presets like the fractions, wider % box */\n.card2 button.pp:not(.pf) { width: 15px; font-size: 10px; }\n.card2 button.p0 { left: 6.2px; } .card2 button.p1 { left: 23.6px; } .card2 button.p2 { left: 41px; }\n.card2 button.p3 { left: 58.4px; } .card2 button.p4 { left: 75.8px; } .card2 button.p5 { left: 93.2px; }\n.card2 button.pp.sm:not(.pf) { font-size: 8.5px; }\n.card2 > .pctbox { left: 112px; width: 44px; padding: 0 4px; }\n/* with the Qty column the table must fit in 232 px: tighter font and spacing, account name truncated */\n.card4 table { font-size: 9.5px; table-layout: fixed; }\n.card4 td, .card4 th { padding: 3px 0 3px 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }\n.card4 col.c0 { width: 19%; } .card4 col.c1 { width: 17%; } .card4 col.c2, .card4 col.c3, .card4 col.c4 { width: 21.33%; }\n.card4 .cpt { font-size: 8px; color: #8b93a3; letter-spacing: .3px; } /* small COPY */\n.card4 b.cpon { margin-left: 3px; }\n.card4 th:first-child { overflow: visible; }\n.card2 > span.sz { top: 33.7px; line-height: 17.5px; } /* aligned with the % box */\n/* ORDERS and COPY in the card's right column, label outside and ON/OFF in the button */\n.card .tgl { position: absolute; left: 155px; font-size: 8px; font-weight: 700; letter-spacing: .3px; color: #8b93a3; line-height: 13px; height: 13px; }\n.card .ordl { top: 6px; } .card .cpl { top: 22px; }\n.card button.ordc, .card button.cpc { left: auto; right: 7px; width: 30px; height: 13px; font-size: 8.5px; font-weight: 700; padding: 0; }\n.card button.ordc { top: 6px; } .card button.cpc { top: 22px; color: #8b93a3; background: #1d222c; border-color: #333a48; }\n.card button.cpc.on { color: #fff; background: #1f5a3f; border-color: #3ecf8e; }\n/* ON white on green, OFF white on red (ORDERS and COPY) */\n.card button.ordc, .card button.cpc { color: #fff; background: #8a2a2a; border-color: #c44; }\n.card button.ordc.on, .card button.cpc.on { color: #fff; background: #1f6a45; border-color: #3ecf8e; }\n/* label: account P&L at the size's font size; Σ and TOT not bold */\n.chip.two .pl { font-size: var(--qs, 11px); }\n.chip.two .sig b { font-weight: 400; }\n/* COPY: active account yellow, sizes white */\n.card4 tr.sel td:first-child { color: #ffb402; }\n.card4 td.q, .card4 td.q.up, .card4 td.q.down { color: #fff; }\n/* % box a little further right and wider */\n.card2 > .pctbox { left: 114.5px; width: 50px; }\n/* third card: all bar text at the same size as the DAILY GOAL figures (11 px, labels no longer thin) */\n.card3 .bl, .card3 .bl span, .card3 .bl b { font-size: 11px; }\n.card3 .bl span:first-child { font-weight: 600; color: #aab1be; }\n/* COPY: larger text (10.5 px), columns reworked so nothing is cut */\n.card4 table { font-size: 10.5px; }\n.card4 .cpt { font-size: 9px; }\n.card4 col.c0 { width: 16%; } .card4 col.c1 { width: 18%; } .card4 col.c2, .card4 col.c3, .card4 col.c4 { width: 22%; }\n/* columns sized to their content: no amount truncated (fixed widths removed) */\n.card4 table { table-layout: auto; }\n.card4 col.c0, .card4 col.c1, .card4 col.c2, .card4 col.c3, .card4 col.c4 { width: auto; }\n.card4 td, .card4 th { overflow: visible; text-overflow: clip; padding-left: 3px; }\n/* \"S\"/\"L\" label with the card's arrow; third card at the COPY card's size (10.5 px) */\n.chip .k svg { display: inline-block; width: 6.4px; height: 10px; margin-left: 3px; vertical-align: -1px; }\n.card3 .bl, .card3 .bl span, .card3 .bl b { font-size: 10.5px; }\n/* position label on one row; P&L at the size's font size */\n.chip .pl { font-size: var(--qs, 11px); }\n/* clock on the right, aligned with the size column, yellow like FLAT; MNQ row grey; entry white */\n.card .side { width: 130px; display: flex; }\n.card .side i { margin-left: auto; color: #ffb402; }\n.card .mic, .card .mic i { color: #8b93a3; }\n.card.long .w.e, .card.short .w.e, .card .w.e { color: #fff; }\n/* trailing segments between candles and labels */\n.tseg { position: absolute; height: 0; border-top: 3px solid; pointer-events: none; z-index: 1; border-radius: 2px; }\n.tseg.stop { border-color: #ff9f43; } .tseg.act { border-color: #5ad1e6; } .tseg.next { border-color: #a3e635; }\n.tseg.be { border-color: #e879f9; } /* BE+ */\n.tseg.bet { border-top-style: dashed; border-color: #e879f9; } /* auto BE trigger */\n.tseg.hl { border-radius: 0; } /* last swing high / low, between the cards and the price axis */\n.card .side i.cd { color: #9fb3d9; font-weight: 600; } /* countdown to the candle close */\n\n/* label name in the line colour chosen in the panel (--kc from LS(kind)) */\n.chip .k { color: var(--kc, inherit) !important; }\n\n/* account activity dot next to the name (store.activityOf) */\n.adot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 5px; vertical-align: 1px; background: #5b6373; flex: none; }\n.adot.free { background: #3ecf8e; } .adot.busy { background: #ff5a4f; } .adot.ph { background: #e8b84a; }\n\n/* ══ SONAR card style (Chart display → card style). Colours, fonts and decoration only: every position and size above stays.\n   Amber is the base colour; green and red keep their meaning (profit / loss, buy / sell). ══ */\n.root.sonar { --o: #ff8a3d; --od: #7a3b17; --oe: #c4521d; --obg: #0b0605; --ohi: #ffd2a8; --olo: #c4703d; --oup: #8dff6a; --odn: #ff4b3d; color: var(--o); }\n.root.sonar, .root.sonar * { font-family: Consolas, \"Cascadia Mono\", \"Lucida Console\", monospace !important; }\n.root.sonar :is(.card, .card2, .card3, .card4, .card5) { color: var(--o); border-radius: 0; border-color: var(--oe);\n  background: radial-gradient(130% 70% at 50% 0, #1a0b07, var(--obg));\n  box-shadow: 0 0 0 1px rgba(0,0,0,.65), 0 0 16px rgba(255,110,40,.13), 0 4px 14px rgba(0,0,0,.6); text-shadow: 0 0 5px rgba(255,120,40,.3); }\n/* cut corners (top left, bottom right) and faint scan lines */\n.root.sonar :is(.card, .card2, .card3, .card4, .card5)::before { content: \"\"; position: absolute; inset: 0; pointer-events: none;\n  background: linear-gradient(135deg, var(--side, var(--oe)) 0 5px, transparent 5px) top left / 9px 9px no-repeat,\n    linear-gradient(315deg, var(--side, var(--oe)) 0 5px, transparent 5px) bottom right / 9px 9px no-repeat,\n    repeating-linear-gradient(0deg, rgba(255,140,60,.04) 0 1px, transparent 1px 3px); }\n.root.sonar .card.long { --side: #3f8a2c; } .root.sonar .card.short { --side: #8a2424; } .root.sonar .card.flat { --side: var(--oe); }\n.root.sonar .up { color: var(--oup) !important; } .root.sonar .down { color: var(--odn) !important; }\n.root.sonar button { border-radius: 0; border-color: var(--od); color: var(--o); background: #140806; }\n/* first card */\n.root.sonar .card .side, .root.sonar .card .side b { color: var(--ohi); }\n.root.sonar .card .side i { color: var(--ohi); } .root.sonar .card .side i.cd { color: #ffb98a; }\n.root.sonar .card .acc { color: var(--o); }\n.root.sonar .card .w, .root.sonar .card .w.e, .root.sonar .card .dpt, .root.sonar .card .pnl.lbl { color: var(--ohi); }\n.root.sonar .card.long .w.vs { color: var(--oup); } .root.sonar .card.short .w.vs { color: var(--odn); }\n.root.sonar .card.flat .w { color: var(--olo); }\n.root.sonar .card .mic, .root.sonar .card .mic i, .root.sonar .card .gap.mk { color: var(--olo); }\n.root.sonar .card .tgl { color: #d96a2c; }\n.root.sonar .card button.ordc, .root.sonar .card button.cpc { color: var(--od); background: transparent; border-color: var(--od); }\n.root.sonar .card button.ordc.on, .root.sonar .card button.cpc.on { color: #170804; background: var(--o); border-color: var(--o); box-shadow: 0 0 8px rgba(255,120,40,.5); text-shadow: none; }\n.root.sonar .card button.flat { color: #170804; background: var(--o); border-color: var(--o); box-shadow: 0 0 12px rgba(255,120,40,.5); text-shadow: none; }\n/* second card */\n.root.sonar .card2 button.pp { color: var(--o); }\n.root.sonar .card2 button.pp.on { color: #170804; background: var(--o); border-color: var(--o); box-shadow: 0 0 8px rgba(255,120,40,.5); text-shadow: none; }\n.root.sonar .pctbox { border-radius: 0; border-color: var(--oe); background: #000; }\n.root.sonar .pctbox input, .root.sonar .pctbox span { color: var(--ohi); }\n.root.sonar .card2 .sz.why { color: var(--olo); }\n.root.sonar .card2 button.cx { color: var(--o); border-color: var(--oe); background: repeating-linear-gradient(-45deg, #2a1206 0 5px, #170904 5px 10px); }\n.root.sonar .card2 button.tp { color: var(--oup); border-color: #3f8a2c; background: #0e1d09; }\n.root.sonar .card2 button.sl { color: var(--odn); border-color: #8a2424; background: #210909; }\n.root.sonar .card2 button.be { color: var(--o); border-color: var(--oe); background: #140806; }\n.root.sonar .card2 button.lm { color: var(--ohi); border-color: var(--oe); background: #1c0c07; }\n.root.sonar .card2 button.st { color: #ffb02e; border-color: #8a5a10; background: #1f1406; }\n.root.sonar .card2 button.long { color: var(--oup); border-color: var(--oup); background: #183a10; box-shadow: 0 0 8px rgba(141,255,106,.25); }\n.root.sonar .card2 button.short { color: var(--odn); border-color: var(--odn); background: #3a1010; box-shadow: 0 0 8px rgba(255,75,61,.25); }\n.root.sonar .card2 .cxm { border-radius: 0; background: var(--obg); border-color: var(--oe); }\n.root.sonar .card2 .cxm button { border-radius: 0; color: var(--o); background: #140806; border-color: var(--od); }\n.root.sonar .card2 .cxm button:hover:not([disabled]) { background: #3a1010; border-color: var(--odn); }\n/* third card: segmented bars */\n.root.sonar .card3 button.close { color: var(--o); border-color: var(--oe); background: #140806; }\n.root.sonar .card3 .bar { border-radius: 0; border-color: rgba(122,59,23,.7); }\n.root.sonar .card3 .bl span:first-child { color: #d96a2c; } .root.sonar .card3 .bl span:last-child { color: var(--ohi); }\n.root.sonar .card3 .track { height: 5px; border-radius: 0; background: repeating-linear-gradient(90deg, rgba(255,138,61,.16) 0 4px, transparent 4px 6px); }\n.root.sonar .card3 .track i { background: var(--o);\n  -webkit-mask: repeating-linear-gradient(90deg, #000 0 4px, transparent 4px 6px); mask: repeating-linear-gradient(90deg, #000 0 4px, transparent 4px 6px); }\n.root.sonar .card3 .track i.goal, .root.sonar .card3 .track i.zg { background: var(--oup); }\n.root.sonar .card3 .track i.warn, .root.sonar .card3 .track i.zy { background: #ffd04a; }\n.root.sonar .card3 .track i.zo { background: #ff6a1a; }\n.root.sonar .card3 .track i.hot, .root.sonar .card3 .track i.ko, .root.sonar .card3 .track i.zr { background: var(--odn); }\n.root.sonar .card3 .bl b.zg { color: var(--oup); } .root.sonar .card3 .bl b.zy { color: #ffd04a; }\n.root.sonar .card3 .bl b.zo { color: #ff6a1a; } .root.sonar .card3 .bl b.zr { color: var(--odn); }\n/* copier card */\n.root.sonar .card4 th, .root.sonar .card4 th i, .root.sonar .card4 .cpt { color: #d96a2c; }\n.root.sonar .card4 td:first-child, .root.sonar .card4 td.q { color: var(--ohi); }\n.root.sonar .card4 tr.sel td:first-child { color: #ffd04a; }\n.root.sonar .card4 tr[data-id]:hover td { background: #1f0d07; }\n.root.sonar .card4 tr.t td { border-top-color: var(--od); }\n.root.sonar .card4 th i.on { color: var(--oup); }\n.root.sonar .card4 b.cpon { border-radius: 0; color: var(--olo); border-color: var(--od); }\n.root.sonar .card4 b.cpon.on { color: #170804; background: var(--o); border-color: var(--o); text-shadow: none; }\n/* swing and volatility card */\n.root.sonar .card5 .c5r b { color: var(--ohi); } .root.sonar .card5 .c5r i { color: var(--olo); }\n.root.sonar .card5 .hc { border-radius: 0; background: #140806; border-color: var(--od); }\n.root.sonar .card5 .hc b, .root.sonar .card5 .hc i { color: var(--olo); } .root.sonar .card5 .hc span { color: var(--ohi); }\n.root.sonar .card5 .hc.calm { background: #0b1520; border-color: #24496b; } .root.sonar .card5 .hc.calm span { color: #6fb7ff; }\n.root.sonar .card5 .hc.hot { background: #22160a; border-color: #8a5a10; } .root.sonar .card5 .hc.hot span { color: #ffb02e; }\n.root.sonar .card5 .hc.xhot { background: #2a0c0a; border-color: #8a2424; } .root.sonar .card5 .hc.xhot span { color: var(--odn); }\n.root.sonar .card5 .hc.na span, .root.sonar .card5 .hm-na { color: var(--od); }\n/* labels on the chart: square, dark, border colours unchanged (they match the lines) */\n.root.sonar .chip { border-radius: 0; background: var(--obg); color: var(--ohi); }\n.root.sonar .chip .x { border-radius: 0; color: var(--olo); } .root.sonar .chip .x:hover { color: var(--ohi); background: #2a1206; }\n.root.sonar .msg { color: #ffb98a; } .root.sonar .msg.err { color: var(--odn); } .root.sonar .msg.ok { color: var(--oup); }\n/* the monospaced font is wider than the classic one: tighter spacing where the rows are full (limits bars, copier table) */\n.root.sonar .card3 .bl { letter-spacing: -.3px; }\n.root.sonar .card4 table { font-size: 10px; letter-spacing: -.4px; }\n.root.sonar .card4 td, .root.sonar .card4 th { padding-left: 4px; }\n\n/* ══ CONSOLE card style (default): the same palette as the Console panel, so column, panel and cards look like one thing.\n   Colours and borders only: every position and size above stays. ══ */\n.root.console { --c-bg: #26272c; --c-in: #17181b; --c-bd: #3a3c43; --c-bd2: #45474e; --c-tx: #e2e4e9; --c-lb: #a4a8b1; --c-acc: #f97316;\n  --c-up: #4ade80; --c-dn: #f87171; --c-yl: #f0c03a; }\n.root.console :is(.card, .card2, .card3, .card4, .card5) { background: var(--c-bg); border-color: var(--c-bd); border-radius: 6px;\n  color: var(--c-tx); box-shadow: 0 2px 8px rgba(0,0,0,.35); }\n.root.console .card.long { --side: #2f7a4f; } .root.console .card.short { --side: #8a3434; } .root.console .card.flat { --side: var(--c-bd2); }\n.root.console .card { box-shadow: inset 3px 0 0 var(--c-acc), 0 2px 8px rgba(0,0,0,.35); } /* accent without moving the measured layout */\n.root.console .up { color: var(--c-up) !important; } .root.console .down { color: var(--c-dn) !important; }\n.root.console button { border-radius: 4px; border-color: var(--c-bd2); background: #34363c; color: var(--c-tx); }\n/* first card */\n.root.console .card .side, .root.console .card .side b, .root.console .card .w, .root.console .card .w.e, .root.console .card .dpt { color: var(--c-tx); }\n.root.console .card .side i { color: var(--c-yl); } .root.console .card .side i.cd { color: #93b4f5; }\n.root.console .card .acc, .root.console .card .tgl, .root.console .card .mic, .root.console .card .mic i { color: var(--c-lb); }\n.root.console .card.long .w.vs { color: var(--c-up); } .root.console .card.short .w.vs { color: var(--c-dn); }\n.root.console .card button.ordc, .root.console .card button.cpc { color: #fff; background: #7f1d1d; border-color: #b91c1c; }\n.root.console .card button.ordc.on, .root.console .card button.cpc.on { color: #fff; background: #15803d; border-color: #22c55e; }\n.root.console .card button.flat { color: #17181b; background: #d4a514; border-color: var(--c-yl); }\n/* second card */\n.root.console .card2 button.pp { color: var(--c-tx); background: var(--c-in); }\n.root.console .card2 button.pp.on { color: #fff; background: #c2410c; border-color: var(--c-acc); }\n.root.console .pctbox { border-radius: 4px; border-color: var(--c-bd2); background: var(--c-in); }\n.root.console .card2 button.cx { color: var(--c-lb); background: var(--c-in); }\n.root.console .card2 button.tp { color: var(--c-up); border-color: #2f7a4f; background: #14261b; }\n.root.console .card2 button.sl { color: var(--c-dn); border-color: #8a3434; background: #2a1517; }\n.root.console .card2 button.be { color: var(--c-tx); background: #34363c; }\n.root.console .card2 button.lm { color: #93b4f5; border-color: #2c4a80; background: #172238; }\n.root.console .card2 button.st { color: var(--c-yl); border-color: #6b5214; background: #2a2210; }\n.root.console .card2 button.long { color: #fff; border-color: #22c55e; background: #15803d; }\n.root.console .card2 button.short { color: #fff; border-color: #ef4444; background: #b91c1c; }\n.root.console .card2 .cxm { background: var(--c-bg); border-color: var(--c-bd2); border-radius: 6px; }\n.root.console .card2 .cxm button { background: #34363c; border-color: var(--c-bd2); }\n/* third card */\n.root.console .card3 button.close { color: var(--c-yl); border-color: #6b5214; background: #2a2210; }\n.root.console .card3 .bar { border-color: var(--c-bd); background: var(--c-in); border-radius: 5px; }\n.root.console .card3 .bl span:first-child { color: var(--c-lb); } .root.console .card3 .bl span:last-child { color: var(--c-tx); }\n.root.console .card3 .track { background: #34363c; border-radius: 3px; }\n/* copier card */\n.root.console .card4 th, .root.console .card4 .cpt { color: var(--c-lb); }\n.root.console .card4 td:first-child, .root.console .card4 td.q { color: var(--c-tx); }\n.root.console .card4 tr[data-id]:hover td { background: #303136; }\n.root.console .card4 tr.t td { border-top-color: var(--c-bd2); }\n.root.console .card4 b.cpon { border-color: var(--c-bd2); }\n.root.console .card4 b.cpon.on { background: #15803d; border-color: #22c55e; }\n/* swing and volatility card */\n.root.console .card5 { color: var(--c-lb); } .root.console .card5 .c5r b { color: var(--c-tx); }\n.root.console .card5 .hc { background: var(--c-in); border-color: var(--c-bd); }\n/* labels on the chart */\n.root.console .chip { background: var(--c-bg); border-radius: 5px; color: var(--c-tx); }\n\n/* ── DOCKED COLUMN (.root.col): the same elements as the chart block, moved into fluid sections at the panel's size\n   (no scale). Buttons in the commands panel, at the top of the column or floating. Frame colours from --k-* (card style:\n   Console, Classic or Sonar); the colours inside the cards come from the card style rules above. */\n.root.col { --k-bg: #26272c; --k-hd: #303136; --k-bd: #34363c; --k-bd2: #45474e; --k-acc: #f97316; --k-tx: #e2e4e9; --k-hi: #f1f2f5; --k-lb: #a4a8b1;\n  --k-in: #17181b; --k-rad: 6px; --k-btn: #34363c; }\n.root.col:not(.console):not(.sonar) { --k-bg: #12151b; --k-hd: #1b2029; --k-bd: #2a2f3a; --k-bd2: #3a4150; --k-acc: #7fb2ff; --k-tx: #d7dbe3; --k-hi: #fff;\n  --k-lb: #8b93a3; --k-in: #0d1015; --k-rad: 7px; --k-btn: #1d222c; }\n.root.col.sonar { --k-bg: #0b0605; --k-hd: #1a0b07; --k-bd: #7a3b17; --k-bd2: #c4521d; --k-acc: #ff8a3d; --k-tx: #ffd2a8; --k-hi: #ffd2a8; --k-lb: #d96a2c;\n  --k-in: #000; --k-rad: 0; --k-btn: #140806; }\n.colw { position: fixed; z-index: 4; pointer-events: auto; box-sizing: border-box; padding: 10px; display: flex; flex-direction: column; gap: 10px;\n  overflow-y: auto; overflow-x: hidden; scrollbar-width: thin; font: 13px/1.3 system-ui, -apple-system, \"Segoe UI\", sans-serif; color: var(--k-tx); }\n.csec, .cmd { flex: none; box-sizing: border-box; border: 1px solid var(--k-bd); border-radius: var(--k-rad); background: var(--k-bg); overflow: hidden;\n  font: 13px/1.3 system-ui, -apple-system, \"Segoe UI\", sans-serif; color: var(--k-tx); }\n.csh, .cmdh { display: flex; align-items: center; gap: 8px; min-height: 18px; padding: 6px 10px 6px 8px; background: var(--k-hd); border-left: 4px solid var(--k-acc);\n  font-weight: 700; font-size: 13px; color: var(--k-hi); user-select: none; white-space: nowrap; }\n.root.sonar :is(.csh, .cmdh) { text-transform: uppercase; letter-spacing: .5px; font-size: 12px; text-shadow: 0 0 5px rgba(255,120,40,.3); }\n.root.sonar :is(.csec, .cmd) { box-shadow: 0 0 14px rgba(255,110,40,.12); }\n.csh { cursor: pointer; }\n.csh::after { content: \"▾\"; margin-left: auto; color: var(--k-lb); font-size: 12px; }\n.csec.folded .csh::after { content: \"▸\"; }\n.csec.folded > :not(.csh) { display: none !important; }\n.cmd { pointer-events: auto; }\n.cmd.float { position: fixed; z-index: 6; min-width: 260px; max-width: 92vw; max-height: 96vh; resize: both; overflow: auto; box-shadow: 0 10px 28px rgba(0,0,0,.55); border-color: var(--k-bd2); }\n.cmd.float .cmdh { cursor: move; }\n.cmdh .ct { margin-right: auto; overflow: hidden; text-overflow: ellipsis; }\n.ctg { display: flex; align-items: flex-start; gap: 5px; } /* tops aligned: the ON/OFF buttons are 1 px shorter than the labels */\n.root.col .ctg .tgl { position: static; display: block; height: 22px; line-height: 20px; padding-bottom: 2px; box-sizing: border-box; font-size: 9.5px; font-weight: 700; letter-spacing: .3px; color: var(--k-lb); }\n/* fixed even line heights (no flex centring, which rounds half pixels differently on each element): label and button text\n   on the same pixel row, 1 px above the middle so capitals look centred */\n.root.col .ctg button { position: static; display: block; width: auto; height: 21px; margin-left: 1px; box-sizing: border-box; line-height: 18px; padding: 0 8px 1px 7px; text-align: center;\n  font-size: 11px; font-weight: 700; border-radius: 4px; color: #fff; background: #7f1d1d; border-color: #b91c1c; }\n.root.col .ctg button.on { background: #15803d; border-color: #22c55e; }\n.root.col.sonar .ctg button { border-radius: 0; color: var(--od); background: transparent; border-color: var(--od); }\n.root.col.sonar .ctg button.on { color: #170804; background: var(--o); border-color: var(--o); box-shadow: 0 0 8px rgba(255,120,40,.5); }\n.cmdh button.cdet { width: 26px; height: 22px; font-size: 14px; border-radius: var(--k-rad); background: var(--k-btn); border-color: var(--k-bd2); color: var(--k-hi); }\n.cmdb { padding: 10px; display: flex; flex-direction: column; gap: 8px; }\n\n/* cards inside the column: static, full width, no frame (the section is the frame) */\n.root.col :is(.card, .card2, .card3, .card4, .card5) { position: relative !important; left: auto !important; top: auto !important; transform: none; width: auto; height: auto; box-sizing: border-box;\n  border: 0; border-radius: 0; box-shadow: none !important; background: transparent; z-index: auto; }\n.root.col :is(.card, .card2, .card3) > * { position: static !important; max-width: none; }\n.root.col .card::after { display: none; }\n\n/* position: timeframe/clock and account, size and P&L, entry and points, micro and points of the day */\n.root.col .card { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 6px 10px; align-items: baseline; padding: 10px 12px; font-size: 13px; white-space: nowrap; }\n.root.col .card > span { line-height: 1.2; height: auto; width: auto; }\n.root.col .card .side { grid-area: 1 / 1 / 2 / 3; font-size: 14px; }\n.root.col .card .side i { font-size: 13px; }\n.root.col .card .acc { grid-area: 1 / 3; text-align: right; font-size: 12px; max-width: none; }\n.root.col .card .w.vs { grid-area: 2 / 1; font-size: 13px; }\n.root.col .card .w.vs svg { width: 7.5px; height: 12px; }\n.root.col .card .w.q { grid-area: 2 / 2; font-size: calc(var(--qs, 11px) + 2px); }\n.root.col .card .pnl, .root.col .card .pnl.xs { grid-area: 2 / 3; text-align: right; font-size: 22px; }\n.root.col .card .w.e { grid-area: 3 / 1 / 4 / 3; font-size: 13px; }\n.root.col .card .gap { grid-area: 3 / 3; text-align: right; font-size: 13px; }\n.root.col .card .mic { grid-area: 4 / 1 / 5 / 3; display: flex; justify-content: flex-start; gap: 10px; font-size: 12px; overflow: hidden; }\n.root.col .card .mic i { margin-left: 0; }\n.root.col .card .dpt { grid-area: 4 / 3; text-align: right; font-size: 12px; }\n\n/* commands: 36-column grid, so rows of 9, 6 and 4 buttons share the same edges */\n.root.col .card2 { display: grid; grid-template-columns: repeat(36, minmax(0, 1fr)); gap: 5px; white-space: nowrap; }\n.root.col .cmd :is(.card2, .cmdx) button { width: auto !important; height: 30px !important; padding: 0 4px; font-size: 12.5px; border-radius: 4px;\n  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }\n.root.col .card2 > * { grid-column: span 4; order: 1; }\n.root.col .card2 > button.pf { font-size: 12px; }\n.root.col .card2 > button.pp:not(.pf), .root.col .card2 > .pctbox, .root.col .card2 > .sz { order: 2; }\n.root.col .card2 > .pctbox, .root.col .card2 > .sz { grid-column: span 6; }\n.root.col .card2 > button.pp.sm { font-size: 11px; }\n.root.col .card2 > .sz { display: block; height: 30px; box-sizing: border-box; line-height: 26px; padding: 3px 0 1px; text-align: right; font-size: 13px; }\n.root.col .card2 > span.sz:not(.why) { font-size: 13px; font-weight: 400; } /* same size and weight as the number in the % box */\n.root.col .card2 > button.cx { grid-column: span 12; order: 3; }\n.root.col .card2 > :is(button.tp, button.sl, button.be) { grid-column: span 8; order: 3; }\n/* CANCEL: a drop-down under its button, over the rest (nothing below LIMIT moves) - Gerry 2026-11-23 */\n.root.col .card2 { position: relative; }\n.root.col .card2 > .cxm { position: absolute !important; z-index: 30; flex-direction: column; gap: 3px; padding: 4px; box-shadow: 0 8px 22px rgba(0,0,0,.6); }\n.root.col .card2 > .cxm button { height: 26px !important; justify-content: flex-start; padding: 0 10px; font-size: 12px; white-space: nowrap; }\n.root.col .card2 > :is(button.lm, button.st, button.long, button.short) { grid-column: span 9; order: 5; }\n.root.col .card2 > :is(button.lm, button.st, button.long, button.short) { font-size: 13.5px; } /* the four entry buttons: same size */\n.root.col .pctbox { width: auto; height: 30px; padding: 0 6px; border-radius: var(--k-rad); border-color: var(--k-bd2); background: var(--k-in); }\n/* % box text on the same middle line as the button labels next to it */\n.root.col .pctbox { align-items: flex-start; }\n.root.col .pctbox input, .root.col .pctbox span { display: block; height: 28px; line-height: 26px; padding: 0 0 2px; box-sizing: border-box; font-size: 13px; }\n.root.col .pctbox input { line-height: 24px; padding-bottom: 4px; } /* the typed number 1 px higher than the % sign (Gerry, on Vest) */\n/* managing the open position: partial close %, PARTIAL CLOSE, CLOSE, FLAT */\n.root.col .cmdx { display: grid; grid-template-columns: repeat(36, minmax(0, 1fr)); gap: 5px; padding-top: 8px; border-top: 1px solid var(--k-bd); }\n.root.col .cmdx > .pctbox { grid-column: span 5; position: static; width: auto; }\n.root.col .cmdx > button.close { grid-column: span 13; position: static; font-weight: 700; color: #f0c03a; border-color: #6b5214; background: #2a2210; }\n.root.col .cmdx > button.close.all { grid-column: span 9; }\n.root.col .cmdx > button.flat { grid-column: span 9; position: static; font-weight: 800; color: #17181b; background: #d4a514; border-color: #f0c03a; }\n.root.col .cmd .msg { position: static; width: auto; font-size: 12px; color: var(--k-lb); }\n.root.col .cmd .msg:empty { display: none; }\n.root.col .cmd .msg.err { color: #f87171; } .root.col .cmd .msg.ok { color: #4ade80; }\n\n/* account limits: two bars per row only when the column is wide enough for the full labels */\n.root.col .card3 { padding: 10px; }\n.root.col .card3 .bars { margin: 0; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 6px; }\n.root.col .card3 .bl { font-size: 12px; }\n.root.col .card3 .track { height: 6px; }\n/* copier and volatility */\n.root.col .card4 { padding: 8px 10px; font-size: 13px; }\n.root.col .card4 table { font-size: 13px; letter-spacing: 0; }\n.root.col .card4 td, .root.col .card4 th { padding: 4px 0 4px 6px; }\n.root.col .card5 { padding: 8px 10px 10px; font-size: 12px; }\n.root.col .card5 .c5r { height: auto; } .root.col .card5 .c5r b { font-size: 13px; } .root.col .card5 .c5r i { font-size: 11px; }\n.root.col .card5 .hm { gap: 5px; margin-top: 6px; }\n.root.col .card5 .hc b { font-size: 11px; } .root.col .card5 .hc span { font-size: 13px; } .root.col .card5 .hc i { font-size: 10px; }\n/* Classic and Sonar for the buttons moved out of the cards (their chart rules are written for .card / .card3) */\n.root.col:not(.console):not(.sonar) .cmdx > button.close { color: #ffb402; border-color: #8a6a1a; background: #12151b; }\n.root.col:not(.console):not(.sonar) .cmdx > button.flat { color: #ffb402; background: #000; border-color: #ffb402; }\n.root.col.sonar .cmdx > button.close { color: var(--o); border-color: var(--oe); background: #140806; }\n.root.col.sonar .cmdx > button.flat { color: #170804; background: var(--o); border-color: var(--o); box-shadow: 0 0 12px rgba(255,120,40,.5); text-shadow: none; }\n.root.col.sonar .cmd .msg { color: #ffb98a; }\n/* % box of the size row: text 1 px lower and 1 px further left than the partial-close one (Gerry, on Vest) */\n.root.col .card2 > .pctbox { padding: 0 7px 0 5px; }\n.root.col .card2 > .pctbox input { padding: 1px 0 3px; }\n.root.col .card2 > .pctbox span { padding: 1px 0 1px; }\n\n/* Risk & targets section (column): label above the field, 4 per row, readout of the plan */\n.omb { padding: 10px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }\n.omf { display: flex; flex-direction: column; gap: 4px; min-width: 0; }\n.omf > span:first-child, .ompv > span { font-size: 11.5px; color: var(--k-lb); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }\n.omb input, .omb select { box-sizing: border-box; width: 100%; min-width: 0; height: 30px; padding: 0 6px; font: 12.5px/1 system-ui, -apple-system, \"Segoe UI\", sans-serif;\n  color: var(--k-hi); background: var(--k-in); border: 1px solid var(--k-bd2); border-radius: var(--k-rad); outline: none; }\n.omb select { padding: 0 2px 0 4px; }\n.omb input:focus, .omb select:focus { border-color: var(--k-acc); }\n.omb input:disabled { opacity: .35; }\n.omb input[type=\"checkbox\"] { width: 14px; height: 14px; padding: 0; margin: 0 5px 0 0; accent-color: var(--k-acc); flex: none; }\n.omcb { display: flex; align-items: center; height: 30px; font-size: 12.5px; color: var(--k-tx); cursor: pointer; white-space: nowrap; }\n.omro { display: flex; align-items: center; height: 30px; padding: 0 8px; box-sizing: border-box; border: 1px dashed var(--k-bd2); border-radius: var(--k-rad); font-size: 13px; color: var(--k-hi); }\n.omt { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; padding: 8px 0; border-top: 1px solid var(--k-bd); border-bottom: 1px solid var(--k-bd); }\n.omtg { display: flex; flex-direction: column; gap: 4px; min-width: 0; }\n.omtg > label { display: flex; align-items: center; font-size: 11.5px; font-weight: 700; color: var(--k-lb); cursor: pointer; }\n.ompv { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1fr) 90px 90px; gap: 6px; align-items: center; }\n/* .root.col prefix: wins over the theme button rules (Console / Classic / Sonar) */\n.root.col .ompv button { height: 28px; font: 800 11px/1 system-ui, -apple-system, \"Segoe UI\", sans-serif; letter-spacing: .2px; text-transform: uppercase; border-radius: 4px; background: #000; border: 1px solid #3a3f4a; color: #6f7787; cursor: pointer; }\n.root.col .ompv button.ompl.on { color: #4ade80; border-color: currentColor; box-shadow: 0 0 6px rgba(34,197,94,.45); }\n.root.col .ompv button.omps.on { color: #f87171; border-color: currentColor; box-shadow: 0 0 6px rgba(239,68,68,.55); }\n.omout { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 6px; padding-top: 8px; border-top: 1px solid var(--k-bd); font-size: 12.5px; line-height: 1.4; color: var(--k-tx); }\n.omout b { font-weight: 700; color: var(--k-hi); } .omout b.q { color: var(--qc, #ffb402); }\n.omout i { font-style: normal; font-weight: 700; } .omout .up { color: #4ade80; } .omout .down { color: #f87171; }\n.omout .warn { color: #f0c03a; } .omout .note { font-size: 11.5px; color: var(--k-lb); }\n.root.sonar .omout .up { color: var(--oup); } .root.sonar .omout .down { color: var(--odn); }\n/* plan lines on the chart: read-only, dashed label */\n.chip.plan { border-style: dashed; opacity: .9; }\n/* Trailing & breakeven section (column): same settings as the panel */\n.tbb { padding: 10px; display: grid; grid-template-columns: 1.3fr 1fr 1fr 1fr 1fr; gap: 8px; align-items: end; }\n.tbb input, .tbb select { box-sizing: border-box; width: 100%; min-width: 0; height: 30px; padding: 0 6px; font: 12.5px/1 system-ui, -apple-system, \"Segoe UI\", sans-serif;\n  color: var(--k-hi); background: var(--k-in); border: 1px solid var(--k-bd2); border-radius: var(--k-rad); outline: none; }\n.tbb select { padding: 0 2px 0 4px; }\n.tbb input:focus, .tbb select:focus { border-color: var(--k-acc); }\n.tbb input[type=\"checkbox\"] { width: 14px; height: 14px; padding: 0; margin: 0 5px 0 0; accent-color: var(--k-acc); flex: none; }\n.tbb .tbon { font-weight: 700; }\n.tbnote { grid-column: 1 / -1; font-size: 11.5px; color: var(--k-lb); line-height: 1.35; }\n.tbnote:empty { display: none; }\n.tbnote.warn { color: #f0c03a; }\n.csh .srtr { margin-left: 8px; padding: 0 6px 1px; border-radius: 4px; font: 800 11px/19px system-ui, -apple-system, \"Segoe UI\", sans-serif; border: 1px solid currentColor; }\n.csh .srtr:empty { display: none; }\n.csh .srtr.up { color: #3ecf8e; } .csh .srtr.down { color: #ff6b61; }\n.tbb .srwide { grid-column: span 3; white-space: normal; height: auto; min-height: 30px; }\n.srb { padding: 8px 10px 10px; display: flex; flex-direction: column; gap: 6px; }\n.srrow { display: grid; grid-template-columns: 1fr 86px; gap: 10px; align-items: center; }\n.srn { font-size: 12.5px; font-weight: 700; color: var(--k-tx, #e6e6e6); line-height: 1.25; }\n.srn small { display: block; font-weight: 400; font-size: 11px; color: var(--k-lb); margin-top: 1px; }\n.srb input, .srb select { box-sizing: border-box; width: 100%; min-width: 0; height: 28px; padding: 0 6px; font: 12.5px/1 system-ui, -apple-system, \"Segoe UI\", sans-serif;\n  background: #000; color: #fff; border: 1px solid #3b4456; border-radius: 4px; outline: none; }\n.srb input:focus, .srb select:focus { border-color: var(--k-acc); }\n.srb .omcb { display: flex; align-items: flex-start; gap: 6px; font-size: 12px; line-height: 1.3; white-space: normal; cursor: pointer; }\n.srb input[type=\"checkbox\"] { width: 14px; height: 14px; padding: 0; margin: 1px 0 0; accent-color: var(--k-acc); flex: none; }\n.srh { margin-top: 4px; padding-top: 6px; border-top: 1px solid #2a2f3a; font-size: 11px; font-weight: 800; letter-spacing: .3px; color: var(--k-acc); text-transform: uppercase; }\n.srsplit { font-size: 11px; color: var(--k-lb); line-height: 1.3; }\n.srb .tbnote { margin-top: 4px; }\n.csh .srq { margin-left: 8px; width: 19px; height: 19px; padding: 0; border-radius: 50%; border: 1px solid #45474e; background: #303136; color: #fdba74;\n  font: 800 12px/17px system-ui, sans-serif; cursor: pointer; flex: none; }\n.csh .srq:hover { background: #45474e; color: #fff; }\n.srhelp { margin: 8px 10px 0; padding: 8px 10px; border: 1px solid #45474e; border-radius: 6px; background: #15171c; font-size: 12px; line-height: 1.45; color: #d6d6d6; }\n.srhelp ul { margin: 4px 0; padding-left: 18px; }\n.srhelp[hidden] { display: none; }\n/* Risk & targets mode: Manual % / Preview / Active (Active = real orders with the plan) */\n.ommode { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1fr) repeat(3, 84px); gap: 6px; align-items: center; }\n.ommode > span { font-size: 11.5px; color: var(--k-lb); }\n.root.col .ommode button { height: 28px; font: 800 11px/1 system-ui, -apple-system, \"Segoe UI\", sans-serif; letter-spacing: .2px; text-transform: uppercase; border-radius: 4px; background: #000; border: 1px solid #3a3f4a; color: #6f7787; cursor: pointer; }\n/* same boxes as the phase next to Trade commands: black, border and text in the phase colour */\n.root.col .ommode button.on { border-color: currentColor; }\n.root.col .ommode button.on[data-v=\"manual\"] { color: var(--m-manual, #cbd5e1); }\n.root.col .ommode button.on[data-v=\"view\"] { color: var(--m-view, #fb923c); box-shadow: 0 0 6px color-mix(in srgb, currentColor 45%, transparent); }\n.root.col .ommode button.on[data-v=\"live\"] { color: var(--m-live, #22e5ff); box-shadow: 0 0 6px color-mix(in srgb, currentColor 55%, transparent); }\n.omout b.warn { color: #ff6b61; }\n/* Active plan: the % size is not used (dimmed); the title says so */\n.cmd.plan .pp, .cmd.plan .pctbox:not(.cp), .cmd.plan .sz { opacity: .35; }\n.cmdh .ct { flex: none; } /* the title is never cut: the phase gives way first */\n.cph { flex: 0 1 auto; min-width: 0; margin-left: 1px; margin-right: auto; height: 21px; box-sizing: border-box; line-height: 18px; padding: 0 6px 1px 5px;\n  font-size: 11px; font-weight: 800; letter-spacing: .2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;\n  background: #000; border: 1px solid currentColor; border-radius: 4px; } /* boxed like ON / OFF, black background */\n.cph:empty { display: none; }\n.cph.manual { color: var(--m-manual, #cbd5e1); } .cph.view { color: var(--m-view, #fb923c); } .cph.live { color: var(--m-live, #22e5ff); box-shadow: 0 0 6px color-mix(in srgb, currentColor 55%, transparent); }\n.cmdh .ct { margin-right: 0; }\n/* SEND on PLAN ENTRY (Active): places the LIMIT with the plan, after CONFIRM */\n.chip .go { margin-left: 6px; padding: 0 7px; border-radius: 3px; background: #c2410c; color: #fff; font-weight: 700; cursor: pointer; }\n.chip .go.arm { background: #b91c1c; }\n/* small up / down arrows inside a number field */\n.omsp { position: relative; display: block; min-width: 0; }\n.omsp input { padding-right: 20px !important; }\n.spb { position: absolute; right: 2px; top: 3px; bottom: 3px; width: 15px; display: flex; flex-direction: column; gap: 1px; }\n.spb button { flex: 1; padding: 0; margin: 0; border: 0; border-radius: 2px; background: transparent; color: var(--k-lb); font-size: 7px; line-height: 1; cursor: pointer; }\n.spb button:hover { color: var(--k-hi); background: var(--k-bd2); }\n.omsp input:disabled + .spb { display: none; }\n/* Chart space section */\n.chb { padding: 10px; display: grid; grid-template-columns: minmax(0, 1fr) 90px; gap: 8px; align-items: center; font-size: 11.5px; color: var(--k-lb); }\n.chb input { box-sizing: border-box; width: 100%; height: 30px; padding: 0 6px; font: 12.5px/1 system-ui, -apple-system, \"Segoe UI\", sans-serif;\n  color: var(--k-hi); background: var(--k-in); border: 1px solid var(--k-bd2); border-radius: var(--k-rad); outline: none; }\n.chb input:focus { border-color: var(--k-acc); }\n/* phase word on the plan labels: same type and colour as the box next to Trade commands */\n.chip .ph { font-size: 11px; font-weight: 800; letter-spacing: .2px; margin-right: -3px; }\n.chip .ph.view { color: var(--m-view, #fb923c); } .chip .ph.live { color: var(--m-live, #22e5ff); } .chip .ph.act { color: var(--m-act, #c084fc); }\n/* ENTRY button: ACTIVATE (PREVIEW, orange) switches to ACTIVE; START (ACTIVE, red) places the LIMIT */\n.chip .go.live { background: #0e7490; }\n/* ORDERS / COPY in the Trade commands title: small, one above the other */\n.root.col .ctg { display: grid; grid-template-columns: auto auto; column-gap: 3px; row-gap: 1px; align-items: center; }\n.root.col .ctg .tgl { height: 11px; line-height: 11px; padding: 0; font-size: 7.5px; text-align: right; }\n.root.col .ctg button { height: 11px; min-width: 24px; line-height: 9px; padding: 0 3px; margin-left: 0; font-size: 7.5px; border-radius: 2px; }\n.omout b.act { color: #22e5ff; } /* ACTIVE: bright cyan, never green or red */\n/* LIMIT / STOP in the column: brighter when they can be used (dimmed only when disabled) */\n/* colours from Settings → Button and mode colours (doubled classes: above every card style); disabled = dimmed */\n.root.root.col.col .card2 button.lm { color: var(--b-lm-tx, #e0ecff); background: var(--b-lm-bg, #1d4ed8); border-color: color-mix(in srgb, var(--b-lm-bg, #1d4ed8) 60%, #fff); }\n.root.root.col.col .card2 button.st { color: var(--b-st-tx, #1a1405); background: var(--b-st-bg, #eab308); border-color: color-mix(in srgb, var(--b-st-bg, #eab308) 60%, #fff); }\n.root.root.col.col .card2 button.long { color: var(--b-long-tx, #fff); background: var(--b-long-bg, #15803d); border-color: color-mix(in srgb, var(--b-long-bg, #15803d) 60%, #fff); }\n.root.root.col.col .card2 button.short { color: var(--b-short-tx, #fff); background: var(--b-short-bg, #b91c1c); border-color: color-mix(in srgb, var(--b-short-bg, #b91c1c) 60%, #fff); }\n.root.root.col.col .cmdx > button.flat { color: var(--b-flat-tx, #17181b); background: var(--b-flat-bg, #d4a514); border-color: color-mix(in srgb, var(--b-flat-bg, #d4a514) 60%, #fff); box-shadow: none; text-shadow: none; }\n/* Risk & targets title: mode menu and OFF / ACTIVE, boxed like the phase next to Trade commands */\n.csh .omsel, .csh .omst { height: 21px; box-sizing: border-box; border-radius: 4px; background: #000; border: 1px solid currentColor;\n  font: 800 11px/1 system-ui, -apple-system, \"Segoe UI\", sans-serif; letter-spacing: .2px; text-transform: uppercase; }\n.csh .omsel { margin-left: 4px; padding: 0 2px 0 4px; cursor: pointer; color: var(--m-view, #fb923c); }\n.csh .omsel.manual { color: var(--m-manual, #cbd5e1); } .csh .omsel.live { color: var(--m-live, #22e5ff); box-shadow: 0 0 6px color-mix(in srgb, currentColor 55%, transparent); }\n.csh .omsel option { background: #000; }\n.csh .omsel option[value=\"manual\"] { color: var(--m-manual, #cbd5e1); } .csh .omsel option[value=\"view\"] { color: var(--m-view, #fb923c); } .csh .omsel option[value=\"live\"] { color: var(--m-live, #22e5ff); }\n.csh .omst { display: inline-flex; align-items: center; padding: 0 6px 1px; color: #6f7787; cursor: default; }\n.csh .omst.on { color: var(--m-act, #c084fc); box-shadow: 0 0 6px color-mix(in srgb, currentColor 55%, transparent); }\n/* Trade commands title: phase, then ACTIVE when an order of the plan is there; ORDERS / COPY pushed to the right */\n.cmdh .cph { margin-right: 0; }\n.cmdh .cph.act { margin-left: 4px; color: var(--m-act, #c084fc); box-shadow: 0 0 6px color-mix(in srgb, currentColor 55%, transparent); }\n.cmdh .ctg { margin-left: auto; }\n/* labels of an order of the plan really placed (ACTIVE): black background */\n.chip.plan.act { background: #000; opacity: 1; }\n/* Risk & targets ON / OFF in the section title (like ORDERS / COPY) */\n.csh .omtgl { margin-left: 6px; height: 21px; padding: 0 8px 1px; box-sizing: border-box; border-radius: 4px; font: 800 11px/1 system-ui, -apple-system, \"Segoe UI\", sans-serif;\n  letter-spacing: .3px; color: #fff; background: #7f1d1d; border: 1px solid #b91c1c; cursor: pointer; }\n.csh .omtgl.on { background: #15803d; border-color: #22c55e; }\n.cph.act { color: var(--m-act, #c084fc); box-shadow: 0 0 6px color-mix(in srgb, currentColor 55%, transparent); }\n/* copier accounts inside the Trade commands block */\n.cmd > .csec { margin: 0; border-width: 1px 0 0; border-radius: 0; } /* full width of the block, nothing cut */\n/* font size of the entry buttons and FLAT (Settings → Button and mode colours; empty = default) */\n.root.root.col.col .card2 button.lm { font-size: var(--b-lm-fs, 12.5px); }\n.root.root.col.col .card2 button.st { font-size: var(--b-st-fs, 12.5px); }\n.root.root.col.col .card2 button.long { font-size: var(--b-long-fs, 12.5px); }\n.root.root.col.col .card2 button.short { font-size: var(--b-short-fs, 12.5px); }\n.root.root.col.col .cmdx > button.flat { font-size: var(--b-flat-fs, 15.5px); }\n/* copier accounts in the column / floating panel: always the whole table, the text shrinks with the width */\n.root.col .csec[data-sec=\"copy\"] { container-type: inline-size; }\n.root.col .card4 { padding: 8px 8px; }\n.root.col .card4 table { table-layout: fixed; width: 100%; font-size: clamp(8.5px, 3.1cqi, 13px); }\n.root.col .card4 td, .root.col .card4 th { padding: 4px 0 4px 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }\n.root.col .card4 col.c0 { width: 20%; } .root.col .card4 col.c1 { width: 14%; } .root.col .card4 col.c2, .root.col .card4 col.c3, .root.col .card4 col.c4 { width: 22%; }\n/* the position data are in the panel header: no Position section in the column */\n.root.col .csec[data-sec=\"pos\"] { display: none; }\n/* v0.10.96 Trade commands from Gerry's UX Sketch drawing: the % rows, a line, then two blocks side by side split by a vertical\n   line (orders: CANCEL over LIMIT / STOP | position: TP SL BE over LONG / SHORT), a line, the closing row with FLAT apart.\n   Explicit grid rows: 1 fractions, 2 presets, 3 line, 4 CANCEL | TP SL BE, 5 LIMIT STOP | LONG SHORT;\n   columns 1-17 | 18-19 (vertical line) | 20-36 */\n.root.root.col.col .cmd .card2 { row-gap: 6px; }\n.root.root.col.col .cmd .card2 > button.pp.pf { grid-row: 1; height: 21px !important; font-size: 11px; }\n.root.root.col.col .cmd .card2 > :is(button.pp:not(.pf), .pctbox, .sz) { grid-row: 2; }\n.root.root.col.col .cmd .card2 > button.pp:not(.pf) { height: 25px !important; font-size: 11px; }\n.root.root.col.col .cmd .card2 > .pctbox { height: 25px; }\n.root.root.col.col .cmd .card2 > .pctbox input, .root.root.col.col .cmd .card2 > .pctbox span { height: 23px; line-height: 21px; }\n.root.root.col.col .cmd .card2 > .sz { height: 25px; line-height: 21px; }\n.root.root.col.col .cmd .card2::after { content: \"\"; grid-row: 3; grid-column: 1 / -1; height: 1px; margin: 4px 0; background: var(--k-bd, #34363c); }\n.root.root.col.col .cmd .card2::before { content: \"\"; grid-row: 4 / 6; grid-column: 18 / 20; justify-self: center; width: 1px; background: var(--k-bd, #34363c); }\n.root.root.col.col .cmd .card2 > button:is(.cx, .tp, .sl, .be, .lm, .st, .long, .short) { height: 26px !important; }\n.root.root.col.col .cmd .card2 > button.cx { grid-row: 4; grid-column: 1 / 18; }\n.root.root.col.col .cmd .card2 > button:is(.tp, .sl, .be) { grid-row: 4; grid-column: 20 / 37; width: calc((100% - 16px) / 3) !important; }\n.root.root.col.col .cmd .card2 > button.tp { justify-self: start; }\n.root.root.col.col .cmd .card2 > button.sl { justify-self: center; }\n.root.root.col.col .cmd .card2 > button.be { justify-self: end; }\n.root.root.col.col .cmd .card2 > button:is(.lm, .st, .long, .short) { grid-row: 5; width: calc(50% - 4px) !important; margin-top: 1px; border: 1px solid #fff; }\n.root.root.col.col .cmd .card2 > button:is(.lm, .st) { grid-column: 1 / 18; }\n.root.root.col.col .cmd .card2 > button:is(.long, .short) { grid-column: 20 / 37; }\n.root.root.col.col .cmd .card2 > button:is(.lm, .long) { justify-self: start; }\n.root.root.col.col .cmd .card2 > button:is(.st, .short) { justify-self: end; }\n/* closing row: 100 % | PARTIAL CLOSE | CLOSE, then FLAT on its own under LONG / SHORT, taller */\n.root.root.col.col .cmd .cmdx { margin-top: 2px; }\n.root.root.col.col .cmdx > button.close { grid-column: span 11; }\n.root.root.col.col .cmdx > button.close.all { grid-column: span 8; }\n.root.root.col.col .cmdx > button.flat { grid-column: 28 / span 9; height: 32px !important; margin: -1px 0; border: 1.5px solid #fff; }\n/* mode words: size and weight from Settings → Button and mode colours (box next to Trade commands and chart labels) */\n.root .cmdh .cph { height: auto; min-height: 21px; line-height: max(18px, 1.2em); }\n.root .cmdh .cph.manual { font-size: var(--m-manual-fs, 11px); font-weight: var(--m-manual-fw, 800); }\n.root .cmdh .cph.view { font-size: var(--m-view-fs, 11px); font-weight: var(--m-view-fw, 800); }\n.root .cmdh .cph.act { font-size: var(--m-act-fs, 11px); font-weight: var(--m-act-fw, 800); }\n.root .chip .ph.view { font-size: var(--m-view-lfs, 11px); font-weight: var(--m-view-fw, 800); }\n.root .chip .ph.act { font-size: var(--m-act-lfs, 11px); font-weight: var(--m-act-fw, 800); }\n\n/* copier table: sync status per copy (v0.20.15) */\n.sy { display: inline-block; min-width: 13px; margin-left: 4px; padding: 0 3px; border-radius: 3px; font: 800 10.5px/14px system-ui, sans-serif; text-align: center; cursor: help; }\n.sy.ok { color: #3ecf8e; } .sy.off { color: #8b93a3; }\n.sy.small, .sy.limit { background: #f0c03a; color: #000; }\n.sy.missing, .sy.extra, .sy.side { background: #ff6b61; color: #fff; }\n.sy.test { background: #a78bfa; color: #000; }\n/* Account limits guard (Gerry 2026-11-21): ON / OFF per bar; margins and open loss: the slider IS the bar (thumb = FLAT level);\n   the others: a number. FLAT when the level is reached. */\n.card3 .track { position: relative; }\n.root:not(.col) .card3 .gl { display: none; }\n.root:not(.col) .card3 .track.gs .gr { display: none; }\n.root.col .card3 .track.gs { overflow: visible; height: 6px; margin: 9px 0 8px; }\n.card3 .track.gs .gr { position: absolute; left: 0; right: 0; top: 50%; width: 100%; height: 18px; margin: 0; padding: 0; transform: translateY(-50%);\n  -webkit-appearance: none; appearance: none; background: transparent; cursor: pointer; }\n.card3 .track.gs .gr:disabled { cursor: default; opacity: .4; }\n.card3 .track.gs .gr::-webkit-slider-runnable-track { height: 18px; background: transparent; border: 0; }\n.card3 .track.gs .gr::-moz-range-track { height: 18px; background: transparent; border: 0; }\n.card3 .track.gs .gr::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 8px; height: 18px; border-radius: 2px; background: #f97316; border: 1px solid #fff; }\n.card3 .track.gs .gr::-moz-range-thumb { width: 6px; height: 16px; border-radius: 2px; background: #f97316; border: 1px solid #fff; }\n.card3 .gl { display: flex; align-items: center; gap: 8px; margin-top: 6px; }\n.card3 .gl .gon { flex: none; width: 38px; height: 19px; padding: 0; border-radius: 4px; border: 1px solid #45474e; background: #26272b; color: #9aa0ab;\n  font: 800 10.5px/17px system-ui, -apple-system, \"Segoe UI\", sans-serif; cursor: pointer; }\n.card3 .bar.garm .gl .gon { background: #c2410c; border-color: #f97316; color: #fff; }\n.card3 .gl .gn { display: flex; align-items: center; gap: 4px; font: 600 10.5px/1 system-ui, -apple-system, \"Segoe UI\", sans-serif; color: #aab1be; white-space: nowrap; }\n.card3 .gl .gv { box-sizing: border-box; width: 82px; height: 20px; padding: 0 5px; font: 11.5px/1 system-ui, -apple-system, \"Segoe UI\", sans-serif;\n  background: #000; color: #fff; border: 1px solid #3b4456; border-radius: 4px; outline: none; }\n.card3 .gl .gv:focus { border-color: #f97316; }\n.card3 .gl .gt { flex: 1; text-align: right; font: 600 10.5px/1.2 system-ui, -apple-system, \"Segoe UI\", sans-serif; color: #8b93a3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }\n.card3 .bar.garm { border-color: #f97316 !important; }\n.card3 .bar.garm .gl .gt { color: #fdba74; }\n.card3 .bar.ghit { background: rgba(255,77,77,.14) !important; }\n\n/* copier table: the account active on Vest (v0.20.26) */\n.card4 tr.sel td { background: #1c2a40; } .card4 tr.sel td:first-child { box-shadow: inset 3px 0 0 #7fb2ff; padding-left: 5px; }\n.card4 tr.sel.bad td { background: #3a1616; } .card4 tr.sel.bad td:first-child { box-shadow: inset 3px 0 0 #ff6b61; }\n.card4 b.act { display: inline-block; margin-left: 4px; padding: 1px 4px 0; border-radius: 3px; font-size: 8.5px; font-weight: 800; letter-spacing: .3px;\n  color: #0b1220; background: #7fb2ff; vertical-align: 1px; }\n.card4 b.act.bad { color: #fff; background: #c0392b; }\n/* column: wider first column for the ◀ ACTIVE tag (v0.20.26) */\n.root.col .card4 col.c0 { width: 33%; } .root.col .card4 col.c1 { width: 12%; } .root.col .card4 col.c2, .root.col .card4 col.c3, .root.col .card4 col.c4 { width: 18.33%; }\n\n/* USER lines: Account limits switched ON (v0.20.29), orange = set by you */\n.chip.usr .un { color: #fdba74; font-weight: 700; }\n\n/* eye next to ON / OFF: USER line shown on the chart or not (v0.20.32) */\n.card3 .gl .geye { flex: none; width: 24px; height: 19px; padding: 0; margin-left: 4px; border-radius: 4px; border: 1px solid #45474e; background: #26272b;\n  color: #fdba74; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }\n.card3 .gl .geye svg { display: block; }\n.card3 .gl .geye .sl { display: none; }\n.card3 .gl .geye.off { color: #6b7385; }\n.card3 .gl .geye.off .sl { display: inline; }\n\n/* \"ACTIVE\" next to a section title when its function is on (v0.20.33), same style as the copier's ◀ ACTIVE */\n.csh .sact { margin-left: 8px; padding: 1px 5px 0; border-radius: 3px; font: 800 9.5px/15px system-ui, -apple-system, \"Segoe UI\", sans-serif;\n  letter-spacing: .3px; color: #0b1220; background: #7fb2ff; }\n.csh .sact.view { color: #c9d1e0; background: #3b4456; }\n\n/* multiplier of a copy next to its number (v0.20.36) */\n.card4 .cmx { font-weight: 700; font-size: .9em; color: #fdba74; }\n\n/* size closed by an SL / TP leg (v0.20.37): ALL = whole position */\n.chip .qy .pc { font-style: normal; opacity: .7; font-size: .9em; }\n\n/* copier OFF and the copy differs from the master: grey, information only (v0.20.38) */\n.sy.offdiff { color: #8b93a3; border: 1px solid #5a606c; line-height: 12px; }\n\n/* sync mark: a click shows its meaning in the panel header (v0.20.39) */\n.card4 .sy[data-tip] { cursor: pointer; }\n\n/* waiting for Vest data after a reload (v0.20.41): column greyed out and not clickable */\n.root.waiting { pointer-events: none !important; }\n/* start (Gerry 2026-11-23): invisible until Vest data are in, then a short fade in (no grey see-through column) */\n.root { transition: opacity .3s ease-out; }\n.root.hidden0 { opacity: 0; visibility: hidden; transition: none; }\n.root.waiting * { pointer-events: none !important; }\n\n/* Exit grid (v0.20.42): two ladders of four columns */\n.csec[data-sec=\"gd\"] .gdb { grid-template-columns: repeat(4, minmax(0, 1fr)); }\n.gdb .gdh, .gdb .srwide, .gdb .gdgo, .gdb .tbnote { grid-column: 1 / -1; }\n.gdb .gdw { grid-column: span 2; }\n.gdb .gdc { grid-column: 1 / -1; }\n.gdb .gdh { font-size: 11px; font-weight: 800; letter-spacing: .05em; color: var(--k-tx); margin-top: 4px; border-top: 1px solid #34363c; padding-top: 6px; }\n.gdb .gdgo { height: 30px; border-radius: 6px; border: 1px solid #fff3; background: #c2410c; color: #fff; font-weight: 800; cursor: pointer; }\n.gdb .gdgo:disabled { opacity: .4; cursor: default; }\n.chip.gdtp, .chip.gdsl { border-style: dashed; }\n.chip.gdtp .un, .chip.gdsl .un { opacity: .8; }\n.chip.gden { border-style: dashed; }\n.chip.gden .un { opacity: .8; }\n\n/* Chart lines and labels from the panel (v0.20.44) */\n.chip.knb .k { background: var(--knb) !important; padding: 0 4px; border-radius: 3px; }\n.chip.kfw-b, .chip.kfw-b * { font-weight: 700 !important; }\n.chip.kfw-n, .chip.kfw-n * { font-weight: 400 !important; }\n.root.cpx .chip > b { color: var(--cpx) !important; }\n.root.cup .chip .up { color: var(--cup) !important; }\n.root.cdn .chip .down { color: var(--cdn) !important; }\n.hl.dd { border-top: 0; height: var(--w, 1px); background: repeating-linear-gradient(90deg, var(--c) 0 8px, transparent 8px 11px, var(--c) 11px 13px, transparent 13px 16px); }\n.hl.grab.dd { height: 9px; background: none; }\n.hl.grab.dd::before { border-top: 0; height: var(--w, 1px); background: repeating-linear-gradient(90deg, var(--c) 0 8px, transparent 8px 11px, var(--c) 11px 13px, transparent 13px 16px); }\n.csh .gdtgl.plan { background: #1e3a5f; border-color: #7dd3fc; }\n.gdb .gdh { display: flex; align-items: baseline; gap: 8px; }\n.gdb .gdh label { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }\n.gdb .gdh span { font-weight: 500; letter-spacing: 0; opacity: .65; }\n.gdb .gsl { grid-column: 1 / -1; padding: 2px 2px 4px; }\n.gdb .gslh { display: flex; align-items: center; justify-content: space-between; gap: 6px; font-size: 10.5px; opacity: .8; }\n.gdb .gslh button { white-space: nowrap; height: 20px; padding: 0 7px; border-radius: 4px; border: 1px solid #fff3; background: #26272c; color: inherit; font: 700 10.5px system-ui, sans-serif; cursor: pointer; }\n.gdb .gbar { position: relative; height: 42px; margin: 4px 10px 0; touch-action: none; user-select: none; }\n.gdb .gline { position: absolute; left: 0; right: 0; top: 17px; height: 6px; background: #34363c; border-radius: 3px; }\n.gdb .gend { position: absolute; top: 15px; width: 2px; height: 10px; background: #6b7280; border-radius: 1px; }\n.gdb .gend.s { left: 0; }\n.gdb .gend.e { right: 0; }\n.gdb .gh { position: absolute; top: 9px; width: 14px; height: 22px; margin-left: -7px; cursor: ew-resize; }\n.gdb .gh::before { content: ''; position: absolute; left: 3px; top: 2px; width: 8px; height: 18px; box-sizing: border-box; background: #f97316; border: 1px solid #fff; border-radius: 2px; }\n.gdb .gh:hover::before { background: #fb923c; }\n.gdb .gsv { position: absolute; top: 28px; transform: translateX(-50%); font-size: 10px; white-space: nowrap; color: var(--k-tx, #cbd5e1); pointer-events: none; }\n.gdb .gsv.gtop { top: -3px; }\n/* START like the Copier accounts one (main panel), ACTIVE in the colour of the other ACTIVE tags */\n.gdb .gdgo[data-a=\"gdstart\"] { grid-column: span 2; align-self: end; justify-self: end; height: auto; padding: 6px 18px; border-radius: 4px; background: #15803d; border: 1px solid #22c55e; color: #fff; font-weight: 700; }\n.gdb .gdgo[data-a=\"gdstart\"]:disabled { opacity: .45; }\n.gdb .gdgo[data-a=\"gdstart\"].on, .gdb .gdgo[data-a=\"gdstart\"].on:disabled { background: #7fb2ff; border-color: #7fb2ff; color: #0b1220; font-weight: 800; opacity: 1; }\n/* grid: nearest / farthest of each ladder slightly brighter and solid (they can be dragged); the ones in between are fixed\n   unless Distances = Manual */\n.chip.gdend { border-style: solid; }\n.chip.gdfix, .hl.gdfix { cursor: default; }\n.gdb .gsl.lock [data-gslinv] { visibility: hidden; }\n.gdb .gh.lock { cursor: default; }\n.gdb .gh.lock::before { background: #6b7280; border-color: #9ca3af; }\n/* grid: average line of each ladder on / off (same eye as Account limits) */\n.gdb .gdh .gdeye { margin-left: auto; height: 19px; padding: 0 5px; border-radius: 4px; border: 1px solid #45474e; background: #26272b; color: #fdba74;\n  cursor: pointer; display: inline-flex; align-items: center; gap: 4px; font: 800 9.5px/1 system-ui, sans-serif; letter-spacing: .04em; }\n.gdb .gdh .gdeye svg { display: block; }\n.gdb .gdh .gdeye .sl { display: none; }\n.gdb .gdh .gdeye.off { color: #6b7385; }\n.gdb .gdh .gdeye.off .sl { display: inline; }\n/* grid entries FIX: frozen reference price */\n.gdb .gdh .gdfixb { margin-left: auto; height: 19px; padding: 0 7px; border-radius: 4px; border: 1px solid #45474e; background: #26272b; color: #cbd5e1;\n  cursor: pointer; font: 800 9.5px/1 system-ui, sans-serif; letter-spacing: .04em; white-space: nowrap; }\n.gdb .gdh .gdfixb.on { background: #7fb2ff; border-color: #7fb2ff; color: #0b1220; }\n.gdb .gdh .gdfixb + .gdeye { margin-left: 4px; }\n/* Copier accounts title while the copier is off */\n.csh .sact.off { color: #fff; background: #b91c1c; }\n/* Grid: Entries / TP / SL each in its own tinted block with a lighter title band (Gerry 2026-11-23) */\n.gdb .gdsec { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; align-items: end;\n  margin-top: 6px; padding: 0 8px 8px; border-radius: 6px; background: var(--gs-bg); border: 1px solid var(--gs-bo); }\n.gdb .gdsec > .gdh { margin: 0 -8px 2px; padding: 6px 8px; border-top: 0; border-radius: 6px 6px 0 0; background: var(--gs-hd); color: #fff; }\n.gdb .gdsec > .gdh span { opacity: .8; }\n.gdb .gdsec.en { --gs-bg: rgba(59, 130, 246, .07); --gs-bo: rgba(59, 130, 246, .35); --gs-hd: rgba(59, 130, 246, .30); }\n.gdb .gdsec.tp { --gs-bg: rgba(34, 197, 94, .07); --gs-bo: rgba(34, 197, 94, .35); --gs-hd: rgba(34, 197, 94, .28); }\n.gdb .gdsec.sl { --gs-bg: rgba(239, 68, 68, .07); --gs-bo: rgba(239, 68, 68, .35); --gs-hd: rgba(239, 68, 68, .28); }\n.gdb .gdsec > .gdh label { white-space: nowrap; }\n";
   },
   "chart/overlay.js": function (module, exports, require) {
 // Trade overlay on the chart: HTML on top of the TradingView iframe, in the free area right of the last candle.
@@ -471,6 +471,8 @@ const F = { ...Fmt, usd: Fmt.usdUS }; // same US dollar format as the panel
 const log = require('../diag/log');
 const bars = require('./bars');
 const OM = require('../domain/plan');
+const GR = require('../domain/grid');
+const { HELP } = require('../ui/help');
 
 // RESERVED AREA on the right. Distances from the right edge of the chart (start of the price axis):
 //   cards 232 px wide, 20 px from the axis; labels right next to the cards.
@@ -498,7 +500,7 @@ const CLICK_PX = 3;
 const GRAB_HALF = 4; // SL/TP/LIMIT/STOP lines can be grabbed: invisible band of 2*4+1 px around the line
 const PRESETS = [1, 2, 4, 8, 5, 16]; // defaults of the 6 % buttons; changed from the panel (presets), ascending on the card
 const FRACS = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]; // fixed top row: fractions of 1%
-const COLORS = { avg: '#5ad1e6', avg1: '#5ad1e6', ko: '#c58cff', dd50: '#f472b6', mfp: '#ff9f43', avgn: '#5ad1e6', long: '#3ecf8e', short: '#ff6b61', tp: '#3ecf8e', sl: '#ff6b61', lm: '#7fb2ff', st: '#e8b84a' };
+const COLORS = { gdavg: '#e5e7eb', gdenE: '#3b82f6', gdtpE: '#22c55e', gdslE: '#ef4444', gden: '#7dd3fc', gdtp: '#a3e635', gdsl: '#fb7185', usr: '#f97316', avg: '#5ad1e6', avg1: '#5ad1e6', ko: '#c58cff', dd50: '#f472b6', mfp: '#ff9f43', avgn: '#5ad1e6', long: '#3ecf8e', short: '#ff6b61', tp: '#3ecf8e', sl: '#ff6b61', lm: '#7fb2ff', st: '#e8b84a' };
 // names shown for the order kinds (labels, messages)
 const NAME = { tp: 'TP', sl: 'SL', lm: 'LIMIT', st: 'STOP' };
 // line style per kind (colour, dash, width): from the panel (m.lineStyles), otherwise the defaults
@@ -574,12 +576,14 @@ function mount(opts) {
       <button class="close all" data-a="closeall" data-el="closeAllB">CLOSE</button>
       <div class="bars">
         <div class="bar"><div class="bl"><span>MARGIN USED</span><span data-el="m1t"></span></div><div class="track"><i data-el="m1f"></i></div></div>
-        <div class="bar"><div class="bl"><span>MARGIN + ORDERS</span><span data-el="m2t"></span></div><div class="track"><i data-el="m2f"></i></div></div>
-        <div class="bar"><div class="bl"><span>DAILY GOAL</span><span data-el="dgt"></span></div><div class="track"><i data-el="dgf"></i></div></div>
-        <div class="bar"><div class="bl"><span>OPEN LOSS</span><span data-el="rkt"></span></div><div class="track"><i data-el="rkf"></i></div></div>
-        <div class="bar"><div class="bl"><span data-el="ddl">DAILY LOSS LEFT</span><span data-el="ddt"></span></div><div class="track"><i data-el="ddf"></i></div></div>
-        <div class="bar"><div class="bl"><span data-el="dml">DRAWDOWN LEFT</span><span data-el="dmt"></span></div><div class="track"><i data-el="dmf"></i></div></div>
-        <div class="bar"><div class="bl"><span>PROFIT TARGET</span><span data-el="tgt"></span></div><div class="track"><i data-el="tgf" class="goal"></i></div></div>
+        <div class="bar"><div class="bl"><span>MARGIN USED + ORDERS</span><span data-el="m2t"></span></div><div class="track"><i data-el="m2f"></i></div></div>
+        <div class="bar" data-g="dg"><div class="bl"><span>DAILY PROFIT TARGET</span><span data-el="dgt"></span></div><div class="track"><i data-el="dgf"></i></div><div class="gl"><button class="gon" data-gk="dg">OFF</button><button class="geye" data-ek="dg" title="Show / hide this level on the chart (USER line)"><svg viewBox="0 0 24 24" width="15" height="15"><path d="M1.5 12S5.5 5 12 5s10.5 7 10.5 7-4 7-10.5 7S1.5 12 1.5 12z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/><line class="sl" x1="3" y1="21" x2="21" y2="3" stroke="currentColor" stroke-width="2.2"/></svg></button><label class="gn">FLAT at ≥ $<input class="gv" data-gk="dg" inputmode="decimal" autocomplete="off"></label><span class="gt"></span></div></div>
+        <div class="bar" data-g="dl"><div class="bl"><span>DAILY LOSS LIMIT</span><span data-el="dlt"></span></div><div class="track"><i data-el="dlf"></i></div><div class="gl"><button class="gon" data-gk="dl">OFF</button><button class="geye" data-ek="dl" title="Show / hide this level on the chart (USER line)"><svg viewBox="0 0 24 24" width="15" height="15"><path d="M1.5 12S5.5 5 12 5s10.5 7 10.5 7-4 7-10.5 7S1.5 12 1.5 12z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/><line class="sl" x1="3" y1="21" x2="21" y2="3" stroke="currentColor" stroke-width="2.2"/></svg></button><label class="gn">FLAT at loss ≥ $<input class="gv" data-gk="dl" inputmode="decimal" autocomplete="off"></label><span class="gt"></span></div></div>
+        <div class="bar" data-g="cp"><div class="bl"><span>MAX OPEN PROFIT</span><span data-el="cpt2"></span></div><div class="track gs"><i data-el="cpf"></i><input type="range" class="gr" data-gk="cp" min="0" aria-label="FLAT level"></div><div class="gl"><button class="gon" data-gk="cp">OFF</button><button class="geye" data-ek="cp" title="Show / hide this level on the chart (USER line)"><svg viewBox="0 0 24 24" width="15" height="15"><path d="M1.5 12S5.5 5 12 5s10.5 7 10.5 7-4 7-10.5 7S1.5 12 1.5 12z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/><line class="sl" x1="3" y1="21" x2="21" y2="3" stroke="currentColor" stroke-width="2.2"/></svg></button><span class="gt"></span></div></div>
+        <div class="bar" data-g="rk"><div class="bl"><span>MAX OPEN LOSS</span><span data-el="rkt"></span></div><div class="track gs"><i data-el="rkf"></i><input type="range" class="gr" data-gk="rk" min="0" aria-label="FLAT level"></div><div class="gl"><button class="gon" data-gk="rk">OFF</button><button class="geye" data-ek="rk" title="Show / hide this level on the chart (USER line)"><svg viewBox="0 0 24 24" width="15" height="15"><path d="M1.5 12S5.5 5 12 5s10.5 7 10.5 7-4 7-10.5 7S1.5 12 1.5 12z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/><line class="sl" x1="3" y1="21" x2="21" y2="3" stroke="currentColor" stroke-width="2.2"/></svg></button><span class="gt"></span></div></div>
+        <div class="bar" data-g="dd"><div class="bl"><span data-el="ddl">DAILY DRAWDOWN BUFFER</span><span data-el="ddt"></span></div><div class="track"><i data-el="ddf"></i></div><div class="gl"><button class="gon" data-gk="dd">OFF</button><button class="geye" data-ek="dd" title="Show / hide this level on the chart (USER line)"><svg viewBox="0 0 24 24" width="15" height="15"><path d="M1.5 12S5.5 5 12 5s10.5 7 10.5 7-4 7-10.5 7S1.5 12 1.5 12z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/><line class="sl" x1="3" y1="21" x2="21" y2="3" stroke="currentColor" stroke-width="2.2"/></svg></button><label class="gn">FLAT at ≤ $<input class="gv" data-gk="dd" inputmode="decimal" autocomplete="off"></label><span class="gt"></span></div></div>
+        <div class="bar" data-g="dm"><div class="bl"><span data-el="dml">MAX DRAWDOWN BUFFER</span><span data-el="dmt"></span></div><div class="track"><i data-el="dmf"></i></div><div class="gl"><button class="gon" data-gk="dm">OFF</button><button class="geye" data-ek="dm" title="Show / hide this level on the chart (USER line)"><svg viewBox="0 0 24 24" width="15" height="15"><path d="M1.5 12S5.5 5 12 5s10.5 7 10.5 7-4 7-10.5 7S1.5 12 1.5 12z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/><line class="sl" x1="3" y1="21" x2="21" y2="3" stroke="currentColor" stroke-width="2.2"/></svg></button><label class="gn">FLAT at ≤ $<input class="gv" data-gk="dm" inputmode="decimal" autocomplete="off"></label><span class="gt"></span></div></div>
+        <div class="bar" data-g="tg"><div class="bl"><span data-el="tgl">ACCOUNT PROFIT TARGET</span><span data-el="tgt"></span></div><div class="track"><i data-el="tgf" class="goal"></i></div><div class="gl"><button class="gon" data-gk="tg">OFF</button><button class="geye" data-ek="tg" title="Show / hide this level on the chart (USER line)"><svg viewBox="0 0 24 24" width="15" height="15"><path d="M1.5 12S5.5 5 12 5s10.5 7 10.5 7-4 7-10.5 7S1.5 12 1.5 12z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/><line class="sl" x1="3" y1="21" x2="21" y2="3" stroke="currentColor" stroke-width="2.2"/></svg></button><span class="gt"></span></div></div>
       </div>
       <div class="msg" data-el="msg"></div>
     </div>
@@ -590,19 +594,19 @@ function mount(opts) {
       <div class="hm" data-el="hm"></div>
     </div>
     <div class="colw" data-el="colw" style="display:none">
-      <div class="csec om" data-el="sOm" data-sec="om"><div class="csh">Risk &amp; targets<button class="omtgl" data-a="omtoggle" data-el="omTgl">OFF</button></div>
+      <div class="csec om" data-el="sOm" data-sec="om"><div class="csh">Risk &amp; targets<button class="omtgl" data-a="omtoggle" data-el="omTgl">OFF</button><b class="sact" data-el="actOm" style="display:none">ACTIVE</b></div>
         <div class="omb">
           <label class="omf"><span>Size by</span><select data-om="sizeBy"><option value="risk">Risk $</option><option value="pct">% of max</option><option value="qty">Quantity</option></select></label>
           <label class="omf"><span data-el="omSzL">Risk ($)</span><input data-om="sizeVal" inputmode="decimal" autocomplete="off"></label>
           <label class="omf omck"><span>Fees</span><span class="omcb"><input type="checkbox" data-om="fees"> count fees</span></label>
           <div class="omf"><span>Leverage (Vest)</span><b class="omro" data-el="omLev">—</b></div>
           <div class="omt">
-            <div class="omtg"><label><input type="checkbox" data-om="on0"> T1</label><select data-om="by0"><option value="r">× risk</option><option value="ticks">Ticks</option><option value="dist">Points</option><option value="atr">× ATR</option><option value="trail">Trailing</option></select><span class="omsp"><input data-om="val0" inputmode="decimal" autocomplete="off"><span class="spb"><button type="button" tabindex="-1" data-sp="1">▲</button><button type="button" tabindex="-1" data-sp="-1">▼</button></span></span></div>
-            <div class="omtg"><label><input type="checkbox" data-om="on1"> T2</label><select data-om="by1"><option value="r">× risk</option><option value="ticks">Ticks</option><option value="dist">Points</option><option value="atr">× ATR</option><option value="trail">Trailing</option></select><span class="omsp"><input data-om="val1" inputmode="decimal" autocomplete="off"><span class="spb"><button type="button" tabindex="-1" data-sp="1">▲</button><button type="button" tabindex="-1" data-sp="-1">▼</button></span></span></div>
-            <div class="omtg"><label><input type="checkbox" data-om="on2"> T3</label><select data-om="by2"><option value="r">× risk</option><option value="ticks">Ticks</option><option value="dist">Points</option><option value="atr">× ATR</option><option value="trail">Trailing</option></select><span class="omsp"><input data-om="val2" inputmode="decimal" autocomplete="off"><span class="spb"><button type="button" tabindex="-1" data-sp="1">▲</button><button type="button" tabindex="-1" data-sp="-1">▼</button></span></span></div>
-            <div class="omtg"><label><input type="checkbox" data-om="on3"> T4</label><select data-om="by3"><option value="r">× risk</option><option value="ticks">Ticks</option><option value="dist">Points</option><option value="atr">× ATR</option><option value="trail">Trailing</option></select><span class="omsp"><input data-om="val3" inputmode="decimal" autocomplete="off"><span class="spb"><button type="button" tabindex="-1" data-sp="1">▲</button><button type="button" tabindex="-1" data-sp="-1">▼</button></span></span></div>
+            <div class="omtg"><label><input type="checkbox" data-om="on0"> T1</label><select data-om="by0"><option value="r">R multiple</option><option value="ticks">Ticks</option><option value="dist">Points</option><option value="atr">ATR multiple</option><option value="trail">Trailing</option></select><span class="omsp"><input data-om="val0" inputmode="decimal" autocomplete="off"><span class="spb"><button type="button" tabindex="-1" data-sp="1">▲</button><button type="button" tabindex="-1" data-sp="-1">▼</button></span></span></div>
+            <div class="omtg"><label><input type="checkbox" data-om="on1"> T2</label><select data-om="by1"><option value="r">R multiple</option><option value="ticks">Ticks</option><option value="dist">Points</option><option value="atr">ATR multiple</option><option value="trail">Trailing</option></select><span class="omsp"><input data-om="val1" inputmode="decimal" autocomplete="off"><span class="spb"><button type="button" tabindex="-1" data-sp="1">▲</button><button type="button" tabindex="-1" data-sp="-1">▼</button></span></span></div>
+            <div class="omtg"><label><input type="checkbox" data-om="on2"> T3</label><select data-om="by2"><option value="r">R multiple</option><option value="ticks">Ticks</option><option value="dist">Points</option><option value="atr">ATR multiple</option><option value="trail">Trailing</option></select><span class="omsp"><input data-om="val2" inputmode="decimal" autocomplete="off"><span class="spb"><button type="button" tabindex="-1" data-sp="1">▲</button><button type="button" tabindex="-1" data-sp="-1">▼</button></span></span></div>
+            <div class="omtg"><label><input type="checkbox" data-om="on3"> T4</label><select data-om="by3"><option value="r">R multiple</option><option value="ticks">Ticks</option><option value="dist">Points</option><option value="atr">ATR multiple</option><option value="trail">Trailing</option></select><span class="omsp"><input data-om="val3" inputmode="decimal" autocomplete="off"><span class="spb"><button type="button" tabindex="-1" data-sp="1">▲</button><button type="button" tabindex="-1" data-sp="-1">▼</button></span></span></div>
           </div>
-          <label class="omf"><span>Stop by</span><select data-om="stopBy"><option value="dist">Points</option><option value="ticks">Ticks</option><option value="bar">Prev. candle</option><option value="atr">ATR ×</option></select></label>
+          <label class="omf"><span>Stop by</span><select data-om="stopBy"><option value="dist">Points</option><option value="ticks">Ticks</option><option value="bar">Prev. candle</option><option value="atr">ATR multiple</option></select></label>
           <label class="omf"><span data-el="omStL">Distance</span><input data-om="stopVal" inputmode="decimal" autocomplete="off"></label>
           <label class="omf"><span>Stops</span><select data-om="stops"><option value="one">One stop</option><option value="each">Per target</option></select></label>
           <label class="omf"><span>Split</span><select data-om="split"><option value="even">Equal</option><option value="front">T1 most</option><option value="back">Last most</option></select></label>
@@ -611,7 +615,7 @@ function mount(opts) {
         </div>
       </div>
       <div class="csec" data-el="sPos" data-sec="pos"><div class="csh">Position</div></div>
-      <div class="csec tb" data-el="sTb" data-sec="tb"><div class="csh">Trailing &amp; breakeven</div>
+      <div class="csec tb" data-el="sTb" data-sec="tb"><div class="csh">Trailing &amp; breakeven<b class="sact" data-el="actTb" style="display:none">ACTIVE</b></div>
         <div class="tbb">
           <label class="omcb tbon"><input type="checkbox" data-tb="trOn"> Trailing stop</label>
           <label class="omf"><span>Unit</span><select data-tb="trUnit"><option value="pt">pt</option><option value="$">$</option></select></label>
@@ -626,11 +630,49 @@ function mount(opts) {
           <div class="tbnote" data-el="tbNote"></div>
         </div>
       </div>
-      <div class="csec" data-el="sLim" data-sec="lim"><div class="csh">Account limits</div></div>
-      <div class="csec" data-el="sCopy" data-sec="copy"><div class="csh">Copier accounts</div></div>
-      <div class="csec" data-el="sVol" data-sec="vol"><div class="csh">Swing range and volatility</div></div>
-      <div class="csec" data-el="sChart" data-sec="chart"><div class="csh">Chart space</div>
-        <div class="chb"><span>Space between the last candle and the price axis (px)</span><span class="omsp"><input data-el="roomIn" data-step="10" inputmode="numeric" autocomplete="off" placeholder="360"><span class="spb"><button type="button" tabindex="-1" data-sp="1">▲</button><button type="button" tabindex="-1" data-sp="-1">▼</button></span></span></div>
+      <div class="csec" data-el="sLim" data-sec="lim"><div class="csh">Account limits<b class="sact" data-el="actLim" style="display:none">ACTIVE</b></div></div>
+      <div class="csec" data-el="sCopy" data-sec="copy"><div class="csh">Copier accounts<b class="sact" data-el="actCopy" style="display:none">ACTIVE</b></div></div>
+      <div class="csec tb" data-el="sBr" data-sec="br"><div class="csh">Bracket (SL / TP on every new entry)<b class="sact" data-el="actBr" style="display:none">ACTIVE</b></div>
+        <div class="tbb">
+          <label class="omcb tbon"><input type="checkbox" data-tb="brOn"> Bracket</label>
+          <label class="omf"><span>SL (pt)</span><input data-tb="brSl" inputmode="decimal" autocomplete="off" placeholder="empty"><input type="range" class="brr" data-tb="brSl" min="0" aria-label="SL distance"></label>
+          <label class="omf"><span>TP (pt)</span><input data-tb="brTp" inputmode="decimal" autocomplete="off" placeholder="none"><input type="range" class="brr" data-tb="brTp" min="0" aria-label="TP distance"></label>
+          <label class="omcb srwide"><input type="checkbox" data-tb="brDca"> SL / TP follow adds (DCA)</label>
+          <div class="tbnote" data-note="br"></div>
+        </div>
+      </div>
+      <div class="csec tb" data-el="sGd" data-sec="gd"><div class="csh">Grid (experimental)<button class="omtgl gdtgl" data-a="gdmode" data-el="gdTgl">OFF</button><b class="sact" data-el="actGd" style="display:none">ACTIVE</b></div>
+        <div class="tbb gdb">
+                    <label class="omf gdw"><span>Side (entries, or SL / TP at the market price)</span><select data-tb="gdEnSide"><option value="long">LONG</option><option value="short">SHORT</option></select></label><button class="gdgo" data-a="gdstart" data-el="gdStart">START</button><div class="gdsec en"><div class="gdh"><label><input type="checkbox" data-tb="gdEnOn"> Entries</label><span>LIMIT orders from the current price</span><button type="button" class="gdfixb" data-gdfix="En" data-el="gdFixEn" title="Entries measured from the price frozen now instead of the live price">FIX</button><button type="button" class="gdeye" data-gdeye="En" aria-label="Average line on the chart">AVG <svg viewBox="0 0 24 24" width="15" height="15"><path d="M1.5 12S5.5 5 12 5s10.5 7 10.5 7-4 7-10.5 7S1.5 12 1.5 12z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/><line class="sl" x1="3" y1="21" x2="21" y2="3" stroke="currentColor" stroke-width="2.2"/></svg></button></div><label class="omf"><span>Nearest (pt)</span><input data-tb="gdEnNear" inputmode="decimal" autocomplete="off" placeholder="empty"></label><label class="omf"><span>Farthest (pt)</span><input data-tb="gdEnFar" inputmode="decimal" autocomplete="off" placeholder="= nearest"></label><label class="omf"><span>Levels between</span><input data-tb="gdEnMid" inputmode="decimal" autocomplete="off" placeholder="0"></label><label class="omf"><span>Total size % of max</span><input data-tb="gdEnPct" inputmode="decimal" autocomplete="off" placeholder="empty"></label><label class="omf"><span>Distances</span><select data-tb="gdEnDist"><option value="equal">All equal</option><option value="linear">Linear (growing)</option><option value="invlin">Inverse linear (shrinking)</option><option value="hyper">Hyperbolic (faster at the far end)</option><option value="inv">Inverse hyperbolic (faster at the near end)</option><option value="manual">Manual (slider)</option></select></label><div class="gsl" data-gsl="En" data-gk="Man"><div class="gslh"><span>Levels from nearest ▸ to farthest (5 % steps of the way)</span><button type="button" data-gslinv>⇄ invert</button></div><div class="gbar"></div></div><label class="omf gdw"><span>Sizes</span><select data-tb="gdEnSize"><option value="equal">All equal</option><option value="linear">Linear (growing)</option><option value="invlin">Inverse linear (shrinking)</option><option value="hyper">Hyperbolic (faster at the far end)</option><option value="inv">Inverse hyperbolic (faster at the near end)</option><option value="custom">Custom %</option></select></label><label class="omf gdc" data-gdc="En"><span>Custom % of each level, nearest to farthest</span><input data-tb="gdEnCustom" autocomplete="off" placeholder="e.g. 20, 30, 50"></label><div class="gsl" data-gsl="En" data-gk="Custom"><div class="gslh"><span>Size of each level, nearest ▸ farthest (5 % steps)</span><button type="button" data-gslinv>⇄ invert</button></div><div class="gbar"></div></div></div>
+          <div class="gdsec tp"><div class="gdh"><label><input type="checkbox" data-tb="gdTpOn"> Targets (TP)</label><span>on the position, or on the entries waiting</span><button type="button" class="gdfixb" data-gdfix="Tp" data-el="gdFixTp" title="Only with nothing open or waiting (TP at the market price): TP measured from the price frozen now">FIX</button><button type="button" class="gdeye" data-gdeye="Tp" aria-label="Average line on the chart">AVG <svg viewBox="0 0 24 24" width="15" height="15"><path d="M1.5 12S5.5 5 12 5s10.5 7 10.5 7-4 7-10.5 7S1.5 12 1.5 12z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/><line class="sl" x1="3" y1="21" x2="21" y2="3" stroke="currentColor" stroke-width="2.2"/></svg></button></div><label class="omf"><span>Nearest (pt)</span><input data-tb="gdTpNear" inputmode="decimal" autocomplete="off" placeholder="empty"></label><label class="omf"><span>Farthest (pt)</span><input data-tb="gdTpFar" inputmode="decimal" autocomplete="off" placeholder="= nearest"></label><label class="omf"><span>Levels between</span><input data-tb="gdTpMid" inputmode="decimal" autocomplete="off" placeholder="0"></label><label class="omf"><span>Share of position %</span><input data-tb="gdTpPct" inputmode="decimal" autocomplete="off" placeholder="100"></label><label class="omf gdw"><span>Distances</span><select data-tb="gdTpDist"><option value="equal">All equal</option><option value="linear">Linear (growing)</option><option value="invlin">Inverse linear (shrinking)</option><option value="hyper">Hyperbolic (faster at the far end)</option><option value="inv">Inverse hyperbolic (faster at the near end)</option><option value="manual">Manual (slider)</option></select></label><div class="gsl" data-gsl="Tp" data-gk="Man"><div class="gslh"><span>Levels from nearest ▸ to farthest (5 % steps of the way)</span><button type="button" data-gslinv>⇄ invert</button></div><div class="gbar"></div></div><label class="omf gdw"><span>Sizes</span><select data-tb="gdTpSize"><option value="equal">All equal</option><option value="linear">Linear (growing)</option><option value="invlin">Inverse linear (shrinking)</option><option value="hyper">Hyperbolic (faster at the far end)</option><option value="inv">Inverse hyperbolic (faster at the near end)</option><option value="custom">Custom %</option></select></label><label class="omf gdc" data-gdc="Tp"><span>Custom % of each level, nearest to farthest</span><input data-tb="gdTpCustom" autocomplete="off" placeholder="e.g. 50, 30, 20"></label><div class="gsl" data-gsl="Tp" data-gk="Custom"><div class="gslh"><span>Size of each level, nearest ▸ farthest (5 % steps)</span><button type="button" data-gslinv>⇄ invert</button></div><div class="gbar"></div></div></div>
+          <div class="gdsec sl"><div class="gdh"><label><input type="checkbox" data-tb="gdSlOn"> Stops (SL)</label><span>idem</span><button type="button" class="gdfixb" data-gdfix="Sl" data-el="gdFixSl" title="Only with nothing open or waiting (SL at the market price): SL measured from the price frozen now">FIX</button><button type="button" class="gdeye" data-gdeye="Sl" aria-label="Average line on the chart">AVG <svg viewBox="0 0 24 24" width="15" height="15"><path d="M1.5 12S5.5 5 12 5s10.5 7 10.5 7-4 7-10.5 7S1.5 12 1.5 12z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3.2" fill="currentColor"/><line class="sl" x1="3" y1="21" x2="21" y2="3" stroke="currentColor" stroke-width="2.2"/></svg></button></div><label class="omf"><span>Nearest (pt)</span><input data-tb="gdSlNear" inputmode="decimal" autocomplete="off" placeholder="empty"></label><label class="omf"><span>Farthest (pt)</span><input data-tb="gdSlFar" inputmode="decimal" autocomplete="off" placeholder="= nearest"></label><label class="omf"><span>Levels between</span><input data-tb="gdSlMid" inputmode="decimal" autocomplete="off" placeholder="0"></label><span></span><label class="omf gdw"><span>Distances</span><select data-tb="gdSlDist"><option value="equal">All equal</option><option value="linear">Linear (growing)</option><option value="invlin">Inverse linear (shrinking)</option><option value="hyper">Hyperbolic (faster at the far end)</option><option value="inv">Inverse hyperbolic (faster at the near end)</option><option value="manual">Manual (slider)</option></select></label><div class="gsl" data-gsl="Sl" data-gk="Man"><div class="gslh"><span>Levels from nearest ▸ to farthest (5 % steps of the way)</span><button type="button" data-gslinv>⇄ invert</button></div><div class="gbar"></div></div><label class="omf gdw"><span>Sizes</span><select data-tb="gdSlSize"><option value="equal">All equal</option><option value="linear">Linear (growing)</option><option value="invlin">Inverse linear (shrinking)</option><option value="hyper">Hyperbolic (faster at the far end)</option><option value="inv">Inverse hyperbolic (faster at the near end)</option><option value="custom">Custom %</option></select></label><label class="omf gdc" data-gdc="Sl"><span>Custom % of each level, nearest to farthest</span><input data-tb="gdSlCustom" autocomplete="off" placeholder="e.g. 50, 30, 20"></label><div class="gsl" data-gsl="Sl" data-gk="Custom"><div class="gslh"><span>Size of each level, nearest ▸ farthest (5 % steps)</span><button type="button" data-gslinv>⇄ invert</button></div><div class="gbar"></div></div></div>
+          <div class="tbnote" data-note="gd"></div>
+        </div>
+      </div>
+      <div class="csec tb" data-el="sOco" data-sec="oco"><div class="csh">OCO (one cancels the other)<b class="sact" data-el="actOco" style="display:none">ACTIVE</b></div>
+        <div class="tbb">
+          <label class="omcb srwide"><input type="checkbox" data-tb="ocoOn"> OCO on the pending entries of a market</label>
+          <div class="tbnote" data-note="oco"></div>
+        </div>
+      </div>
+      <div class="csec tb" data-el="sSr" data-sec="sr"><div class="csh">Safe runner (experimental)<span class="srtr" data-el="srTr"></span><b class="sact" data-el="actSr" style="display:none">ACTIVE</b><button class="srq" data-a="srhelp" aria-label="How the safe runner works">?</button></div>
+        <div class="srhelp" data-el="srHelp" hidden></div>
+        <div class="srb">
+          <label class="srrow"><span class="srn">Mode<small>OFF nothing · VIEW lines only, no orders · LIVE moves the stop on Vest and closes parts at market</small></span><select data-tb="srMode"><option value="off">OFF</option><option value="view">VIEW</option><option value="live">LIVE</option></select></label>
+          <div class="srh">1 · When it takes over</div>
+          <label class="srrow"><span class="srn">Start after a profit of (points)<small>until the best price is this far in profit nothing is touched: your own stop stays (none = no stop)</small></span><input data-tb="srAct" inputmode="decimal" autocomplete="off"></label>
+          <label class="srrow"><span class="srn">Profit always kept (points)<small>no runner stop ever goes below entry + this (above for a short)</small></span><input data-tb="srLock" inputmode="decimal" autocomplete="off"></label>
+          <div class="srh">2 · How the size is split</div>
+          <label class="srrow"><span class="srn">Runner share (% of the size)<small>part kept for the long move, with the wide stop</small></span><input data-tb="srRunPct" inputmode="decimal" autocomplete="off"></label>
+          <label class="srrow"><span class="srn">Pause-low share (% of the size)<small>part with its stop just under the last pause low of the move; 0 = not used</small></span><input data-tb="srPausePct" inputmode="decimal" autocomplete="off"></label>
+          <div class="srsplit" data-el="srSplit"></div>
+          <div class="srh">3 · Stop distance from the best price (in ATR = average 1-minute candle range)</div>
+          <label class="srrow"><span class="srn">Tight stop distance (ATR)<small>stop of the tight part; 1 = one average 1m candle below the best price</small></span><input data-tb="srTight" inputmode="decimal" autocomplete="off"></label>
+          <label class="srrow"><span class="srn">Runner stop distance (ATR)<small>stop of the runner; bigger = it survives deeper pullbacks</small></span><input data-tb="srRunAtr" inputmode="decimal" autocomplete="off"></label>
+          <label class="omcb srwide"><input type="checkbox" data-tb="srGate"> Runner wide only when the 1h trend is in favour (otherwise it uses the tight distance)</label>
+          <label class="omcb srwide"><input type="checkbox" data-tb="srClimax"> After a very big 1m candle at the top (2.5 ATR or more) tighten the tight and pause-low stops to 60 %</label>
+          <div class="tbnote" data-note="sr"></div>
+        </div>
       </div>
     </div>
     <div class="cmd" data-el="cmd" style="display:none">
@@ -641,6 +683,7 @@ function mount(opts) {
   document.documentElement.appendChild(host);
   for (const el of root.querySelectorAll('[data-el]')) els[el.dataset.el] = el;
   els.layer = root.querySelector('.root');
+  els.layer.classList.add('hidden0'); // start: invisible until Vest data are in (main.js reveal)
   // CANCEL menu closes on a press elsewhere: outside the overlay (window sees only the host of the closed shadow root)
   // or inside it but not on the menu or its button
   const menuOpen = () => els.cxm.style.display !== 'none';
@@ -674,6 +717,7 @@ function mount(opts) {
     b.addEventListener('pointerdown', (e) => {
       if (b.disabled) return;
       const m = getModel();
+      if (m && m.gdFar && m.gdFar[kind]) return startDrag(e, b, kind, null, 'card'); // grid on: farthest level of that ladder
       if (!m || !m.pos) return;
       const legs = m.pos.triggers.filter((t) => t.kind === kind);
       if (legs.length > 1) return say(`More than one ${kind.toUpperCase()}: drag the line you want to move`, 'err');
@@ -705,6 +749,12 @@ function mount(opts) {
       const kind = cx.dataset.cx;
       return run(actions.cancelOrders(kind), kind === 'lm' ? 'pending limits cancelled' : kind === 'st' ? 'local stops cancelled' : 'all orders cancelled');
     }
+    if (t.closest('[data-a="srhelp"]')) {
+      if (els.sSr.classList.contains('folded')) foldSec(els.sSr);
+      if (!els.srHelp.innerHTML) els.srHelp.innerHTML = HELP.runner[1];
+      els.srHelp.hidden = !els.srHelp.hidden;
+      return;
+    }
     const sh = t.closest('.csh');
     if (sh && !t.closest('.omtgl')) return foldSec(sh.parentNode);
     const b = t.closest('button[data-a]');
@@ -729,11 +779,14 @@ function mount(opts) {
     else if (a === 'closeall') run(actions.closeAll(), 'CLOSE sent: pending orders stay');
     else if (a === 'close') run(actions.closePct(), 'PARTIAL CLOSE sent');
     else if (a === 'cmdfloat') setFloat(!cmdSt.float);
+    else if (a === 'gdmode' && actions.gridMode) actions.gridMode();
+    else if (a === 'gdstart' && actions.gridStart) run(actions.gridStart(), 'GRID ACTIVE');
     else if (a === 'omtoggle') {
       // Risk & targets ON: the plan drives Trade commands (the % size is off); OFF = manual
       omMode = omMode === 'manual' ? 'live' : 'manual';
       omAnchor = null;
       omSave();
+      if (omMode === 'live' && actions.exclusive) actions.exclusive('risk');
     } else if (a === 'omside' || a === 'ommode') {
       if (a === 'omside' && omSide !== b.dataset.v) omAnchor = null; // the other side starts from the market price (or its LIMIT)
       if (a === 'omside') omSide = b.dataset.v;
@@ -746,6 +799,11 @@ function mount(opts) {
   // COPIER: click on a row = account shown by the tool (on press: the table is redrawn)
   els.card4.addEventListener('pointerdown', (e) => {
     if (e.target.closest('[data-a="copy"]')) return actions.copyToggle && actions.copyToggle();
+    const tip = e.target.closest('.sy[data-tip]');
+    if (tip) {
+      e.stopPropagation();
+      return actions.say && actions.say(tip.dataset.tip, tip.dataset.tip.includes('OUT OF SYNC') ? 'warn' : 'info');
+    }
     const tr = e.target.closest('tr[data-id]');
     if (tr && actions.select) actions.select(tr.dataset.id);
   });
@@ -791,6 +849,7 @@ let omPv = null; // side whose plan is on the chart ('long' | 'short'), null in 
 // Risk & targets OFF = 'manual' (Trade commands use the % size, nothing on the chart); ON = 'live' (LONG / SHORT / LIMIT / STOP
 // go with the plan size and its SL / TP). ('view' is no longer offered.) ON is never kept: after a reload it is OFF.
 let omMode = 'manual';
+let lastTb = {}; // column section settings as last drawn (safe runner LIVE asks before switching)
 let omSide = 'long';
 let omBv = null; // bars of the last frame (previous candle, ATR) for the plan sent by LONG / SHORT
 // Plan entry on the chart: price where ENTRY was dropped (null = follows the market price, or the pending LIMIT of that side)
@@ -824,8 +883,29 @@ function colSetup() {
   };
   secFold = readJson(SEC_KEY, {});
   omSetup();
+  // Account limits: ON / OFF and level of each bar (FLAT when reached); the level is saved, ON is not (OFF after a reload)
+  els.card3.addEventListener('click', (e) => {
+    const ey = e.target.closest && e.target.closest('button.geye');
+    if (ey && actions.guardEye) {
+      e.stopPropagation();
+      return actions.guardEye(ey.dataset.ek);
+    }
+    const b = e.target.closest && e.target.closest('button.gon');
+    if (!b || !actions.guardToggle) return;
+    e.stopPropagation();
+    try {
+      actions.guardToggle(b.dataset.gk);
+    } catch (err) {
+      say(err.message, 'err');
+    }
+  });
+  els.card3.addEventListener('input', (e) => {
+    const r = e.target;
+    if (!r.classList || !(r.classList.contains('gr') || r.classList.contains('gv')) || !actions.guardLevel) return;
+    actions.guardLevel(r.dataset.gk, r.value);
+  });
   // small arrows next to a number: target values ±0.25 (ticks ±1), chart space ±10 px
-  els.colw.addEventListener('click', (e) => {
+  root.addEventListener('click', (e) => {
     const b = e.target.closest('[data-sp]');
     if (!b) return;
     const inp = b.closest('.omsp').querySelector('input');
@@ -841,19 +921,104 @@ function colSetup() {
     inp.value = String(+v.toFixed(2));
     inp.dispatchEvent(new Event('input', { bubbles: true }));
   });
-  // chart space: the same setting as "label space" in the panel (Chart display)
-  els.roomIn.addEventListener('input', () => {
-    const v = parseInt(els.roomIn.value, 10);
-    if (v >= 50 && v <= 900 && actions.setSetting) actions.setSetting('roomPx', v);
-  });
+  // chart space: now in the main panel (section Chart space, Gerry 2026-11-21)
   // Trailing & breakeven: the panel keeps the settings (same keys); here they are only shown and changed
   const tbSet = (e) => {
     const k = e.target.dataset && e.target.dataset.tb;
     if (!k || !actions.setSetting) return;
+    if (k === 'srMode' && e.target.value === 'live' && lastTb.srMode !== 'live') {
+      const ok = window.confirm(`Safe runner LIVE (experimental)?
+
+Once the profit reaches "start after", it moves the stop on Vest and closes parts of the position at market by itself (with Orders ON, while this tab is open).
+After a reload it comes back as VIEW.`);
+      if (!ok) return void (e.target.value = lastTb.srMode || 'off');
+    }
     actions.setSetting(k, e.target.type === 'checkbox' ? e.target.checked : e.target.value.trim().replace(',', '.'));
   };
-  els.sTb.addEventListener('input', (e) => e.target.type !== 'checkbox' && e.target.tagName !== 'SELECT' && tbSet(e));
-  els.sTb.addEventListener('change', (e) => (e.target.type === 'checkbox' || e.target.tagName === 'SELECT') && tbSet(e));
+  // same mechanism for three sections: Trailing & breakeven, Bracket, Safe runner (the panel keeps the settings)
+  els.sGd.addEventListener('click', (e) => {
+    const fb = e.target.closest('[data-gdfix]');
+    if (fb) {
+      // FIX: entries (or TP / SL at the market price) stop following the price (frozen at the market price now); again =
+      // they follow it again. TP / SL: only when they are computed at the market price (nothing open or waiting).
+      e.preventDefault();
+      const P = fb.dataset.gdfix, k = `gd${P}FixPx`, w = P === 'En' ? 'entries' : P.toUpperCase();
+      const cur = getModel();
+      const mk = cur && cur.market && cur.market.mark;
+      const on = parseFloat((lastTb || {})[k]) > 0;
+      if (!on && !(mk > 0)) return say('price not available', 'err');
+      if (actions.setSetting) actions.setSetting(k, on ? '' : String(roundToTick(mk, cur.market.tick)));
+      return say(on ? `Grid ${w} follow the price again` : `Grid ${w} FIXED at ${roundToTick(mk, cur.market.tick)}${P === 'En' ? '' : ' (only while nothing is open or waiting: then they go on the position / entries)'}`, '');
+    }
+    const ey = e.target.closest('[data-gdeye]');
+    if (ey) {
+      e.preventDefault();
+      const k = `gd${ey.dataset.gdeye}Avg`;
+      return actions.setSetting && actions.setSetting(k, !(lastTb || {})[k]);
+    }
+    const b = e.target.closest('[data-gslinv]');
+    if (!b) return;
+    const el = b.closest('.gsl');
+    const tb = lastTb || {};
+    const P = el.dataset.gsl,
+      k = el.dataset.gk;
+    const v = gslList(tb[`gd${P}${k}`]);
+    if (!v.length) return;
+    gslCommit(P, k, k === 'Custom' ? v.reverse() : v.map((x) => 100 - x).reverse());
+  });
+  els.sGd.addEventListener('pointerdown', (e) => {
+    const h = e.target.closest('.gh');
+    if (!h) return;
+    if (h.classList.contains('lock')) {
+      const man = h.closest('.gsl').dataset.gk === 'Man';
+      return say(`These follow the curve: set ${man ? 'Distances to Manual (slider)' : 'Sizes to Custom %'} to move them by hand`, '');
+    }
+    e.preventDefault();
+    e.stopPropagation();
+    const el = h.closest('.gsl'),
+      bar = el.querySelector('.gbar');
+    const P = el.dataset.gsl,
+      k = el.dataset.gk,
+      i = +h.dataset.i;
+    const tb = lastTb || {};
+    gslDrag = { P, k, vals: gslList(tb[`gd${P}${k}`]) };
+    const move = (ev) => {
+      const r = bar.getBoundingClientRect();
+      let x = Math.round((((ev.clientX - r.left) / r.width) * 100) / GSL_STEP) * GSL_STEP;
+      const v = gslDrag.vals.slice();
+      if (k === 'Custom') {
+        // handle i = border between level i and i+1: the two shares change, the others stay
+        const lo = v.slice(0, i).reduce((a, b) => a + b, 0);
+        const hi = lo + v[i] + v[i + 1];
+        x = Math.min(hi - GSL_STEP, Math.max(lo + GSL_STEP, x));
+        v[i] = x - lo;
+        v[i + 1] = hi - x;
+      } else {
+        const lo = i ? v[i - 1] : 0,
+          hi = i < v.length - 1 ? v[i + 1] : 100;
+        v[i] = Math.min(hi - GSL_STEP, Math.max(lo + GSL_STEP, x));
+      }
+      gslDrag.vals = v;
+      gslDraw(el, tb);
+    };
+    // on the window: the bar is redrawn while the handle moves (the handle element itself is replaced)
+    const W = h.ownerDocument.defaultView || window;
+    const up = () => {
+      W.removeEventListener('pointermove', move, true);
+      W.removeEventListener('pointerup', up, true);
+      W.removeEventListener('pointercancel', up, true);
+      const d = gslDrag;
+      gslDrag = null;
+      if (d) gslCommit(d.P, d.k, d.vals);
+    };
+    W.addEventListener('pointermove', move, true);
+    W.addEventListener('pointerup', up, true);
+    W.addEventListener('pointercancel', up, true);
+  });
+  for (const sec of [els.sTb, els.sBr, els.sGd, els.sOco, els.sSr]) {
+    sec.addEventListener('input', (e) => e.target.type !== 'checkbox' && e.target.tagName !== 'SELECT' && tbSet(e));
+    sec.addEventListener('change', (e) => (e.target.type === 'checkbox' || e.target.tagName === 'SELECT') && tbSet(e));
+  }
   for (const sec of els.colw.querySelectorAll('.csec')) sec.classList.toggle('folded', !!secFold[sec.dataset.sec]);
   // where each moved element lives on the chart
   const list = [els.ordl, els.ordc, els.cpl, els.cpc, els.flatB, els.cpBox, els.closeB, els.closeAllB, els.msg, els.card, els.card2, els.card3, els.card4, els.card5];
@@ -1079,8 +1244,8 @@ function setCol(on) {
     els.sPos.append(els.card);
     els.sLim.append(els.card3);
     els.sCopy.append(els.card4);
-    els.cmd.append(els.sCopy); // copier accounts under Trade commands (they float with it)
-    els.sVol.append(els.card5);
+    // under Trade commands, in this order (they float with it): copier, bracket, OCO, safe runner, risk & targets, trailing, account limits
+    els.cmd.append(els.sCopy, els.sBr, els.sGd, els.sOco, els.sSr, els.sOm, els.sTb, els.sLim);
     syncFloat();
   } else {
     for (const [el, ph] of moves) ph.after(el);
@@ -1090,8 +1255,14 @@ function setCol(on) {
   }
 }
 
+let panelOpenSent = null;
 function syncFloat() {
   els.cmd.classList.toggle('float', cmdSt.float);
+  // floating: the column shows the main panel; back in the column: the panel folds to its header (Gerry 2026-11-21)
+  if (panelOpenSent !== cmdSt.float && actions.panelOpen) {
+    panelOpenSent = cmdSt.float;
+    actions.panelOpen(cmdSt.float);
+  }
   els.cmdDet.textContent = cmdSt.float ? '⇥' : '⇱';
   els.cmdDet.setAttribute('aria-label', cmdSt.float ? 'Put back in the column' : 'Detach and float');
   if (cmdSt.float) {
@@ -1132,6 +1303,13 @@ function cxMenu(open) {
   if (!els.cxm) return;
   els.cxm.style.display = open ? '' : 'none';
   els.card2.classList.toggle('cxopen', !!open);
+  const b = els.card2.querySelector('[data-a="cxmenu"]');
+  if (open && b && els.layer && els.layer.classList.contains('col')) {
+    // right under CANCEL, at least as wide as it
+    const c = els.card2.getBoundingClientRect(),
+      r = b.getBoundingClientRect();
+    Object.assign(els.cxm.style, { left: `${r.left - c.left}px`, top: `${r.bottom - c.top + 2}px`, minWidth: `${r.width}px`, width: 'auto' });
+  }
 }
 
 function say(text, kind) {
@@ -1272,6 +1450,30 @@ function manageRoom(g, show, needPx, minPx = CANDLE_RIGHT) {
 const show = (el, on) => (el.style.display = on ? '' : 'none');
 
 // clipX: if the line would run over the cards, it stops 4 px before their column
+/** Label style from the panel (Chart lines and labels); empty values leave the card style's. */
+function chipStyle(chip, ls, L) {
+  const key = ls.c + JSON.stringify(L || null);
+  if (chip.dataset.cs === key) return;
+  chip.dataset.cs = key;
+  chip.style.setProperty('--kc', (L && L.n) || ls.c); // name (S, AVG ALL, TP...) in its colour, else the line's
+  chip.style.background = (L && L.bg) || '';
+  chip.style.borderColor = (L && L.bo) || '';
+  chip.style.borderWidth = L && L.bw != null ? L.bw + 'px' : '';
+  chip.style.fontSize = L && L.fs ? L.fs + 'px' : '';
+  chip.classList.toggle('knb', !!(L && L.nb));
+  if (L && L.nb) chip.style.setProperty('--knb', L.nb);
+  chip.classList.toggle('kfw-b', !!(L && L.fw === 'b'));
+  chip.classList.toggle('kfw-n', !!(L && L.fw === 'n'));
+}
+
+/** Line style on an element drawn with a top border (segments): dash-dot is drawn as a repeating gradient. */
+function borderLine(el, ls) {
+  const dd = ls.s === 'dashdot';
+  el.style.borderTop = dd ? '0' : `${ls.w}px ${ls.s} ${ls.c}`;
+  el.style.height = dd ? ls.w + 'px' : '';
+  el.style.background = dd ? `repeating-linear-gradient(90deg, ${ls.c} 0 8px, transparent 8px 11px, ${ls.c} 11px 13px, transparent 13px 16px)` : '';
+}
+
 function hline(el, g, y, st, clipX) {
   el.style.left = g.left + 'px';
   el.style.width = (clipX ? Math.max(0, clipX - g.left - 4) : g.width) + 'px';
@@ -1279,8 +1481,9 @@ function hline(el, g, y, st, clipX) {
   el.style.top = g.top + y - (el.classList.contains('grab') ? GRAB_HALF : 0) - Math.floor((st.w - 1) / 2) + 'px';
   if (el.dataset.st !== st.c + st.s + st.w) {
     el.dataset.st = st.c + st.s + st.w;
+    el.classList.toggle('dd', st.s === 'dashdot');
     el.style.setProperty('--c', st.c);
-    el.style.setProperty('--s', st.s);
+    el.style.setProperty('--s', st.s === 'dashdot' ? 'solid' : st.s);
     el.style.setProperty('--w', st.w + 'px');
   }
 }
@@ -1371,6 +1574,15 @@ function draw() {
   };
   const inside = (y) => y >= 0 && y <= g.height;
   lineStyles = m.lineStyles || null;
+  // colours of every label (price, profit, loss): only when chosen in the panel, otherwise the card style's
+  {
+    const cc = m.chartCommon || {};
+    for (const [k, v] of Object.entries(cc)) {
+      if (v) els.layer.style.setProperty('--' + k, v);
+      else els.layer.style.removeProperty('--' + k);
+      els.layer.classList.toggle(k, !!v);
+    }
+  }
   if (m.btnColors) {
     const k = JSON.stringify(m.btnColors);
     if (k !== btnColKey) {
@@ -1514,6 +1726,7 @@ function draw() {
             mic: els.mic.textContent,
             dpt: els.dpt.textContent,
             dptC: els.dpt.className.replace('dpt', '').trim(),
+            trades: m.points ? { n: m.points.n, win: m.points.win, loss: m.points.loss } : null,
           }
         : null,
     );
@@ -1521,8 +1734,11 @@ function draw() {
   els.ordc.textContent = m.ordersOn ? 'ON' : 'OFF';
   els.ordc.classList.toggle('on', !!m.ordersOn);
   // COPY under ORDERS: only when a master and at least one copy are assigned
-  show(els.cpl, !!m.copy);
-  show(els.cpc, !!m.copy);
+  // ORDERS / COPY now live in the panel header (v0.20.26): hidden here
+  show(els.ordl, false);
+  show(els.ordc, false);
+  show(els.cpl, false);
+  show(els.cpc, false);
   if (m.copy) {
     els.cpc.textContent = m.copy.armed ? 'ON' : 'OFF';
     els.cpc.classList.toggle('on', !!m.copy.armed);
@@ -1535,7 +1751,7 @@ function draw() {
     if (els.cpIn.value !== want) els.cpIn.value = want;
   }
   els.closeAllB.disabled = busy || !pos;
-  for (const k of ['tp', 'sl', 'be']) els.card2.querySelector(`[data-a="${k}"]`).disabled = busy || !pos;
+  for (const k of ['tp', 'sl', 'be']) els.card2.querySelector(`[data-a="${k}"]`).disabled = busy || !(pos || (k !== 'be' && m.gdFar && m.gdFar[k]));
   const beB = els.card2.querySelector('[data-a="be"]'),
     beT = m.bePlus ? 'BE+' : 'BE';
   if (beB.textContent !== beT) {
@@ -1565,22 +1781,44 @@ function draw() {
   els.rkf.className = zrk;
   // account limits as on Vest's page: used / available
   const lim = m.limits || {};
-  // DAILY GOAL: today's P&L against the goal set in the panel
+  // DAILY PROFIT TARGET: today's P&L against the goal set in the panel
   const dg = m.dailyGoal;
   bar('dgt', 'dgf', dg > 0 ? lim.dayPl / dg : NaN, Number.isFinite(lim.dayPl) ? `<b class="${F.cls(lim.dayPl)}">${F.usd(lim.dayPl, true)}</b> / ${dg > 0 ? F.usd(dg) : 'goal?'}` : '—');
   els.dgf.className = 'goal';
   // one number (what is left) and a bar that grows towards the fail level, with the colour bands
-  const tank = (t, f, l, left, limit, name) => {
-    els[l].textContent = limit > 0 ? `${name} (${F.usd(limit)})` : name;
+  const tank = (t, f, l, left, limit, name, manual) => {
+    els[l].textContent = limit > 0 ? `${name} (${F.usd(limit)}${manual ? ' manual' : ''})` : name;
     const frac = limit > 0 && Number.isFinite(left) ? 1 - Math.max(0, left) / limit : NaN;
     const z = zone(frac, left > limit);
     bar(t, f, frac, Number.isFinite(left) ? `<b class="${z}">${F.usd(left)}</b>` : '—');
     els[f].className = z;
   };
-  tank('ddt', 'ddf', 'ddl', lim.dayLeft, lim.dayLimit, 'DAILY LOSS LEFT');
-  tank('dmt', 'dmf', 'dml', lim.maxLeft, lim.maxLimit, 'DRAWDOWN LEFT');
+  tank('ddt', 'ddf', 'ddl', lim.dayLeft, lim.dayLimit, 'DAILY DRAWDOWN BUFFER', lim.dayManual);
+  tank('dmt', 'dmf', 'dml', lim.maxLeft, lim.maxLimit, 'MAX DRAWDOWN BUFFER');
+  // DAILY LOSS LIMIT: today's loss against the level set (or the daily loss limit when no level)
+  {
+    const gl = m.guards && m.guards.dl;
+    const ref = gl && gl.level > 0 ? gl.level : lim.dayLimit;
+    const loss = Number.isFinite(lim.dayPl) ? Math.max(0, -lim.dayPl) : NaN;
+    const zl = zone(ref > 0 ? loss / ref : NaN, lim.dayPl > 0);
+    bar('dlt', 'dlf', ref > 0 ? loss / ref : NaN, Number.isFinite(loss) ? `<b class="${zl}">${F.usd(loss)}</b> / ${ref > 0 ? F.usd(ref) : '—'}` : '—');
+    els.dlf.className = zl;
+  }
+  // CURRENT PROFIT: open profit of this market against the slider's range
+  {
+    const gc = m.guards && m.guards.cp;
+    const cap = gc && gc.cap > 0 ? gc.cap : NaN;
+    const pr = Math.max(0, rk.upnl || 0);
+    bar('cpt2', 'cpf', cap > 0 ? pr / cap : NaN, cap > 0 ? `<b class="${pr > 0 ? 'zg' : ''}">${F.usd(pr)}</b> of ${F.usd(cap)}` : `<b>${F.usd(pr)}</b>`);
+    els.cpf.className = 'zg';
+  }
+  guardRows(m);
   bar('tgt', 'tgf', lim.goal > 0 ? lim.pl / lim.goal : NaN, lim.goal > 0 && Number.isFinite(lim.pl) ? `<b class="${F.cls(lim.pl)}">${F.usd(lim.pl, true)}</b> / ${F.usd(lim.goal)}` : 'no target');
   els.tgf.className = 'goal';
+  {
+    const tl = lim.goalManual ? 'ACCOUNT PROFIT TARGET (manual)' : 'ACCOUNT PROFIT TARGET';
+    if (els.tgl.textContent !== tl) els.tgl.textContent = tl;
+  }
   // on-screen heights = CSS size x SCALE (offsetHeight ignores the transform)
   const ch = (els.card.offsetHeight || 106) * SCALE,
     h2 = (els.card2.offsetHeight || 92) * SCALE,
@@ -1593,10 +1831,21 @@ function draw() {
     const td = (v) => `<td class="${F.cls(v)}">${F.usd(v, true)}</td>`;
     const tq = (q, side) => `<td class="q ${side === 'long' ? 'up' : side === 'short' ? 'down' : ''}">${q > 0 ? F.qty(q) : '—'}</td>`;
     // no Session column: in practice the same as Today
-    const row = (r) => `<tr data-id="${F.esc(r.id)}" class="${r.id === m.selected ? 'sel' : ''}"><td><i class="adot ${r.act || 'unk'}"></i>${F.esc(r.num || r.label)}${r.master ? ' <i>M</i>' : ''}</td>${tq(r.qty, r.side)}${td(r.upnl)}${td(r.dayPnl)}${td(r.totalPnl)}</tr>`;
+    // sync status of each copy against the master on this market (title = the reason)
+    const SY = { ok: '✓', off: '·', offdiff: '!', small: 'S', limit: 'L', missing: '!', extra: '!', side: '!' };
+    // no tooltips on the cards: the text goes to the panel header on a click (data-tip), the row is NOT selected
+    const sy = (r) => (r.sync ? ` <b class="sy ${r.sync.k}" data-tip="${F.esc((r.label || r.num) + ': ' + r.sync.text)}">${SY[r.sync.k] || '?'}</b>` : '');
+    // the account active on Vest (the one the tool's buttons trade on): highlighted row + tag; red when the copier is ON and it is
+    // not the master (entries refused there) (Gerry 2026-11-23)
+    const selTag = (r) => {
+      if (r.id !== m.selected) return '';
+      const bad = cp.armed && !r.master;
+      return ` <b class="act${bad ? ' bad' : ''}" title="${bad ? 'Active on Vest, but the copier is ON and this is not the master: the tool refuses new entries here. Select the master on Vest.' : 'Active on Vest: the buttons of the tool trade on this account'}">◀ ACTIVE</b>`;
+    };
+    const row = (r) => `<tr data-id="${F.esc(r.id)}" class="${r.id === m.selected ? 'sel' + (cp.armed && !r.master ? ' bad' : '') : ''}"><td><i class="adot ${r.act || 'unk'}"></i>${F.esc(r.num || r.label)}${r.master ? ' <i>M</i>' : ''}${r.mult > 0 && !r.master ? ` <b class="cmx" title="Copy size = master size x ${+r.mult}">x${F.mult(r.mult)}</b>` : ''}${sy(r)}${selTag(r)}</td>${tq(r.qty, r.side)}${td(r.upnl)}${td(r.dayPnl)}${td(r.totalPnl)}</tr>`;
     const html =
       '<colgroup><col class="c0"><col class="c1"><col class="c2"><col class="c3"><col class="c4"></colgroup>' +
-      `<tr class="h"><th><span class="cpt">ACCOUNT</span></th><th>Qty</th><th>Open</th><th>Today</th><th>Total</th></tr>` +
+      `<tr class="h"><th><span class="cpt">${cp.dry ? '<b class="sy test" title="Copier in TEST MODE: nothing is sent to the copies">TEST MODE</b>' : 'ACCOUNT'}</span></th><th>Qty</th><th>Open</th><th>Today</th><th>Total</th></tr>` +
       cp.rows.map(row).join('') +
       `<tr class="t"><td>Total</td>${tq(cp.tot.qty, null)}${td(cp.tot.upnl)}${td(cp.tot.dayPnl)}${td(cp.tot.totalPnl)}</tr>`;
     if (els.cpt.dataset.h !== html) {
@@ -1606,7 +1855,13 @@ function draw() {
     h4 = ((els.card4.offsetHeight || 100) + CARD2_GAP) * SCALE;
   }
   // fifth card: points between the last swing high and low, and volatility on 1h ... 1m over the same hours
-  const c5 = !!(m.hlOn || m.atrOn);
+  const c5 = !col && !!(m.hlOn || m.atrOn); // docked column: no swing range / volatility (Gerry 2026-11-21)
+  // swing range: shown in the main panel's Swing range section (Gerry 2026-11-23)
+  if (actions.swing) {
+    const hl = m.hlOn && bv ? bv.hl : null;
+    const gp = hl && Number.isFinite(hl.h) && Number.isFinite(hl.l) ? hl.h - hl.l : NaN;
+    actions.swing(!m.hlOn ? 'Off: no swing lines on the chart.' : Number.isFinite(gp) ? `SWING RANGE ${F.price(gp, priceDec)} pt (high ${F.price(hl.h, priceDec)}, low ${F.price(hl.l, priceDec)})` : 'SWING RANGE: reading candles…');
+  }
   show(els.card5, c5);
   let h5 = 0;
   if (c5) {
@@ -1650,9 +1905,8 @@ function draw() {
   els.card5.style.left = cardX + 'px';
   els.card5.style.top = g.top + c3y + h3 + CARD2_GAP * SCALE + h4 + 'px';
   if (col) {
-    // column sections follow their cards (copier and volatility only when on)
+    // column sections follow their cards (copier only when on)
     show(els.sCopy, !!cp);
-    show(els.sVol, c5);
   }
   if (root.activeElement !== els.pctIn) {
     const want = m.pct > 0 ? String(m.pct) : '';
@@ -1702,11 +1956,59 @@ function draw() {
   if (pos) items.push({ id: 'pos:' + pos.id, kind: pos.side, price: pos.openPrice, entry: pos });
   // fail price: where the equity reaches the drawdown limit (read-only)
   // average entry if all entry limits fill (read-only)
-  if (m.avg && m.avg.avg > 0) items.push({ id: 'avg', kind: 'avg', price: m.avg.avg, avgL: m.avg });
+  // only when it averages 2 or more entries (a single LIMIT and no position: the average is the LIMIT itself, Gerry 2026-11-23)
+  if (m.avg && m.avg.avg > 0 && m.avg.parts > 1) items.push({ id: 'avg', kind: 'avg', price: m.avg.avg, avgL: m.avg });
   // average entry with the open position and only the next limit
   if (m.avg && m.avg.next && m.avg.next.avg > 0) items.push({ id: 'avg1', kind: 'avg1', price: m.avg.next.avg, avgL: m.avg, one: true });
   if (m.ko && m.ko.price > 0) items.push({ id: 'ko', kind: 'ko', price: m.ko.price, ko: m.ko });
-  if (m.dd50 && m.dd50.price > 0) items.push({ id: 'dd50', kind: 'dd50', price: m.dd50.price, dd50: m.dd50 });
+  // drawdown levels (25 / 50 / 75 % by default, set in the panel)
+  for (const [i, h] of (m.ddLv || []).entries()) if (h && h.price > 0) items.push({ id: 'dd50:' + i, kind: 'dd50', price: h.price, dd50: h });
+  // Account limits switched ON: where each one fires on this market (read-only, "USER" = a limit set by you)
+  for (const u of m.userLines || []) items.push({ id: 'usr:' + u.k, kind: 'usr', price: u.price, usr: u });
+  // Grid: one line per level (PLAN: nothing sent; ACTIVE: the SL / TP are on Vest). Draggable; START on the nearest one in PLAN.
+  gdNow.clear();
+  if (m.tb && m.tb.gdOn) {
+    const gl = [...((m.gridEn && m.gridEn.legs) || []), ...((m.grid && m.grid.tp) || []), ...((m.grid && m.grid.sl) || [])];
+    const go = null; // START only in the section (Gerry 2026-11-23)
+    // nearest / farthest = the first / last level DRAWN of each ladder: a level below the minimum size is merged into the
+    // next one, so the first one drawn can be level 2 (Gerry 2026-11-23: TP1 / SL1 could not be dragged)
+    const lo = {}, hi = {};
+    for (const l of gl) {
+      lo[l.kind] = Math.min(lo[l.kind] ?? Infinity, l.i);
+      hi[l.kind] = Math.max(hi[l.kind] ?? -Infinity, l.i);
+    }
+    for (const l of gl) {
+      const id = `gd:${l.kind}:${l.n}`;
+      const dp = drag && drag.from === 'gd' && drag.moved && drag.existing.id === id ? drag.price : l.price;
+      const P = l.kind === 'en' ? 'En' : l.kind === 'tp' ? 'Tp' : 'Sl';
+      const isLo = l.i === lo[l.kind], isHi = l.i === hi[l.kind];
+      const end = !(l.of > 2) || isLo || isHi; // nearest / farthest drawn
+      // which end it moves: the real one if it is level 1 / last, else the nearest drawn moves Nearest, the farthest Farthest
+      const which = l.i === 0 ? 'near' : l.i === l.of - 1 ? 'far' : isLo && !isHi ? 'near' : isHi && !isLo ? 'far' : isLo ? 'near' : '';
+      const mov = end || m.tb[`gd${P}Dist`] === 'manual';
+      // other = the other end drawn: it stays where it is while this one is dragged
+      gdNow.set(id, { ...l, mov, which: end ? which : '', other: which === 'near' ? hi[l.kind] : which === 'far' ? lo[l.kind] : -1 });
+      items.push({ id, kind: 'gd' + l.kind, sk: end && l.of > 1 ? 'gd' + l.kind + 'E' : '', price: dp, gd: l, gdGo: l === go, gdLive: !!m.gdLive, gdEnd: end, gdMov: mov });
+    }
+    // average price and total size of each ladder (eye in the section). Entries: with the open position on the same side.
+    const avgOf = (legs) => {
+      const q = legs.reduce((a, l) => a + l.qty, 0);
+      return q > 0 ? { price: legs.reduce((a, l) => a + l.price * l.qty, 0) / q, qty: q, usd: legs.reduce((a, l) => a + (l.usd || 0), 0) } : null;
+    };
+    const en = (m.gridEn && m.gridEn.legs) || [];
+    if (m.tb.gdEnAvg && en.length > 1) {
+      const a = avgOf(en);
+      const p = pos && pos.qty > 0 && pos.side === en[0].side ? pos : null;
+      const q = a.qty + (p ? p.qty : 0);
+      items.push({ id: 'gd:avg:en', kind: 'gdavg', price: p ? (a.price * a.qty + p.openPrice * p.qty) / q : a.price, gdAvg: { k: 'ENTRY', qty: q, usd: NaN, withPos: !!p, n: en.length } });
+    }
+    for (const k of ['tp', 'sl']) {
+      const legs = (m.grid && m.grid[k]) || [];
+      if (!m.tb[k === 'tp' ? 'gdTpAvg' : 'gdSlAvg'] || legs.length < 2) continue;
+      const a = avgOf(legs);
+      if (a) items.push({ id: 'gd:avg:' + k, kind: 'gdavg', price: a.price, gdAvg: { k: k.toUpperCase(), qty: a.qty, usd: a.usd, n: legs.length } });
+    }
+  }
   const pv = hoverSide && m.preview && m.preview[hoverSide];
   // the FAIL NEW label always exists (invisible without hover): the space on the right already holds it and the chart does not
   // jump the first time LONG / SHORT is hovered
@@ -1714,29 +2016,144 @@ function draw() {
   const pvRes = okPv(pv) || (m.preview && (okPv(m.preview.long) || okPv(m.preview.short)));
   if (pvRes) items.push({ id: 'pv:mfp', kind: 'mfp', price: pvRes.ko.price, pv: pvRes, ghost: !okPv(pv) });
   if (pv && pv.adding) items.push({ id: 'pv:avg', kind: 'avgn', price: pv.avg, pv, pvAvg: true });
-  if (pos) for (const t of pos.triggers) items.push({ id: t.id, kind: t.kind, price: t.price, leg: t });
-  if (col && root.activeElement !== els.roomIn) {
-    const rv = String(m.roomPx ?? '');
-    if (els.roomIn.value !== rv) els.roomIn.value = rv;
+  if (pos) for (const t of pos.triggers) if (!(m.gdHide && m.gdHide[t.kind])) items.push({ id: t.id, kind: t.kind, price: t.price, leg: t });
+  if (pos) for (const r of m.sr || []) items.push({ id: r.key, kind: 'sr', price: r.price, sr: r });
+  // BRACKET of the pending entries (Gerry 2026-11-21: "non mi visualizza i rispettivi SL e TP"), read-only, only with no position:
+  //  - Vest LIMIT: the legs Vest holds on its size-0 placeholder when it lists them, else the bracket distances from the limit;
+  //  - local LIMIT / STOP: the bracket distances from its price (the real legs are computed from the price at the fill).
+  brGhosts.length = 0;
+  if (!pos && m.tb && m.tb.brOn && +m.tb.brSl > 0 && !omLive()) {
+    const bsl0 = +m.tb.brSl,
+      btp0 = +m.tb.brTp;
+    const real = m.phLegs && m.phLegs.length ? m.phLegs : null;
+    brNow.clear();
+    const now = Date.now();
+    for (const [k, h] of brHold) if (now > h.until) brHold.delete(k);
+    const seenHold = new Set();
+    const dragPx = (id, px) => (drag && drag.from === 'br' && drag.moved && drag.existing.id === id ? drag.price : px);
+    for (const o of m.pendings || []) {
+      if (o.label === 'CLOSE' || !(o.price > 0)) continue;
+      const d = o.side === 'long' ? 1 : -1;
+      const ov = o.local && o.br ? o.br : {}; // distances dragged for this local entry
+      const bsl = ov.sl > 0 ? ov.sl : bsl0,
+        btp = ov.tp > 0 ? ov.tp : btp0;
+      const sub = `${o.local ? (o.lim ? 'local LIMIT' : 'local STOP') : 'LIMIT'} ${o.side === 'long' ? 'BUY' : 'SELL'} ${F.price(o.price, priceDec)}`;
+      // a drop just made on this entry: its new SL / TP are drawn at once, until the feed shows them (no jump back, no gap)
+      const hk = o.side + '|' + o.price;
+      const h = brHold.get(hk);
+      if (h) seenHold.add(hk);
+      const legs = []; // { id, k, price, vest, fixed, own, held }
+      let cur;
+      if (!o.local && real) {
+        const sls = real.filter((l) => l.kind === 'sl'),
+          tps = real.filter((l) => l.kind === 'tp');
+        const one = sls.length <= 1 && tps.length <= 1; // several partial legs: shown, not draggable
+        cur = { sl: sls.length ? sls[0].price : NaN, tp: tps.length ? tps[0].price : NaN };
+        for (const l of real) legs.push({ id: 'br:' + o.id + ':' + l.id, k: l.kind, price: l.price, vest: true, fixed: !one });
+      } else {
+        cur = { sl: roundToTick(o.price - d * bsl, tick, d > 0 ? 'down' : 'up'), tp: btp > 0 ? roundToTick(o.price + d * btp, tick, d > 0 ? 'up' : 'down') : NaN };
+        legs.push({ id: 'br:' + o.id + ':sl', k: 'sl', price: cur.sl, own: ov.sl > 0 });
+        if (cur.tp > 0) legs.push({ id: 'br:' + o.id + ':tp', k: 'tp', price: cur.tp, own: ov.tp > 0 });
+      }
+      if (h) {
+        const same = (x, y) => (Number.isFinite(x) ? Math.abs(x - y) < tick / 2 : !Number.isFinite(y));
+        if (same(h.sl, cur.sl) && same(h.tp, cur.tp)) brHold.delete(hk); // the feed has it now
+        else {
+          cur = { sl: h.sl, tp: h.tp };
+          legs.length = 0;
+          legs.push({ id: 'br:' + o.id + ':sl', k: 'sl', price: h.sl, own: true, held: true });
+          if (h.tp > 0) legs.push({ id: 'br:' + o.id + ':tp', k: 'tp', price: h.tp, own: true, held: true });
+        }
+      }
+      for (const l of legs) {
+        items.push({ id: l.id, kind: 'br', price: dragPx(l.id, l.price), br: { k: l.k, ref: o.price, side: o.side, sub, vest: !!l.vest, fixed: !!l.fixed, own: !!l.own, held: !!l.held } });
+        if (!l.fixed) brNow.set(l.id, { o, k: l.k, price: l.price, cur });
+      }
+    }
+    // Vest LIMIT being placed again (cancel + new order): the old one is gone from the feed for a moment, drawn as before
+    for (const [hk, h] of brHold) {
+      if (seenHold.has(hk) || h.local) continue;
+      const o = h.o;
+      const sub = `LIMIT ${o.side === 'long' ? 'BUY' : 'SELL'} ${F.price(o.price, priceDec)}`;
+      brGhosts.push(o);
+      items.push({ id: 'br:' + o.id + ':sl', kind: 'br', price: h.sl, br: { k: 'sl', ref: o.price, side: o.side, sub, own: true, held: true } });
+      if (h.tp > 0) items.push({ id: 'br:' + o.id + ':tp', kind: 'br', price: h.tp, br: { k: 'tp', ref: o.price, side: o.side, sub, own: true, held: true } });
+    }
   }
   // Trailing & breakeven: fields follow the panel's settings (not while typing in them)
   if (col && m.tb) {
-    for (const el of els.sTb.querySelectorAll('[data-tb]')) {
+    lastTb = m.tb;
+    // bracket sliders: 0 .. about 2 % of the price (rounded up to 1 / 2 / 5 x 10^n), wider if the value is already beyond it
+    if (m.market && m.market.mark > 0) {
+      const nice = (v) => {
+        const p = Math.pow(10, Math.floor(Math.log10(v)));
+        return (v / p <= 1 ? 1 : v / p <= 2 ? 2 : v / p <= 5 ? 5 : 10) * p;
+      };
+      for (const r of els.sBr.querySelectorAll('input.brr')) {
+        const v = +m.tb[r.dataset.tb] || 0;
+        const mx = String(nice(Math.max(m.market.mark * 0.02, v * 1.2, 1)));
+        if (r.max !== mx) r.max = mx;
+        const tk = m.market.tick > 0 ? m.market.tick : 0;
+        const st = String(tk ? Math.max(tk, Math.round(5 / tk) * tk) : 5); // Gerry 2026-11-21: sliders in steps of 5 points
+        if (r.step !== st) r.step = st;
+      }
+    }
+    for (const el of [els.sTb, els.sBr, els.sGd, els.sOco, els.sSr].flatMap((s) => [...s.querySelectorAll('[data-tb]')])) {
       if (root.activeElement === el) continue;
       const v = m.tb[el.dataset.tb];
       if (el.type === 'checkbox') {
         if (el.checked !== !!v) el.checked = !!v;
       } else if (el.value !== String(v ?? '')) el.value = String(v ?? '');
     }
+    for (const c of els.sGd.querySelectorAll('[data-gdc]')) show(c, false); // the slider replaces the text (kept: same setting)
+    for (const el of els.sGd.querySelectorAll('.gsl')) gslDraw(el, m.tb);
+    for (const ey of els.sGd.querySelectorAll('[data-gdeye]')) ey.classList.toggle('off', !m.tb[`gd${ey.dataset.gdeye}Avg`]);
+    for (const P of ['En', 'Tp', 'Sl']) {
+      const b = els['gdFix' + P];
+      const fx = parseFloat(m.tb[`gd${P}FixPx`]);
+      const fxt = fx > 0 ? `FIXED ${Fmt.price(fx, m.market ? m.market.priceDec : 2)}` : 'FIX';
+      if (b.textContent !== fxt) b.textContent = fxt;
+      b.classList.toggle('on', fx > 0);
+    }
+    const gtx = m.gdLive ? 'ACTIVE' : m.tb.gdOn ? 'PLAN' : 'OFF';
+    if (els.gdTgl.textContent !== gtx) {
+      els.gdTgl.textContent = gtx;
+      els.gdTgl.classList.toggle('plan', gtx === 'PLAN');
+      els.gdTgl.classList.toggle('on', gtx === 'ACTIVE');
+    }
+    const stx = m.gdLive ? 'ACTIVE' : 'START';
+    if (els.gdStart.textContent !== stx) els.gdStart.textContent = stx;
+    els.gdStart.classList.toggle('on', !!m.gdLive);
+    els.gdStart.disabled = !m.tb.gdOn || !!m.gdLive;
     const n = m.tb.note || {};
     if (els.tbNote.textContent !== (n.text || '')) els.tbNote.textContent = n.text || '';
     els.tbNote.classList.toggle('warn', !!n.warn);
+    {
+      // tight share = what is left after runner and pause low (as core/runner.js engineCfg)
+      const pc = (v, d) => Math.min(100, Math.max(0, v === '' || v == null || !Number.isFinite(+v) ? d : +v));
+      const run = pc(m.tb.srRunPct, 33),
+        pau = pc(m.tb.srPausePct, 0),
+        tig = Math.max(0, 100 - run - pau);
+      const tx = `Tight part = the rest: ${+tig.toFixed(2)} %. Each part is rounded down to the minimum size, what is left goes to the runner (at the minimum size there is only the runner).`;
+      if (els.srSplit.textContent !== tx) els.srSplit.textContent = tx;
+    }
+    const tr = m.tb.srTrend || {};
+    const tw = tr.dir === 'up' ? '1h ▲ LONG' : tr.dir === 'down' ? '1h ▼ SHORT' : '';
+    if (els.srTr.textContent !== tw) els.srTr.textContent = tw;
+    els.srTr.className = 'srtr ' + (tr.dir || '');
+    els.srTr.title = tr.text || '';
+    for (const el of root.querySelectorAll('[data-note]')) {
+      const x = (m.tb.notes && m.tb.notes[el.dataset.note]) || {};
+      if (el.textContent !== (x.text || '')) el.textContent = x.text || '';
+      el.classList.toggle('warn', !!x.warn);
+    }
   }
   // Risk & targets: plan for both sides in the column section, lines only for the side being shown (no orders)
   if (col) {
     omBv = bv;
     omPv = omMode === 'manual' ? null : omNewLimitSide(m) || omSide;
     const tg = omMode === 'manual' ? 'OFF' : 'ON';
+    activeTags(m);
     if (els.omTgl.textContent !== tg) {
       els.omTgl.textContent = tg;
       els.omTgl.classList.toggle('on', tg === 'ON');
@@ -1833,6 +2250,7 @@ function draw() {
     }
   }
   for (const o of m.pendings || []) items.push({ id: 'o:' + o.id, kind: o.kind, price: o.price, order: o });
+  for (const o of brGhosts) if (!items.some((i) => i.id === 'o:' + o.id)) items.push({ id: 'o:' + o.id, kind: o.kind, price: o.price, order: o, held: true });
   const seen = new Set();
   planNow.clear();
   items.sort((a, b) => b.price - a.price); // top to bottom: labels stack without overlapping
@@ -1843,7 +2261,7 @@ function draw() {
     if (!le) {
       le = { line: document.createElement('div'), chip: document.createElement('div'), html: '' };
       const omDrag = !!(it.om && it.om.drag); // ENTRY and plan SL: dragged, nothing sent
-      const ro = it.entry || it.ko || it.dd50 || it.avgL || it.pv || (it.om && !omDrag); // (also AVG NEXT, the FAIL NEW preview, the plan targets) read-only: no drag, no X
+      const ro = it.entry || it.ko || it.dd50 || it.usr || it.gdAvg || it.avgL || it.pv || it.sr || (it.br && it.br.fixed) || (it.om && !omDrag); // (also AVG NEXT, the FAIL NEW preview, the plan targets) read-only: no drag, no X
       le.line.className = ro ? 'hl entry' : 'hl grab';
       le.chip.className = 'chip ' + it.kind + (ro ? ' pos' : '') + (it.om ? ' plan' : '');
       const id = it.id;
@@ -1866,6 +2284,22 @@ function draw() {
           const p = planNow.get(id);
           if (!p) return;
           return startDrag(e, el, id === 'om:sl' ? 'sl' : 'lm', { id, price: p.price, entry: p.entry, qty: p.qty }, 'plan');
+        }
+        if (id.startsWith('gd:')) {
+          const l = gdNow.get(id);
+          if (!l) return;
+          if (e.target.closest('.go')) {
+            e.preventDefault();
+            e.stopPropagation();
+            return actions.gridStart && run(actions.gridStart(), 'GRID ACTIVE');
+          }
+          if (!l.mov) return say('Levels in between follow the curve: move the nearest or the farthest, or set Distances to Manual (slider)', '');
+          return startDrag(e, el, l.kind === 'en' ? 'lm' : l.kind, { id, price: l.price, gd: l }, 'gd');
+        }
+        if (id.startsWith('br:')) {
+          const b = brNow.get(id);
+          if (!b) return;
+          return startDrag(e, el, b.k, { id, price: b.price, order: b.o, cur: b.cur }, 'br');
         }
         if (id.startsWith('o:')) {
           const o = (cur.pendings || []).find((x) => 'o:' + x.id === id);
@@ -1947,16 +2381,64 @@ function draw() {
       price = L.avg;
       html = `<span class="k">AVG ALL</span><b>${F.price(price, priceDec)}</b><span>${F.qty(L.qty)}</span>`;
       le.chip.title = `Average entry if all ${L.n} entry limits fill${pos ? ', on top of the open position' : ''}: total size ${F.qty(L.qty)}. Excludes local stops and fees.`;
+    } else if (it.gdAvg) {
+      const g = it.gdAvg;
+      price = it.price;
+      html = `<span class="k">GRID AVG ${g.k}</span><b>${F.price(price, priceDec)}</b><span class="qy">${F.qty(g.qty)}</span>${Number.isFinite(g.usd) ? `<span class="${F.cls(g.usd)}">${F.usd(g.usd, true)}</span>` : ''}`;
+      le.chip.title = g.k === 'ENTRY'
+        ? `Average price if all ${g.n} grid entries fill${g.withPos ? ', together with the open position' : ''}: total size ${F.qty(g.qty)}.`
+        : `Average price of the ${g.n} grid ${g.k} levels, weighted by their size: total ${F.qty(g.qty)}, ${F.usd(g.usd, true)} if all are hit.`;
+    } else if (it.gd) {
+      const l = it.gd;
+      price = it.price;
+      le.chip.classList.toggle('gdend', !!it.gdEnd);
+      le.chip.classList.toggle('gdfix', !it.gdMov);
+      le.line.classList.toggle('gdfix', !it.gdMov);
+      const gdTail = it.gdGo ? '<span class="go">START</span>' : it.gdLive && l.kind !== 'en' ? `<span class="loc">${l.on ? 'on Vest' : 'sending'}</span>` : '';
+      le.chip.classList.toggle('drag', !!(drag && drag.from === 'gd' && drag.moved && drag.existing.id === it.id));
+      le.chip.classList.toggle('bad', !!(drag && drag.from === 'gd' && drag.moved && drag.existing.id === it.id && !drag.ok));
+      html = l.kind === 'en'
+        ? `<span class="k">GRID ${l.side === 'long' ? 'BUY' : 'SELL'}${l.n}</span><b>${F.price(price, priceDec)}</b><span class="qy">${F.qty(l.qty)}</span><span class="un">${Math.round(l.pct)}%</span>${l.bad ? '<span class="down">!</span>' : ''}${gdTail}`
+        : `<span class="k">GRID ${l.kind.toUpperCase()}${l.n}</span><b>${F.price(price, priceDec)}</b><span class="qy">${l.all ? 'ALL ' : ''}${F.qty(l.qty)}</span><span class="un">${Math.round(l.pct)}%</span><span class="${F.cls(l.usd)}">${F.usd(l.usd, true)}</span>${l.bad ? '<span class="down">!</span>' : ''}${gdTail}`;
+    } else if (it.usr) {
+      const u = it.usr;
+      price = u.price;
+      html = `<span class="k">USER</span><span class="un">· ${F.esc(u.name)}</span><b>${F.price(price, priceDec)}</b><span>$${(+u.level).toFixed(2)}</span>`;
+      le.chip.title = `Your Account limits row ${u.name} is ON: at this price (with the open position, everything else unchanged, fees excluded) it reaches $${(+u.level).toFixed(2)} and everything is closed (FLAT).`;
     } else if (it.dd50) {
       const h = it.dd50;
       price = h.price;
-      html = `<span class="k">50% DRAWDOWN</span><b>${F.price(price, priceDec)}</b><span>${F.qty(h.qty)}</span><span class="down">${F.usd(h.loss, true)}</span>`;
-      le.chip.title = `Half of the available drawdown: ${F.usd(h.half)} of ${F.usd(h.avail)}` +
+      html = `<span class="k">${+h.pct}% DRAWDOWN</span><b>${F.price(price, priceDec)}</b><span>${F.qty(h.qty)}</span><span class="down">${F.usd(h.loss, true)}</span>`;
+      le.chip.title = `${+h.pct}% of the available drawdown: ${F.usd(h.half)} of ${F.usd(h.avail)}` +
         (Number.isFinite(h.ddInit) ? ` (initial drawdown ${F.usd(h.ddInit)} ${h.pl >= 0 ? '+' : '-'} total profit ${F.usd(Math.abs(h.pl))})` : '') +
         `. At this price the position loses ${F.usd(-h.loss)} in total, ${F.usd(-h.fromNow)} from now.` +
         (h.filled ? ` Counts ${h.filled} entry limit(s) that fill before it (size ${F.qty(h.qty)}, average entry ${F.price(h.avg, priceDec)}).` : ' With the current size.') +
         (h.afterKo ? ' WARNING: the closer (daily) drawdown limit comes FIRST: see the fail price.' : '') +
         ' Excludes local stops, fees and funding.';
+    } else if (it.br) {
+      // bracket leg of a pending entry (read-only): SL / TP, price, points from that entry
+      const b = it.br;
+      price = it.price;
+      const gp = (b.side === 'long' ? 1 : -1) * (price - b.ref);
+      html = `<span class="k">${b.k === 'sl' ? 'SL' : 'TP'}</span><b>${F.price(price, priceDec)}</b><span class="${F.cls(gp)}">${gp > 0 ? '+' : gp < 0 ? '−' : ''}${Math.abs(gp).toFixed(priceDec)} pt</span><span class="loc">${b.held ? 'sending' : b.vest ? 'on Vest' : b.own ? 'this entry' : 'bracket'}</span>`;
+      le.chip.title = b.vest
+        ? `${b.k.toUpperCase()} that Vest holds for the pending ${b.sub}: it becomes the position's ${b.k.toUpperCase()} when the order fills.`
+        : `Bracket ${b.k.toUpperCase()} of the pending ${b.sub}: placed with the entry when it fills (from the fill price for a local entry). Not on Vest yet.`;
+      const bdrag = !!(drag && drag.from === 'br' && drag.moved && drag.existing.id === it.id);
+      le.chip.classList.toggle('drag', bdrag);
+      le.chip.classList.toggle('bad', bdrag && !drag.ok);
+      le.chip.classList.toggle('pending', !!b.held);
+      if (b.held) le.chip.title = `${b.k.toUpperCase()} just moved: being sent / waiting for the feed.`;
+      le.chip.title += b.fixed ? ' Several partial legs: not movable from here.' : b.vest ? ' Drag it to move it: the LIMIT is placed again with the new SL / TP.' : ' Drag it to set a different distance for this entry only.';
+    } else if (it.sr) {
+      // safe runner level (read-only): name, price, size of the tranche(s), P&L of that size if it exits there
+      const r = it.sr;
+      price = r.price;
+      const q = +r.qty > 0 ? +r.qty : NaN;
+      const usd = q > 0 ? pnlUsd(pos.side, q, pos.openPrice, price) : NaN;
+      const gp = (pos.side === 'long' ? 1 : -1) * (price - pos.openPrice);
+      html = `<span class="k">${r.text.toUpperCase()}</span><b>${F.price(price, priceDec)}</b>` + (q > 0 ? `<span>${F.qty(q)}</span><span class="${F.cls(usd)}">${F.usd(usd, true)}</span>` : `<span class="${F.cls(gp)}">${gp > 0 ? '+' : gp < 0 ? '−' : ''}${Math.abs(gp).toFixed(priceDec)} pt</span>`);
+      le.chip.title = q > 0 ? 'Safe runner: local exit level of this tranche (closed at market when the price touches it)' : 'Safe runner: it takes over when the price reaches this level';
     } else if (it.ko) {
       const k = it.ko;
       price = k.price;
@@ -1976,6 +2458,7 @@ function draw() {
         `<span class="qy">${F.qty(pos.qty)}</span>` +
         `<span class="pt ${F.cls(gp)}" title="Points from the entry to the current price">${Number.isFinite(gp) ? (gp > 0 ? '+' : gp < 0 ? '−' : '') + Math.abs(gp).toFixed(priceDec) + ' pt' : '—'}</span>` +
         `<span class="pl ${F.cls(usd)}" title="P&L of the selected account">${F.usd(usd, true)}</span>` +
+        (mark > 0 ? sumAll(mark) : '') + // Σ all accounts holding the trade at the current price, as on the SL / TP labels
         `<span class="x${armed ? ' arm' : ''}${off ? ' off' : ''}" title="${off ? 'Orders off or sending in progress' : 'Closes 100% of the position at market, WITHOUT cancelling pending orders (two clicks)'}">${armed ? 'close?' : '✕'}</span>`;
     } else if (it.leg) {
       const t = it.leg;
@@ -1984,7 +2467,11 @@ function draw() {
       price = dragging ? drag.price : isPending ? pending.price : t.price;
       const usd = pnlUsd(pos.side, t.qty > 0 ? t.qty : pos.qty, pos.openPrice, price);
       const armed = removeArm && removeArm.id === t.id && Date.now() < removeArm.until;
-      html = `<span class="k">${t.kind.toUpperCase()}</span><b>${F.price(price, priceDec)}</b><span class="${F.cls(usd)}">${F.usd(usd, true)}</span>${t.qty > 0 ? `<span>${F.qty(t.qty)}</span>` : ''}${sumAll(price)}<span class="x${armed ? ' arm' : ''}" title="${t.kind === 'sl' ? 'Remove the stop (two clicks)' : 'Remove the target'}">${armed ? 'remove?' : '✕'}</span>`;
+      // size it closes (Gerry 2026-11-23, DCA): a leg without quantity closes the WHOLE position, so it grows with every add
+      const full = !(t.qty > 0) || t.qty >= pos.qty - 1e-12;
+      const cq = full ? pos.qty : t.qty;
+      const sz = `<span class="qy" title="${full ? `Closes the whole position: ${F.qty(pos.qty)} now (it follows every add / DCA)` : `Closes ${F.qty(t.qty)} of ${F.qty(pos.qty)} (partial)`}">${full ? 'ALL ' : ''}${F.qty(cq)}${full ? '' : ` <i class="pc">${Math.round((cq / pos.qty) * 100)}%</i>`}</span>`;
+      html = `<span class="k">${t.kind.toUpperCase()}</span><b>${F.price(price, priceDec)}</b>${sz}<span class="${F.cls(usd)}">${F.usd(usd, true)}</span>${sumAll(price)}<span class="x${armed ? ' arm' : ''}" title="${t.kind === 'sl' ? 'Remove the stop (two clicks)' : 'Remove the target'}">${armed ? 'remove?' : '✕'}</span>`;
       le.chip.classList.toggle('pending', !!isPending);
       le.chip.classList.toggle('drag', !!dragging);
       le.chip.classList.toggle('bad', !!(dragging && !drag.ok));
@@ -1993,10 +2480,10 @@ function draw() {
       const dragging = drag && drag.from === 'order' && drag.existing.id === o.id;
       const isPending = pending && pending.legId === it.id && Date.now() < pending.until && Math.abs(o.price - pending.price) > tick / 2;
       price = dragging ? drag.price : isPending ? pending.price : o.price;
-      le.chip.classList.toggle('pending', !!isPending);
+      le.chip.classList.toggle('pending', !!isPending || !!it.held);
       le.chip.classList.toggle('drag', !!dragging);
       le.chip.classList.toggle('bad', !!(dragging && !drag.ok));
-      html = `<span class="k" title="${o.label === 'CLOSE' ? 'Closing limit: reduces the position' : o.local ? 'Local entry stop' : 'Entry limit'}">${o.label || NAME[o.kind]}</span><span class="${o.side === 'long' ? 'up' : 'down'}">${sideWord(o.side)}</span><b>${F.price(price, priceDec)}</b><span>${F.qty(o.qty)}</span>${o.local ? '<span class="loc" title="Local stop: lives in this browser tab and triggers at market">local</span>' : ''}<span class="x" title="Cancel">✕</span>`;
+      html = `<span class="k" title="${o.label === 'CLOSE' ? 'Closing limit: reduces the position' : o.local ? 'Local entry stop' : 'Entry limit'}">${o.label || NAME[o.kind]}</span><span class="${o.side === 'long' ? 'up' : 'down'}">${sideWord(o.side)}</span><b>${F.price(price, priceDec)}</b><span>${F.qty(o.qty)}</span>${o.local ? `<span class="loc" title="${o.lim ? 'Local LIMIT (OCO, Vest keeps one pending side per market): lives in this browser tab, sent at market when the price gets there' : 'Local stop: lives in this browser tab and triggers at market'}">local</span>` : ''}${it.held ? '<span class="loc">sending</span>' : '<span class="x" title="Cancel">✕</span>'}`;
     }
     const y = yOf(price);
     // FAIL NEW preview off scale: label on the chart edge with an arrow, no line
@@ -2005,7 +2492,8 @@ function draw() {
     show(le.line, inside(y) && !it.ghost);
     show(le.chip, inside(y) || pin || !!it.ghost);
     le.chip.style.visibility = it.ghost ? 'hidden' : '';
-    le.chip.style.setProperty('--kc', LS(it.kind).c); // label name (S, AVG ALL, TP...) in the colour of its line
+    const ls = it.sr ? { c: it.sr.color, s: 'dashed', w: 1 } : it.br ? { ...LS(it.br.k), w: 1 } : LS(it.sk || it.kind); // safe runner: its own colour per tranche; bracket preview: as SL / TP
+    chipStyle(le.chip, ls, it.br ? LS(it.br.k).lab : ls.lab); // label: name colour / fill, background, border, size, weight (panel)
     if (le.html !== html) {
       le.chip.innerHTML = html; // rewritten only when it changes: the X stays the same element and the click is not lost
       le.html = html;
@@ -2024,7 +2512,7 @@ function draw() {
     // label shifted to avoid overlap: the line stops earlier and a slanted stroke joins it to the label
     const mid = top + chh / 2;
     const bent = Math.abs(mid - y) > 1.5 && inside(y) && !it.ghost;
-    hline(le.line, g, y, LS(it.kind), bent ? chipLeft - LEAD_W : chipLeft); // the line reaches the label
+    hline(le.line, g, y, ls, bent ? chipLeft - LEAD_W : chipLeft); // the line reaches the label
     show(le.lead, bent);
     if (bent) {
       const x0 = chipLeft - LEAD_W - 4,
@@ -2034,7 +2522,6 @@ function draw() {
       le.lead.style.top = g.top + y + 'px';
       le.lead.style.width = Math.hypot(dx, dy) + 'px';
       le.lead.style.transform = `rotate(${Math.atan2(dy, dx)}rad)`;
-      const ls = LS(it.kind);
       le.lead.style.borderTop = `${ls.w}px ${ls.s === 'dotted' ? 'dotted' : 'solid'} ${ls.c}`;
     }
     le.chip.style.left = chipLeft + 'px';
@@ -2064,7 +2551,7 @@ function draw() {
       const ls = (lineStyles && lineStyles[SEG[k]]) || null;
       const w = ls ? ls.w : 3;
       const sx0 = ls && ls.l > 0 ? x1 - ls.l : x0; // chosen length: the segment always ends next to the labels
-      if (ls) els[k].style.borderTop = `${w}px ${ls.s} ${ls.c}`;
+      if (ls) borderLine(els[k], ls);
       els[k].style.left = sx0 + 'px';
       els[k].style.width = x1 - sx0 + 'px';
       els[k].style.top = g.top + y - Math.floor(w / 2) + 'px';
@@ -2075,15 +2562,16 @@ function draw() {
   // ── last swing high / low: two short lines between the cards and the price axis
   {
     const hl = m.hlOn && bv ? bv.hl : null;
-    const x0 = g.left + g.width - CARD_RIGHT + 3,
-      x1 = g.left + g.width - 1;
+    const sw = CARD_RIGHT - 4; // line length
+    const x0 = g.left + g.width - CARD_RIGHT + 3 - 2 * sw,
+      x1 = g.left + g.width - 1 - 2 * sw;
     for (const [k, p, kind] of [['hlH', hl && hl.h, 'hhigh'], ['hlL', hl && hl.l, 'hlow']]) {
       const y = Number.isFinite(p) ? yOf(p) : NaN;
       const on = Number.isFinite(y) && inside(y);
       show(els[k], on);
       if (!on) continue;
       const ls = (lineStyles && lineStyles[kind]) || { c: kind === 'hhigh' ? '#3ecf8e' : '#ff6b61', s: 'solid', w: 2 };
-      els[k].style.borderTop = `${ls.w}px ${ls.s} ${ls.c}`;
+      borderLine(els[k], ls);
       els[k].style.left = x0 + 'px';
       els[k].style.width = x1 - x0 + 'px';
       els[k].style.top = g.top + y - Math.floor(ls.w / 2) + 'px';
@@ -2124,7 +2612,80 @@ function draw() {
 // ── removing a stop/target. The target goes on the first click; the STOP needs a second click within 3 s
 // (removing the stop increases the risk: hence two clicks).
 let removeArm = null; // { id, until }
+// ── Grid sliders (Gerry 2026-11-23): Custom % = n-1 handles between the levels' shares; Manual distances = one handle per level
+// between nearest and farthest. 5 % steps, ⇄ inverts. Saved as text in the same settings (gd<P>Custom, gd<P>Man).
+let gslDrag = null; // { P, k, vals } while a handle is held
+const GSL_STEP = 5;
+function gslLevels(tb, P) {
+  const n = (v) => parseFloat(String(v ?? '').replace(',', '.'));
+  const near = n(tb[`gd${P}Near`]);
+  if (!(near > 0)) return 0;
+  const far = n(tb[`gd${P}Far`]) > 0 ? n(tb[`gd${P}Far`]) : near;
+  return far > near ? Math.max(0, Math.min(10, Math.floor(n(tb[`gd${P}Mid`]) || 0))) + 2 : 1;
+}
+const gslList = (txt) => String(txt || '').split(/[;,\s]+/).map(parseFloat).filter((x) => Number.isFinite(x));
+// default when the number of levels changed: equal shares / equal gaps on the 5 % grid
+function gslDefault(k, n) {
+  if (k === 'Custom') {
+    const base = Math.max(GSL_STEP, Math.floor(100 / n / GSL_STEP) * GSL_STEP);
+    const a = Array(n).fill(base);
+    for (let r = 100 - base * n, i = n - 1; r > 0; r -= GSL_STEP, i = (i - 1 + n) % n) a[i] += GSL_STEP;
+    return a;
+  }
+  return Array.from({ length: n - 2 }, (_, i) => Math.round((100 * (i + 1)) / (n - 1) / GSL_STEP) * GSL_STEP);
+}
+function gslDraw(el, tb) {
+  const P = el.dataset.gsl,
+    k = el.dataset.gk;
+  // always shown (the curve made visible); the handles move only with Distances = Manual / Sizes = Custom % (Gerry 2026-11-23)
+  const edit = k === 'Custom' ? tb[`gd${P}Size`] === 'custom' : tb[`gd${P}Dist`] === 'manual';
+  const n = gslLevels(tb, P);
+  const ok = n >= (k === 'Custom' ? 2 : 3);
+  show(el, ok);
+  if (!ok) return;
+  el.classList.toggle('lock', !edit);
+  let vals;
+  if (!edit) {
+    if (k === 'Custom') {
+      const w = GR.shapeWeights(n, tb[`gd${P}Size`]);
+      const sum = w.reduce((a, b) => a + b, 0);
+      vals = w.map((x) => (x / sum) * 100);
+    } else vals = GR.distances(0, 100, n, tb[`gd${P}Dist`]).slice(1, -1);
+  } else if (gslDrag && gslDrag.P === P && gslDrag.k === k) vals = gslDrag.vals;
+  else {
+    vals = gslList(tb[`gd${P}${k}`]);
+    const want = k === 'Custom' ? n : n - 2;
+    const valid = vals.length === want && (k === 'Custom' ? Math.abs(vals.reduce((a, b) => a + b, 0) - 100) < 0.01 : vals.every((x, i) => x > 0 && x < 100 && (i === 0 || x > vals[i - 1])));
+    if (!valid) {
+      vals = gslDefault(k, n);
+      if (actions.setSetting) actions.setSetting(`gd${P}${k}`, vals.join(', ')); // number of levels changed: equal again
+    }
+  }
+  // handle positions on the bar (0-100)
+  const pos = k === 'Custom' ? vals.slice(0, -1).map((_, i) => vals.slice(0, i + 1).reduce((a, b) => a + b, 0)) : vals;
+  const near = parseFloat(String(tb[`gd${P}Near`]).replace(',', '.')),
+    far = parseFloat(String(tb[`gd${P}Far`]).replace(',', '.'));
+  const lab =
+    k === 'Custom'
+      ? vals.map((v, i) => [(i ? pos[i - 1] : 0) + v / 2, `${+v.toFixed(1)}%`])
+      : [[0, `${+near}`], ...vals.map((v, i) => [v, `${+(near + ((far - near) * v) / 100).toFixed(2)}`, i % 2 === 0]), [100, `${+far}`]];
+  const sig = JSON.stringify([pos, lab, edit]);
+  const bar = el.querySelector('.gbar');
+  if (bar.dataset.sig === sig) return;
+  bar.dataset.sig = sig;
+  bar.innerHTML =
+    '<div class="gline"></div><b class="gend s"></b><b class="gend e"></b>' +
+    pos.map((x, i) => `<b class="gh${edit ? '' : ' lock'}" data-i="${i}" style="left:${x}%"></b>`).join('') +
+    lab.map(([x, t, top]) => `<span class="gsv${k === 'Custom' || top ? ' gtop' : ''}" style="left:${x}%">${t}</span>`).join('');
+}
+function gslCommit(P, k, vals) {
+  if (actions.setSetting) actions.setSetting(`gd${P}${k}`, vals.map((x) => +x.toFixed(1)).join(', '));
+}
+const gdNow = new Map(); // 'gd:<kind>:<n>' -> grid level as drawn in the last frame (start of a grid drag)
 const planNow = new Map(); // 'om:entry' | 'om:sl' -> { price, entry, qty } as drawn in the last frame (start of a plan drag)
+const brHold = new Map(); // 'side|entry price' -> { sl, tp, until, o, local } SL / TP just dropped on a pending entry, drawn until the feed has them
+const brGhosts = []; // Vest LIMITs being placed again (out of the feed for a moment)
+const brNow = new Map(); // 'br:<order>:<leg>' -> { o, k, price, cur: { sl, tp } } bracket legs of pending entries as drawn (drag)
 const removing = new Map(); // id -> wait deadline
 function askRemove(leg) {
   const now = Date.now();
@@ -2165,11 +2726,97 @@ function askCancel(o) {
   p.catch(() => removing.delete(key));
 }
 
+// ── Account limits guard rows: ON / OFF; margins and open loss: slider ON the bar (0 .. the cap); the others: a number
+// (never beyond the account's limit: the level in force is shown on the right)
+function guardRows(m) {
+  const gd = m.guards;
+  if (!gd) return;
+  for (const bx of els.card3.querySelectorAll('.bar[data-g]')) {
+    const k = bx.dataset.g,
+      r = gd[k];
+    if (!r) continue;
+    bx.classList.toggle('garm', r.on);
+    bx.classList.toggle('ghit', r.on && r.hit);
+    const eye = bx.querySelector('.geye');
+    if (eye) eye.classList.toggle('off', r.eye === false);
+    const btn = bx.querySelector('.gon');
+    const bt = r.on ? 'ON' : 'OFF';
+    if (btn.textContent !== bt) btn.textContent = bt;
+    btn.title = r.on ? 'ON: at the level everything open on this account is closed (FLAT). Click to switch it off.' : r.level > 0 ? 'OFF: click to switch the FLAT at this level on (back to OFF after a reload)' : k === 'tg' ? 'No profit target on Vest: set the manual one in Account limits settings' : 'Set the level first';
+    const tx = bx.querySelector('.gt');
+    if (r.kind === 'slider') {
+      const rg = bx.querySelector('.gr');
+      const mx = String(r.cap > 0 ? +r.cap.toFixed(2) : 100),
+        st = String(r.step);
+      if (rg.max !== mx) rg.max = mx;
+      if (rg.step !== st) rg.step = st;
+      rg.disabled = !(r.cap > 0);
+      if (root.activeElement !== rg && rg.value !== String(r.level)) rg.value = String(r.level);
+      const t = r.text + (r.cap > 0 && (k === 'rk' || k === 'cp') ? ` (max $${r.cap.toFixed(2)})` : '');
+      if (tx.textContent !== t) tx.textContent = t;
+    } else {
+      const inp = bx.querySelector('.gv');
+      if (!inp) {
+        // ACCOUNT PROFIT TARGET: no level to type (Gerry 2026-11-23), ON closes everything at the target itself
+        if (tx.textContent !== r.text) tx.textContent = r.text;
+        continue;
+      }
+      if (root.activeElement !== inp && inp.value !== r.raw) inp.value = r.raw;
+      const ph = k === 'tg' ? (r.cap > 0 ? r.cap.toFixed(2) + ' auto' : 'none') : r.cap > 0 ? 'max ' + r.cap.toFixed(2) : '';
+      if (inp.placeholder !== ph) inp.placeholder = ph;
+      // right side: the level in force when it differs from what was typed (capped at the limit / automatic target)
+      const typed = parseFloat(r.raw);
+      const t = !(r.level > 0)
+        ? r.text
+        : !(typed > 0)
+          ? `$${r.level.toFixed(2)} (${r.auto || 'Vest target'})`
+          : Math.abs(typed - r.level) > 1e-9
+            ? `$${r.level.toFixed(2)} (the limit)`
+            : r.cap > 0
+              ? `max $${r.cap.toFixed(2)}`
+              : '';
+      if (tx.textContent !== t) tx.textContent = t;
+    }
+  }
+}
+
+// ── "ACTIVE" next to the title of every section whose function is on (Gerry 2026-11-23)
+function activeTags(m) {
+  const t = m.tb || {};
+  const g = m.guards || {};
+  const on = {
+    actOm: omMode === 'live',
+    actTb: !!(t.trOn || t.beOn || t.beAuto),
+    actLim: Object.values(g).some((r) => r && r.on),
+    actCopy: !!(m.copy && m.copy.armed),
+    actBr: !!t.brOn,
+    actOco: !!t.ocoOn,
+    actSr: t.srMode === 'live',
+    actGd: !!m.gdLive,
+  };
+  for (const [k, v] of Object.entries(on)) if (els[k]) show(els[k], v);
+  if (els.actSr) {
+    // VIEW draws the levels only: shown as VIEW, not ACTIVE
+    const view = t.srMode === 'view';
+    show(els.actSr, on.actSr || view);
+    const tx = view ? 'VIEW' : 'ACTIVE';
+    if (els.actSr.textContent !== tx) els.actSr.textContent = tx;
+    els.actSr.classList.toggle('view', view);
+  }
+  if (els.actCopy) {
+    // copier off: said in the title, the accounts listed are NOT being copied (Gerry 2026-11-23)
+    const tx = on.actCopy ? 'ACTIVE' : 'COPY OFF: accounts not copied';
+    show(els.actCopy, true);
+    if (els.actCopy.textContent !== tx) els.actCopy.textContent = tx;
+    els.actCopy.classList.toggle('off', !on.actCopy);
+  }
+}
+
 // ── dragging
 function startDrag(e, el, kind, existing, from) {
   const m = getModel();
   if (!m || !state.visible || !m.market) return;
-  if ((kind === 'tp' || kind === 'sl') && !m.pos && from !== 'plan') return;
+  if ((kind === 'tp' || kind === 'sl') && !m.pos && from !== 'plan' && from !== 'br' && from !== 'gd' && !(m.gdFar && m.gdFar[kind])) return;
   e.preventDefault();
   e.stopPropagation();
   try {
@@ -2177,7 +2824,7 @@ function startDrag(e, el, kind, existing, from) {
   } catch {
     /* nothing */
   }
-  const start = existing ? existing.price : m.pos ? m.pos.openPrice : m.market.mark;
+  const start = existing ? existing.price : m.pos ? m.pos.openPrice : m.gdFar ? m.gdFar[kind + 'Ref'] || m.gdFar.ref : m.market.mark;
   drag = { el, kind, existing, from, startY: e.clientY, moved: false, price: start, ok: true, g: null };
   const move = (ev) => {
     if (!drag) return;
@@ -2186,9 +2833,16 @@ function startDrag(e, el, kind, existing, from) {
     if (!drag.moved || !drag.g || !cur || !cur.market) return;
     const { tick, mark } = cur.market;
     drag.price = roundToTick(G.yToPrice(ev.clientY - drag.g.top, drag.g.vr, drag.g.height), tick);
-    if (drag.from === 'plan') drag.ok = drag.kind === 'lm' || (drag.price - drag.existing.entry) * (omPv === 'long' ? -1 : 1) > 0; // plan SL on the stop side of the entry
-    else if (drag.from === 'order') drag.ok = entrySide(drag.kind, drag.price, mark) === drag.existing.order.side && !tooClose(drag.price, mark, tick);
-    else if (drag.kind === 'lm' || drag.kind === 'st') drag.ok = !!entrySide(drag.kind, drag.price, mark) && !tooClose(drag.price, mark, tick);
+    if (drag.from === 'br') {
+      const o = drag.existing.order;
+      drag.ok = (o.side === 'long' ? 1 : -1) * (drag.kind === 'sl' ? o.price - drag.price : drag.price - o.price) > 0;
+    } else if (drag.from === 'plan') drag.ok = drag.kind === 'lm' || (drag.price - drag.existing.entry) * (omPv === 'long' ? -1 : 1) > 0; // plan SL on the stop side of the entry
+    else if (drag.from === 'order') drag.ok = entrySide(drag.existing.order.lim ? 'lm' : drag.kind, drag.price, mark) === drag.existing.order.side && !tooClose(drag.price, mark, tick);
+    else if (drag.from === 'gd') {
+      const l = drag.existing.gd;
+      drag.ok = l.kind === 'en' ? (l.side === 'long' ? drag.price < mark : drag.price > mark) : (l.side === 'long' ? 1 : -1) * (l.kind === 'tp' ? 1 : -1) * (drag.price - l.ref) > 0;
+    } else if (drag.kind === 'lm' || drag.kind === 'st') drag.ok = !!entrySide(drag.kind, drag.price, mark) && !tooClose(drag.price, mark, tick);
+    else if (drag.from === 'card' && cur.gdFar && cur.gdFar[drag.kind]) drag.ok = (cur.gdFar.side === 'long' ? 1 : -1) * (drag.kind === 'tp' ? 1 : -1) * (drag.price - cur.gdFar[drag.kind + 'Ref']) > 0;
     else drag.ok = !!cur.pos && !checkLeg({ kind: drag.kind, side: cur.pos.side, price: drag.price, mark, tick });
   };
   const up = () => {
@@ -2281,6 +2935,29 @@ function endDrag(commit) {
   drag = null;
   if (!d || !commit) return;
   if (d.from === 'plan') return d.moved && omDrop(d);
+  if (d.from === 'gd' || (d.from === 'card' && (d.kind === 'tp' || d.kind === 'sl') && (getModel() || {}).gdFar && getModel().gdFar[d.kind])) {
+    if (!d.moved) return d.from === 'card' && say(`Grid on: drag ${NAME[d.kind]} to the chart, it becomes the farthest GRID ${d.kind.toUpperCase()} level`, '');
+    if (!d.ok) return say('GRID: wrong side', 'err');
+    try {
+      const l = d.existing && d.existing.gd;
+      const r = d.from === 'gd' ? actions.gridDrag(l.kind, l.i, l.of, d.price, l.which || '', l.other) : actions.gridFar(d.kind, d.price);
+      if (r) say(r, '');
+    } catch (e) {
+      say(e.message, 'err');
+    }
+    return;
+  }
+  if (d.from === 'br') {
+    if (!d.moved || Math.abs(d.price - d.existing.price) < 1e-9) return;
+    if (!d.ok) return say(`${d.kind.toUpperCase()}: wrong side of the entry`, 'err');
+    const o = d.existing.order;
+    const prices = { ...d.existing.cur, [d.kind]: d.price };
+    const hk = o.side + '|' + o.price;
+    brHold.set(hk, { sl: prices.sl, tp: prices.tp, until: Date.now() + (o.local ? 4000 : 15000), o, local: !!o.local });
+    const p = actions.pendingBracket(o, prices);
+    p.catch(() => brHold.delete(hk));
+    return run(p, o.local ? `${d.kind.toUpperCase()} of this entry set at ${d.price}` : `LIMIT placed again with ${d.kind.toUpperCase()} ${d.price}`);
+  }
   if (!d.moved) {
     if (d.from !== 'leg' && d.from !== 'order') say(`Hold ${NAME[d.kind]} and drag it to the level you want`, '');
     return;
@@ -2342,6 +3019,21 @@ function endDrag(commit) {
 
 module.exports = {
   mount,
+  // waiting for Vest data after a reload: column greyed out, nothing clickable
+  setWaiting: (on) => {
+    if (els.layer && els.layer.classList.contains('waiting') !== !!on) els.layer.classList.toggle('waiting', !!on);
+  },
+  // start: the whole column invisible until Vest data are in, then it fades in
+  reveal: (on) => {
+    if (!els.layer) return;
+    els.layer.classList.toggle('hidden0', !on);
+  },
+  riskOn: () => omMode === 'live',
+  riskOff: () => {
+    omMode = 'manual';
+    omAnchor = null;
+    omSave();
+  },
   state: () => state,
   setEnabled: (v) => {
     enabled = !!v;
@@ -2682,6 +3374,117 @@ const stats = () => {
 module.exports = { wrap, wrapApi, own, setPolicy, restoreAll, stats };
 
   },
+  "core/bracket.js": function (module, exports, require) {
+// BRACKET follows a DCA (option "follow adds"): when a position of the selected account grows and its average entry moves
+// (an add from the tool or from Vest), its SL / TP are moved to the bracket distances from the new average.
+// v0.20.62 (Gerry 2026-11-23): the average is AVG ALL = the position plus the entry LIMITs waiting on the same side, and
+// SL / TP are computed again also when such a LIMIT is placed, cancelled or filled while the position is open. The SL never
+// sits between two entries (domain/bracket.js). With no position yet (only LIMITs) nothing is moved: Vest's legs on a LIMIT
+// not filled yet are left as they are.
+// Known limits: acts only with Orders ON and the tab open; a position already open at load is only recorded (nothing moved
+// until its next add); one attempt per add (a rejected move is logged, not retried).
+
+const store = require('./store');
+const orders = require('./orders');
+const O = require('../domain/orders');
+const B = require('../domain/bracket');
+const log = require('../diag/log');
+
+const { S } = store;
+const st = new Map(); // positionId -> { qty, px, todo: { oldPx } | null, guard: { at } | null }
+const T0 = Date.now(); // positions opened before the page loaded are never touched
+const GUARD_MS = 3000;
+let cfgOf = () => null; // -> { sl, tp, follow } or null
+
+function positions() {
+  return ((S.state[S.selected] || {}).positions || []).filter((p) => p.qty > 0);
+}
+// AVG ALL: position + entry LIMITs waiting on the same side of the same market; far = the farthest of those LIMITs
+function refOf(pos) {
+  const lm = ((S.state[S.selected] || {}).orders || []).filter((o) => o.symbol === pos.symbol && o.side === pos.side && o.price > 0 && o.qty > 0 && !o.reduceOnly);
+  const q = pos.qty + lm.reduce((a, o) => a + o.qty, 0);
+  const avg = (pos.qty * pos.openPrice + lm.reduce((a, o) => a + o.qty * o.price, 0)) / q;
+  const d = pos.side === 'long' ? 1 : -1;
+  const far = lm.length ? lm.reduce((a, o) => (d * o.price < d * a ? o.price : a), lm[0].price) : NaN;
+  const sig = lm.map((o) => `${o.price}:${o.qty}`).sort().join('|');
+  return { avg, far, sig, n: lm.length };
+}
+
+let running = false;
+async function apply(pos, oldPx, b, why) {
+  const tick = (S.symbols[pos.symbol] || {}).tick;
+  const mk = S.marks[pos.symbol];
+  const ref = refOf(pos);
+  const r = B.follow({ side: pos.side, avg: ref.avg, oldAvg: oldPx, sl: b.sl, tp: b.tp, legs: pos.triggers || [], tick, far: ref.far });
+  for (const t of r.skip) log.warn(`BRACKET ${pos.symbol}: after the add ${t}`);
+  for (const mv of r.moves) {
+    const bad = O.checkLeg({ kind: mv.kind, side: pos.side, price: mv.price, mark: mk && mk.px, tick });
+    if (bad) {
+      log.warn(`BRACKET ${pos.symbol}: ${mv.kind.toUpperCase()} at ${mv.price} not moved (${bad})`);
+      continue;
+    }
+    const what = `BRACKET ${why || 'follows the add'}: ${mv.kind.toUpperCase()} ${mv.leg ? mv.leg.price + ' -> ' : 'at '}${mv.price} (${ref.n ? `AVG ALL ${+ref.avg.toFixed(4)} with ${ref.n} LIMIT(s) waiting` : `entry ${pos.openPrice}`})`;
+    try {
+      await orders.send(S.selected, O.legOrder(pos, mv.kind, mv.price, tick, mv.leg), what, pos.id);
+    } catch (e) {
+      log.error(`${what}: ${e.message}`);
+    }
+  }
+}
+
+/** At every price. */
+function check() {
+  const live = positions();
+  for (const id of [...st.keys()]) if (!live.some((p) => p.id === id)) st.delete(id);
+  const b = cfgOf();
+  for (const pos of live) {
+    const tick = (S.symbols[pos.symbol] || {}).tick || 1e-6;
+    const step = (S.symbols[pos.symbol] || {}).step || 1e-9;
+    let s = st.get(pos.id);
+    if (!s) {
+      // NEW position born while this tab is open (LIMIT filled, entry from Vest's ticket, add to a pending order...):
+      // if it ends up with NO legs at all, the bracket SL / TP are added from its entry (Gerry 2026-11-21: "il bracket non
+      // mi inserisce SL e TP se metto un ordine limit"). Legs it already has (bracket on /open, plan, by hand) are left alone.
+      const fresh = Number.isFinite(pos.openedAt) ? pos.openedAt > T0 : Date.now() - T0 > 15000; // no open date: seen well after the load
+      st.set(pos.id, { qty: pos.qty, px: pos.openPrice, sig: refOf(pos).sig, todo: null, guard: fresh ? { at: Date.now() } : null });
+      continue;
+    }
+    if (s.guard && !running && !orders.busyOn(pos.id) && Date.now() - s.guard.at >= GUARD_MS) {
+      s.guard = null; // one attempt
+      if (b && b.sl > 0 && orders.enabled() && !(pos.triggers || []).length) {
+        running = true;
+        s.todo = null;
+        apply(pos, pos.openPrice, b, 'new position without SL / TP').finally(() => (running = false));
+        continue;
+      }
+    }
+    // an add: the size grew (the new average may come a moment later on the feed: waited up to 3 s)
+    if (pos.qty > s.qty + step / 2) s.todo = { oldPx: s.todo ? s.todo.oldPx : s.px, at: Date.now(), add: true };
+    // an entry LIMIT placed / cancelled / filled on this market: AVG ALL changed (no wait for the average)
+    const sig = refOf(pos).sig;
+    if (sig !== s.sig && !s.todo) s.todo = { oldPx: s.px, at: Date.now(), add: false };
+    s.sig = sig;
+    s.qty = pos.qty;
+    s.px = pos.openPrice;
+    if (!s.todo) continue;
+    if (!b || !b.follow || !orders.enabled()) {
+      s.todo = null; // option off or Orders OFF at the add: nothing is done later either
+      continue;
+    }
+    if (running || orders.busyOn(pos.id)) continue; // the add itself is still in progress: next price
+    // after an add the new position average may come a moment later on the feed: waited up to 3 s
+    if (s.todo.add && Math.abs(pos.openPrice - s.todo.oldPx) < tick / 2 && Date.now() - s.todo.at < 3000) continue;
+    const oldPx = s.todo.oldPx;
+    const why = s.todo.add ? '' : 'follows the LIMITs waiting';
+    s.todo = null;
+    running = true;
+    apply(pos, oldPx, b, why).finally(() => (running = false)); // nothing is sent when SL / TP are already there
+  }
+}
+
+module.exports = { check, setConfig: (fn) => (cfgOf = fn), wants: () => !!(cfgOf() || {}).follow };
+
+  },
   "core/check.js": function (module, exports, require) {
 // Startup check: does Vest still answer as expected? READS only, no orders.
 // 'fail' = a field the panel uses changed or is missing: the numbers shown may be wrong.
@@ -2825,7 +3628,7 @@ module.exports = { run, checkLive };
 
   },
   "core/copier.js": function (module, exports, require) {
-// Copier. One master account, one or more copies, sizing 1:1 or Cap-to-fit (reduce only).
+// Copier. One master account, one or more copies, sizing 1:1, Cap-to-fit or DD left (both reduce only).
 // EVERY successful order of the master is copied: the tool's own (orders.send) and those from Vest's order ticket (page
 // fetch/XHR, listened to and never modified): market entries/adds, reductions, closes, the card's FLAT, PENDING orders
 // (limits, ticket stops, limit reductions) with their cancellations, SL/TP on the position (added, moved, removed).
@@ -2850,12 +3653,13 @@ const { decodeJwt } = require('./jwt');
 const C = require('../domain/copy');
 const Z = require('../domain/sizing');
 const log = require('../diag/log');
+const F = require('../ui/format');
 const hooks = require('./hooks');
 
 const { S } = store;
 const CFG_KEY = 'vt1:copy'; // roles and mode (configuration, no amounts); the armed state is NEVER saved
 
-let cfg = { roles: {}, mode: 'cap' };
+let cfg = { roles: {}, mode: 'cap', dry: false, lim: {}, mult: {} }; // mult = { copy id: { on, x } } size multiplier per copy // dry = test mode; lim = { copy id: { loss: $ per day, pos: max positions } }
 try {
   Object.assign(cfg, JSON.parse(localStorage.getItem(CFG_KEY) || '{}'));
 } catch {
@@ -2869,7 +3673,44 @@ const save = () => {
   }
 };
 
-const st = { armed: false, master: null, followers: [], mode: 'cap', last: null };
+const st = { armed: false, master: null, followers: [], mode: 'cap', last: null, dry: false, mult: {} };
+const skips = new Map(); // copy -> { symbol, why, kind: 'small' | 'limit' | 'other', at }: last copy not made, for the sync status
+
+/**
+ * Every order to a COPY goes through here. TEST MODE: nothing is sent, the order is only written in the log
+ * (Gerry 2026-11-20): to see what the copier WOULD do, with real orders on the master only.
+ */
+function fsend(f, order, what, positionId) {
+  if (st.dry) {
+    log.info(`TEST (not sent) ${what}`);
+    return Promise.resolve({ test: true });
+  }
+  return orders.send(f, order, what, positionId, { copy: true });
+}
+function fflat(f, symbol) {
+  if (st.dry) {
+    log.info(`TEST (not sent) COPY ${label(f)}: FLAT ${symbol}`);
+    return Promise.resolve({ cancelled: 0, closed: 0 });
+  }
+  return flatten.flattenMarket(f, symbol);
+}
+
+/** Per-copy limits for an entry (open / add): reason to skip it, or null. Exits, SL / TP and cancels are always copied. */
+function limitWhy(f, symbol, action) {
+  if (action !== 'open' && action !== 'append') return null;
+  const L = (cfg.lim || {})[f] || {};
+  const loss = +L.loss,
+    maxPos = NaN; // Max positions removed (Gerry 2026-11-23): an old saved value no longer applies
+  if (loss > 0) {
+    const day = (store.values(f) || {}).dayPnl;
+    if (Number.isFinite(day) && day <= -loss) return `daily loss limit reached (today ${day.toFixed(2)} $, limit -${loss} $): entries not copied`;
+  }
+  if (maxPos > 0) {
+    const ps = ((S.state[f] || {}).positions || []).filter((p) => p.qty > 0);
+    if (!ps.some((p) => p.symbol === symbol) && ps.length >= maxPos) return `max ${maxPos} open position${maxPos > 1 ? 's' : ''} reached: new market not copied`;
+  }
+  return null;
+}
 
 // copied pending orders: key = id of the master's order (or market|price|size signature when Vest gives no id)
 // -> { symbol, sig, at, ids: { copy: id of its order | null } }. Memory only: after a reload the links are lost.
@@ -2900,7 +3741,7 @@ async function cancelLinked(l, why) {
         log.warn(`COPY ${label(f)}: pending order to cancel not found (${why})`);
         return Promise.reject(new Error('not found'));
       }
-      return orders.send(f, { method: 'POST', path: '/v3/positions/cancel-order', body: { orderId: id } }, `COPY ${label(f)}: cancel pending order (${why})`, null);
+      return fsend(f, { method: 'POST', path: '/v3/positions/cancel-order', body: { orderId: id } }, `COPY ${label(f)}: cancel pending order (${why})`, null);
     }),
   );
   st.followers.forEach((f, i) => {
@@ -2937,16 +3778,61 @@ function setRole(id, role) {
   save();
   store.changed();
 }
+const MODE_NAME = { '1:1': '1:1 (same size)', cap: 'Cap-to-fit (in proportion to equity, reduce only)', dd: 'DD left (same share of the drawdown left as the master, reduce only)' };
+const modeShort = (m) => (m === '1:1' ? '1:1' : m === 'dd' ? 'DD left' : 'Cap-to-fit');
+// $ left before an account fails (smaller of daily and max drawdown left), set by main.js
+let roomOf = () => NaN;
+function setRoom(fn) {
+  roomOf = fn;
+}
 function setMode(mode) {
   if (st.armed) throw new Error('stop the copier before changing the sizing');
-  cfg.mode = mode === '1:1' ? '1:1' : 'cap';
+  cfg.mode = mode === '1:1' || mode === 'dd' ? mode : 'cap';
   save();
   store.changed();
 }
 
 /** Why it cannot start, or null. */
+function setDry(on) {
+  if (st.armed) throw new Error('stop the copier before changing test mode');
+  cfg.dry = !!on;
+  save();
+  store.changed();
+}
+/** Multiplier of a copy: { on, x }; x read with a dot (a comma is accepted). Only while the copier is stopped. */
+const multOf = (m, id) => {
+  const r = (m || {})[id];
+  return r && r.on && r.x > 0 ? r.x : NaN;
+};
+function setMult(id, patch) {
+  if (st.armed) throw new Error('stop the copier before changing the multiplier');
+  cfg.mult = cfg.mult || {};
+  const r = { on: false, x: NaN, ...(cfg.mult[id] || {}) };
+  if ('on' in patch) r.on = !!patch.on;
+  if ('x' in patch) {
+    const n = parseFloat(String(patch.x).replace(',', '.'));
+    r.x = n > 0 && n <= 100 ? Math.round(n * 1000) / 1000 : NaN;
+    if (!(r.x > 0)) r.on = false;
+  }
+  if (r.on && !(r.x > 0)) throw new Error('type the multiplier first (e.g. 0.5 or 2.0)');
+  cfg.mult[id] = { on: r.on, x: r.x > 0 ? r.x : null };
+  save();
+  store.changed();
+}
+function setLimit(id, k, v) {
+  cfg.lim = cfg.lim || {};
+  const n = parseFloat(String(v).replace(',', '.'));
+  const L = { ...(cfg.lim[id] || {}) };
+  if (n > 0) L[k] = k === 'pos' ? Math.floor(n) : n;
+  else delete L[k];
+  if (Object.keys(L).length) cfg.lim[id] = L;
+  else delete cfg.lim[id];
+  save();
+  store.changed();
+}
+
 function cannotStart() {
-  if (!orders.enabled()) return 'switch Orders on first';
+  if (!orders.enabled() && !cfg.dry) return 'switch Orders on first (or tick test mode)';
   const m = masterId(),
     f = followerIds();
   if (!m) return 'choose the master account';
@@ -2959,7 +3845,17 @@ function cannotStart() {
 function describe() {
   const m = masterId(),
     f = followerIds();
-  return `Master: ${label(m)}\nCopies: ${f.map(label).join(', ')}\nSizing: ${cfg.mode === '1:1' ? '1:1 (same size)' : 'Cap-to-fit (in proportion to equity, reduce only)'}`;
+  return `${cfg.dry ? 'TEST MODE: nothing is sent to the copies, only written in the log\n' : ''}Master: ${label(m)}\nCopies: ${f.map(label).join(', ')}\nSizing: ${MODE_NAME[cfg.mode] || MODE_NAME.cap}${cfg.mode === 'dd' ? ddLines(m, f) : ''}${f.filter((id) => multOf(cfg.mult, id) > 0).map((id) => `\n${label(id)}: x${F.mult(multOf(cfg.mult, id))} of the master size (multiplier)`).join('')}`;
+}
+// DD left now, per account, for the START confirmation (it is read again at every entry)
+function ddLines(m, f) {
+  const usd = (x) => (Number.isFinite(x) ? `${Math.round(x)} $` : 'unknown');
+  const mr = roomOf(m);
+  return `\nDrawdown left now: ${label(m)} ${usd(mr)}` + f.filter((id) => !(multOf(cfg.mult, id) > 0)).map((id) => {
+    const r = roomOf(id);
+    const pct = r > 0 && mr > 0 ? Math.min(100, Math.floor((r / mr) * 100)) : NaN;
+    return `\n${label(id)}: ${usd(r)} -> ${Number.isFinite(pct) ? `${pct}% of the master size` : 'entries NOT copied'}`;
+  }).join('');
 }
 
 function start() {
@@ -2968,13 +3864,16 @@ function start() {
   st.master = masterId();
   st.followers = followerIds();
   st.mode = cfg.mode;
+  st.dry = !!cfg.dry;
+  st.mult = Object.fromEntries(st.followers.map((f) => [f, multOf(cfg.mult, f)]).filter(([, x]) => x > 0));
   st.armed = true;
+  skips.clear();
   st.last = null;
   held = new Set();
   watchMaster(); // markets already open on the master when switched on
   installPageHooks();
   for (const id of st.followers) session.accountToken(id).catch(() => {}); // tokens ready: the first copy does not wait for a mint
-  log.warn(`COPIER ON: ${label(st.master)} -> ${st.followers.map(label).join(', ')} (${st.mode === '1:1' ? '1:1' : 'Cap-to-fit'})`);
+  log.warn(`COPIER ON${st.dry ? ' (TEST MODE, nothing sent)' : ''}: ${label(st.master)} -> ${st.followers.map(label).join(', ')} (${modeShort(st.mode)})`);
   store.changed();
 }
 
@@ -3020,7 +3919,7 @@ async function exitCheck(sym, side) {
           return false;
         }
         const lev = p.leverage > 0 ? p.leverage : Z.maxLeverageFor(m.margin, S.accounts[f]);
-        await orders.send(f, Z.reduceOrder({ pos: p, qty: p.qty, leverage: lev, step: m.step }), `COPY ${label(f)}: master left ${label0}, closing ${p.qty}`, p.id);
+        await fsend(f, Z.reduceOrder({ pos: p, qty: p.qty, leverage: lev, step: m.step }), `COPY ${label(f)}: master left ${label0}, closing ${p.qty}`, p.id);
         return true;
       }),
     );
@@ -3038,7 +3937,7 @@ store.subscribe(watchMaster);
 
 // switching Orders off switches the copier off too (the copies would not be sent)
 orders.onChange(() => {
-  if (st.armed && !orders.enabled()) stop('Orders off');
+  if (st.armed && !st.dry && !orders.enabled()) stop('Orders off');
 });
 
 // copies' account tokens always ready while the copier is on (like the selected account's)
@@ -3093,6 +3992,7 @@ async function mirror({ accountId, order, before, via, res: mRes }) {
   if (!m) return log.warn(`MASTER ${action} (${src}): market ${symbol || '?'} not recognised, not copied`);
   if (action === 'open') await leftoversGone(symbol); // e.g. LIMIT moved by the plan: cancel + new /open on the master
   const mEq = (store.values(st.master) || {}).equity;
+  const mRoom = st.mode === 'dd' ? roomOf(st.master) : NaN;
   const t0 = performance.now();
   const plans = st.followers.map((f) => {
     const fs = S.state[f] || {};
@@ -3109,8 +4009,11 @@ async function mirror({ accountId, order, before, via, res: mRes }) {
         fPos: onSym(fs.positions, symbol),
         fPh: onSym(fs.placeholders, symbol),
         mode: st.mode,
+        mult: st.mult[f],
         mEq,
         fEq: (store.values(f) || {}).equity,
+        mRoom,
+        fRoom: st.mode === 'dd' ? roomOf(f) : NaN,
         step: m.step,
         tick: m.tick,
         fLev,
@@ -3121,11 +4024,15 @@ async function mirror({ accountId, order, before, via, res: mRes }) {
   if (nc) return log.warn(`MASTER (${src}): ${nc.plan.notCopied}`);
   const res = await Promise.allSettled(
     plans.map(({ f, plan }) => {
-      if (plan.skip) {
-        log.warn(`COPY ${label(f)}: ${plan.skip}${phNote(f, symbol)}`);
+      const lim = !plan.skip && limitWhy(f, symbol, action);
+      if (plan.skip || lim) {
+        const why = plan.skip || lim;
+        skips.set(f, { symbol, why, kind: lim ? 'limit' : /small|minimum|below|step/i.test(why) ? 'small' : 'other', at: Date.now() });
+        log.warn(`COPY ${label(f)}: ${why}${lim ? '' : phNote(f, symbol)}`);
         return Promise.reject(new Error('skipped'));
       }
-      return orders.send(f, plan.order, `COPY ${label(f)}: ${plan.label}`, plan.positionId);
+      if (action === 'open' || action === 'append') skips.delete(f);
+      return fsend(f, plan.order, `COPY ${label(f)}: ${plan.label}`, plan.positionId);
     }),
   );
   const ok = res.filter((r) => r.status === 'fulfilled').length;
@@ -3184,11 +4091,73 @@ async function mirrorCancelAll(accountId, symbol) {
 async function mirrorFlat(accountId, symbol) {
   if (!st.armed || accountId !== st.master || !symbol) return;
   for (const [k, l] of links) if (l.symbol === symbol) links.delete(k); // the copies' FLAT already cancels their orders
-  const res = await Promise.allSettled(st.followers.map((f) => flatten.flattenMarket(f, symbol)));
+  const res = await Promise.allSettled(st.followers.map((f) => fflat(f, symbol)));
   const ok = res.filter((r) => r.status === 'fulfilled').length;
   st.last = { at: Date.now(), action: 'FLAT', src: 'tool', ok, n: res.length, ms: null };
   log[ok === res.length ? 'info' : 'warn'](`Copy FLAT: ${ok}/${res.length} copies`);
   store.changed();
+}
+
+/**
+ * FLAT on the master with the copier OFF (Gerry 2026-11-20: after a reload the copier stays off, FLAT closed the master only
+ * and the copies had to be closed by hand). The copy accounts set in the roles are read fresh; if any of them has a position
+ * on that market, the user is ASKED (never automatic: a position there may have been opened by hand) and on OK each one gets
+ * the same FLAT. The copier is not switched on. Returns the number of copies flattened.
+ */
+async function flatIdleCopies(accountId, symbol) {
+  if (st.armed || !symbol || accountId !== masterId()) return 0;
+  const fs = followerIds().filter((f) => f !== accountId);
+  if (!fs.length) return 0;
+  const open = [];
+  await Promise.all(
+    fs.map(async (f) => {
+      try {
+        const ps = (await restPositions(f)).filter((p) => p.symbol === symbol && p.qty > 0);
+        for (const p of ps) open.push({ f, txt: `${label(f)}: ${String(p.side).toUpperCase()} ${p.qty}` });
+      } catch (e) {
+        log.warn(`FLAT copies: ${label(f)} not readable (${e.message})`);
+      }
+    }),
+  );
+  if (!open.length) return 0;
+  const ids = [...new Set(open.map((o) => o.f))];
+  const many = ids.length > 1;
+  const list = open.map((o) => o.txt).join('\n');
+  const ok = window.confirm(`Copier is OFF, but ${ids.length} copy account${many ? 's' : ''} still hold${many ? '' : 's'} ${symbol}:\n\n${list}\n\nFLAT them too (cancel their orders on this market and close at market)?`);
+  if (!ok) {
+    log.warn(`FLAT copies: copier off, ${ids.length} copies left open on ${symbol} (refused)`);
+    return 0;
+  }
+  const res = await Promise.allSettled(ids.map((f) => flatten.flattenMarket(f, symbol)));
+  const done = res.filter((r) => r.status === 'fulfilled').length;
+  log[done === ids.length ? 'info' : 'warn'](`FLAT copies (copier off): ${done}/${ids.length} copies flat on ${symbol}`);
+  store.changed();
+  return done;
+}
+
+/**
+ * Sync status of a copy on a market, for the Copier accounts table:
+ * { k: 'ok' | 'off' | 'small' | 'limit' | 'missing' | 'extra' | 'side', text }. Sides only: sizes differ on purpose with Cap-to-fit.
+ */
+/** Sync of a copy with the master on a market. Copier OFF: no mark at all (Gerry 2026-11-23: "!" only with the copier ON). */
+function syncOf(f, symbol) {
+  return st.armed ? syncRaw(f, symbol) : null;
+}
+function syncRaw(f, symbol) {
+  const mId = st.armed ? st.master : masterId();
+  if (!mId || f === mId) return null;
+  const mp = ((S.state[mId] || {}).positions || []).find((p) => p.symbol === symbol && p.qty > 0);
+  const fp = ((S.state[f] || {}).positions || []).find((p) => p.symbol === symbol && p.qty > 0);
+  const sk = skips.get(f);
+  if (!mp && !fp) return { k: st.armed ? 'ok' : 'off', text: st.armed ? 'in sync (both flat)' : 'copier off' };
+  if (mp && fp && mp.side === fp.side) return { k: 'ok', text: `in sync (${fp.side.toUpperCase()} ${fp.qty})` };
+  if (mp && fp) return { k: 'side', text: `OUT OF SYNC: master ${mp.side.toUpperCase()}, copy ${fp.side.toUpperCase()}` };
+  if (mp && !fp) {
+    if (sk && sk.symbol === symbol && sk.kind === 'small') return { k: 'small', text: `too small: ${sk.why}` };
+    if (sk && sk.symbol === symbol && sk.kind === 'limit') return { k: 'limit', text: `limit: ${sk.why}` };
+    return { k: 'missing', text: `OUT OF SYNC: master ${mp.side.toUpperCase()} ${mp.qty}, copy flat${st.armed ? '' : ' (copier off)'}` };
+  }
+  return { k: 'extra', text: `OUT OF SYNC: master flat, copy ${fp.side.toUpperCase()} ${fp.qty}` };
 }
 
 // ── orders made by the page (Vest's order ticket): fetch and XHR are listened to, never modified. Installed at the first START.
@@ -3282,6 +4251,10 @@ function installPageHooks() {
   }
 }
 
+// copier ON: the tool trades only on the master (Gerry 2026-11-23: a SHORT went to copy 23, selected by mistake, and was not
+// copied). Only NEW entries (open / append) are refused on the other accounts: FLAT, close, reduce, cancel, SL / TP stay allowed.
+orders.setAccountGuard((id) => (st.armed && id !== st.master ? `Copier ON: entries only from the master ${label(st.master)} (selected: ${label(id)})` : null));
+
 // tool orders: orders.send notifies after every successful order, with the account snapshot taken before sending
 orders.onSent((x) => mirror({ ...x, via: 'tool' }).catch((e) => log.error('Copy: ' + e.message)), snapshot);
 
@@ -3292,9 +4265,16 @@ module.exports = {
   describe,
   setRole,
   setMode,
+  setRoom,
   mirrorFlat,
+  flatIdleCopies,
+  setDry,
+  setLimit,
+  setMult,
+  multOf: (id) => multOf(st.armed ? Object.fromEntries(Object.entries(st.mult).map(([k, x]) => [k, { on: true, x }])) : cfg.mult, id),
+  syncOf,
   mirrorCancelAll,
-  state: () => ({ armed: st.armed, master: st.armed ? st.master : masterId(), followers: st.armed ? st.followers : followerIds(), mode: st.armed ? st.mode : cfg.mode, roles: { ...cfg.roles }, last: st.last }),
+  state: () => ({ dry: st.armed ? st.dry : !!cfg.dry, lim: { ...(cfg.lim || {}) }, mult: JSON.parse(JSON.stringify(cfg.mult || {})), armed: st.armed, master: st.armed ? st.master : masterId(), followers: st.armed ? st.followers : followerIds(), mode: st.armed ? st.mode : cfg.mode, roles: { ...cfg.roles }, last: st.last }),
   isFollower: (id) => st.armed && st.followers.includes(id),
 };
 
@@ -3310,6 +4290,29 @@ const Z = require('../domain/sizing');
 const { floorStep } = require('../domain/num');
 const { closeOrder } = require('../domain/orders');
 const { entryLegs } = require('../domain/plan');
+const { roundToTick } = require('../domain/num');
+
+// BRACKET (experimental build): fixed SL / TP in points attached to every NEW position opened from the tool (market
+// LONG / SHORT, LIMIT, local STOP when it triggers, a moved LIMIT). Adds to a position go through /append, which has no
+// legs: the position keeps the legs of its first order. Risk & targets plans keep their own SL / TP.
+let bracketOf = () => null; // -> { sl, tp } in points (tp may be NaN = no TP) or null
+const setBracket = (fn) => (bracketOf = fn);
+/** Puts the bracket legs on an /open order. ref = entry price (limit price, or the current price at market). Returns the label part. */
+function withBracket(order, side, ref, m, ov) {
+  const b0 = bracketOf();
+  // ov = distances set for this entry by dragging its SL / TP on the chart (local entries), over the panel's ones
+  const b = b0 && ov ? { sl: ov.sl > 0 ? ov.sl : b0.sl, tp: ov.tp > 0 ? ov.tp : b0.tp } : b0;
+  if (!b || !(b.sl > 0) || !(ref > 0) || order.path !== '/v3/positions/open') return '';
+  const d = side === 'long' ? 1 : -1;
+  const qty = +order.body.quantity;
+  const sl = roundToTick(ref - d * b.sl, m.tick, d > 0 ? 'down' : 'up');
+  const tp = b.tp > 0 ? roundToTick(ref + d * b.tp, m.tick, d > 0 ? 'up' : 'down') : NaN;
+  const legs = entryLegs({ qty, sl, targets: tp > 0 ? [{ price: tp, qty }] : [], each: false, step: m.step, tick: m.tick });
+  if (legs.why) throw new Error('bracket: ' + legs.why);
+  order.body.stopLosses = legs.stopLosses;
+  order.body.takeProfits = legs.takeProfits;
+  return ` + SL ${sl}${tp > 0 ? ' TP ' + tp : ''}`;
+}
 
 const { S } = store;
 
@@ -3375,18 +4378,48 @@ async function placeLimit({ accountId, symbol, price, pct, cap }) {
   const order = pos
     ? Z.appendOrder({ pos, qty: sz.qty, leverage: sz.lev, step: m.step, tick: m.tick, type: 'limit', price })
     : Z.openOrder({ symbol, side, qty: sz.qty, leverage: sz.lev, step: m.step, tick: m.tick, type: 'limit', price });
-  const label = `LIMIT ${side === 'long' ? 'BUY' : 'SELL'} ${sz.qty} @ ${price}${pos ? (pos.qty > 0 ? ' (add)' : ' (next to the pending orders)') : ''}`;
+  const br = withBracket(order, side, price, m);
+  const label = `LIMIT ${side === 'long' ? 'BUY' : 'SELL'} ${sz.qty} @ ${price}${pos ? (pos.qty > 0 ? ' (add)' : ' (next to the pending orders)') : ''}${br}`;
   return orders.send(accountId, order, label, pos ? pos.id : null);
 }
 
+/**
+ * Entry grid: LIMITs sent one after the other. The first one opens (with the bracket if it is on), the others are added next
+ * to it (/append on Vest's placeholder): before each of them the placeholder must be visible, otherwise Vest would refuse
+ * a second /open on the market. legs = [{ n, side, price, qty }].
+ */
+async function placeGrid({ accountId, symbol, legs, lev }) {
+  const m = S.symbols[symbol];
+  let sent = 0;
+  for (const l of legs) {
+    let pos = target(accountId, symbol, l.side, 'a grid limit');
+    if (!pos && sent > 0) {
+      for (let i = 0; i < 30 && !pos; i++) {
+        await new Promise((r) => setTimeout(r, 200));
+        pos = target(accountId, symbol, l.side, 'a grid limit');
+      }
+      if (!pos) throw new Error(`${sent} grid LIMIT(s) sent; the others NOT sent: the first one is not visible on Vest yet`);
+    }
+    const order = pos
+      ? Z.appendOrder({ pos, qty: l.qty, leverage: lev, step: m.step, tick: m.tick, type: 'limit', price: l.price })
+      : Z.openOrder({ symbol, side: l.side, qty: l.qty, leverage: lev, step: m.step, tick: m.tick, type: 'limit', price: l.price });
+    const br = pos ? '' : withBracket(order, l.side, l.price, m);
+    await orders.send(accountId, order, `GRID ${l.side === 'long' ? 'BUY' : 'SELL'}${l.n} LIMIT ${l.qty} @ ${l.price}${br}`, pos ? pos.id : null);
+    sent++;
+  }
+  return sent;
+}
+
 /** Market entry (used by ADD and by the local stop). Adds if there is a position on the same side. */
-async function marketEntry({ accountId, symbol, side, qty, lev, why }) {
+async function marketEntry({ accountId, symbol, side, qty, lev, why, br }) {
   const m = S.symbols[symbol];
   const pos = target(accountId, symbol, side, 'an entry');
   const order = pos
     ? Z.appendOrder({ pos, qty, leverage: lev, step: m.step, tick: m.tick, type: 'market' })
     : Z.openOrder({ symbol, side, qty, leverage: lev, step: m.step, tick: m.tick, type: 'market' });
-  return orders.send(accountId, order, `${why} ${side === 'long' ? 'BUY' : 'SELL'} ${qty} at market${pos ? ' (add)' : ''}`, pos ? pos.id : null);
+  const mk = S.marks[symbol];
+  const bl = withBracket(order, side, mk && mk.px, m, br);
+  return orders.send(accountId, order, `${why} ${side === 'long' ? 'BUY' : 'SELL'} ${qty} at market${pos ? ' (add)' : ''}${bl}`, pos ? pos.id : null);
 }
 
 /** SHORT / LONG of the second card: market entry with the size in %, on the chosen side (add if already on the same side). */
@@ -3477,7 +4510,8 @@ async function moveLimit({ accountId, symbol, order, price }) {
   const nu = pos
     ? Z.appendOrder({ pos, qty: order.qty, leverage: lev, step: m.step, tick: m.tick, type: 'limit', price })
     : Z.openOrder({ symbol, side, qty: order.qty, leverage: lev, step: m.step, tick: m.tick, type: 'limit', price });
-  await orders.send(accountId, nu, `LIMIT ${w} ${order.qty} moved ${order.price} -> ${price} (new)`, pos ? pos.id : null);
+  const br = withBracket(nu, side, price, m);
+  await orders.send(accountId, nu, `LIMIT ${w} ${order.qty} moved ${order.price} -> ${price} (new)${br}`, pos ? pos.id : null);
   try {
     await cancelOrder({ accountId, orderId: order.id, label: `LIMIT ${w} @ ${order.price} (moved to ${price})` });
   } catch (e) {
@@ -3550,7 +4584,7 @@ function cancelOrder({ accountId, orderId, label }) {
   return orders.send(accountId, { method: 'POST', path: '/v3/positions/cancel-order', body: { orderId } }, `cancel ${label || orderId}`, null);
 }
 
-module.exports = { planOpen, planMove, sizeFor, positionOn, placeholderOn, target, marketOpen, closePct, reduceAll, moveLimit, placeLimit, marketEntry, addMarket, cutHalf, cancelOrder, checkPct };
+module.exports = { placeGrid, setBracket, planOpen, planMove, sizeFor, positionOn, placeholderOn, target, marketOpen, closePct, reduceAll, moveLimit, placeLimit, marketEntry, addMarket, cutHalf, cancelOrder, checkPct };
 
   },
   "core/feed.js": function (module, exports, require) {
@@ -3715,9 +4749,9 @@ async function flattenAccount(id) {
 }
 
 /** All active accounts. Returns { found, left } (left > 0 = something was still open at the second round). */
-async function flattenAll() {
+async function flattenAll(only, why) {
   if (running) return null;
-  const ids = Object.keys(S.accounts);
+  const ids = only && only.length ? only.filter((id) => S.accounts[id]) : Object.keys(S.accounts); // only: some accounts (Account limits guard)
   if (!ids.length) {
     log.warn('FLATTEN ALL: no account loaded');
     return null;
@@ -3726,7 +4760,7 @@ async function flattenAll() {
   S.flattening = true;
   store.changed();
   const t0 = performance.now();
-  log.warn(`FLATTEN ALL: closing every position and cancelling every order on ${ids.length} accounts`);
+  log.warn(`FLATTEN ALL${why ? ' (' + why + ')' : ''}: closing every position and cancelling every order on ${ids.length} account${ids.length === 1 ? '' : 's'}`);
   try {
     const sweep = () =>
       Promise.all(
@@ -3925,6 +4959,152 @@ const toMs = (v) => {
 module.exports = { decodeJwt, toMs };
 
   },
+  "core/klines.js": function (module, exports, require) {
+// Closed candles of a market from Vest's public chart endpoint (GET /v2/klines, the same the chart uses; no token).
+// Read-only. Used by the safe runner: 1m candles (stops recomputed at every close) and 1h candles (trend guide).
+// The answer holds about 500 candles, newest first, the last one still forming: that one is dropped.
+
+const transport = require('./transport');
+const log = require('../diag/log');
+
+const cache = new Map(); // symbol|interval -> { bars, at, busy }
+const SEC = { '1m': 60, '1h': 3600 };
+
+/** Vest rows [openMs, o, h, l, c, vol, closeMs, ...] -> closed candles [{ t (s), o, h, l, c }] ascending. */
+function parse(rows, nowMs) {
+  const out = [];
+  for (const r of rows || []) {
+    if (!Array.isArray(r) || r.length < 5) continue;
+    const t = +r[0],
+      close = r[6] != null ? +r[6] : NaN;
+    const b = { t: t / 1000, o: +r[1], h: +r[2], l: +r[3], c: +r[4] };
+    if (!(Number.isFinite(b.t) && b.h >= b.l && b.l > 0)) continue;
+    if (Number.isFinite(close) ? close > nowMs : t + 60000 > nowMs) continue; // still forming
+    out.push(b);
+  }
+  out.sort((a, b) => a.t - b.t);
+  return out;
+}
+
+/**
+ * Closed candles, refreshed when a new candle should have closed (plus 2 s for Vest to publish it).
+ * Returns the cached array at once (maybe empty / old) and refreshes in the background; onFresh() after a refresh.
+ */
+function get(symbol, interval, onFresh) {
+  const key = symbol + '|' + interval;
+  let c = cache.get(key);
+  if (!c) cache.set(key, (c = { bars: [], at: 0, busy: false }));
+  const step = (SEC[interval] || 60) * 1000;
+  const now = Date.now();
+  const last = c.bars.length ? c.bars[c.bars.length - 1].t * 1000 : 0;
+  const due = !c.bars.length || now >= last + 2 * step + 2000; // the candle after the last one we have has closed
+  const retry = now - c.at > (interval === '1h' ? 300000 : 15000); // also every 15 s (1h: 5 min) if nothing new came
+  if ((due && now - c.at > 3000) || retry) {
+    if (!c.busy) {
+      c.busy = true;
+      c.at = now;
+      transport
+        .request(`/v2/klines?symbol=${encodeURIComponent(symbol)}&interval=${interval}`)
+        .then((res) => {
+          const bars = parse(res && res.data, Date.now());
+          if (bars.length) c.bars = bars;
+          if (onFresh) onFresh(key);
+        })
+        .catch((e) => log.warn(`candles ${symbol} ${interval}: ${e.message}`))
+        .finally(() => (c.busy = false));
+    }
+  }
+  return c.bars;
+}
+
+module.exports = { get, parse };
+
+  },
+  "core/oco.js": function (module, exports, require) {
+// OCO (one cancels the other) on the pending ENTRIES of a market, selected account (Gerry 2026-11-20).
+// With the option on, when one entry of a market is executed the other pending entries of that market are cancelled:
+//  - a local STOP touched: before its market order, the other local stops AND the pending LIMITs (entries, not the
+//    SL / TP legs) of that market are cancelled (awaited: Vest keeps one pending side per market, so a LIMIT on the
+//    other side must be gone before the market order);
+//  - a LIMIT filled (a pending entry disappears and the position grows): the local stops and the other pending LIMITs
+//    of that market are cancelled.
+// With OCO on, a local STOP may also be armed on the side opposite to a pending LIMIT (breakout both ways), when there is
+// no position. Known limits: tab open and Orders ON (the cancels are orders); a LIMIT filled while the tab is closed
+// leaves the others in place; partial fills of a LIMIT count as a fill.
+
+const store = require('./store');
+const stops = require('./stops');
+const entry = require('./entry');
+const orders = require('./orders');
+const log = require('../diag/log');
+
+const { S } = store;
+let on = () => false;
+const prev = new Map(); // account|symbol -> { ids: Set of pending entry ids, qty }
+
+const entryOrders = (acc, sym) => ((S.state[acc] || {}).orders || []).filter((o) => o.symbol === sym && !o.reduceOnly);
+
+/** Cancels every other pending entry of the market: local stops and Vest LIMITs (exceptId = the one executed). */
+async function cancelOthers(acc, sym, why, exceptId) {
+  const n0 = stops.list().filter((x) => x.accountId === acc && x.symbol === sym && x.id !== exceptId).length;
+  if (n0) stops.cancelWhere(acc, sym, 'OCO: ' + why);
+  const os = entryOrders(acc, sym).filter((o) => o.id !== exceptId);
+  if (os.length && !orders.enabled()) {
+    log.warn(`OCO ${sym}: ${os.length} pending LIMIT not cancelled (Orders OFF)`);
+    return;
+  }
+  const res = await Promise.allSettled(os.map((o) => entry.cancelOrder({ accountId: acc, orderId: o.id, label: `OCO: LIMIT ${o.side === 'long' ? 'BUY' : 'SELL'} ${o.qty} @ ${o.price} (${why})` })));
+  const bad = res.filter((r) => r.status === 'rejected').length;
+  if (n0 || os.length) log[bad ? 'warn' : 'info'](`OCO ${sym}: ${why}: ${n0} local stop${n0 === 1 ? '' : 's'} and ${os.length - bad}/${os.length} LIMIT cancelled`);
+}
+
+/** At every state change: a pending entry gone + position grown on the selected account = filled. */
+function watch() {
+  const acc = S.selected;
+  if (!acc) return;
+  const st = S.state[acc] || {};
+  const syms = new Set([...(st.orders || []).map((o) => o.symbol), ...(st.positions || []).map((p) => p.symbol)]);
+  for (const k of prev.keys()) if (k.startsWith(acc + '|')) syms.add(k.slice(acc.length + 1));
+  for (const sym of syms) {
+    const k = acc + '|' + sym;
+    const ids = new Set(entryOrders(acc, sym).map((o) => o.id));
+    const pos = (st.positions || []).find((p) => p.symbol === sym && p.qty > 0);
+    const qty = pos ? pos.qty : 0;
+    const p = prev.get(k);
+    const now = Date.now();
+    const step = (S.symbols[sym] || {}).step || 1e-9;
+    // the order status and the bigger position may arrive in two different messages: each one is remembered for 5 s
+    const goneAt = p && [...p.ids].some((id) => !ids.has(id)) ? now : p ? p.goneAt : 0;
+    const upAt = p && qty > p.qty + step / 2 ? now : p ? p.upAt : 0;
+    prev.set(k, { ids, qty, goneAt, upAt, done: p ? p.done : 0 });
+    if (!p || !on()) continue;
+    if (!(now - goneAt < 5000 && now - upAt < 5000) || (p.done && now - p.done < 5000)) continue;
+    prev.get(k).done = now;
+    const left = ids.size + stops.list().filter((x) => x.accountId === acc && x.symbol === sym).length;
+    if (!left) continue;
+    cancelOthers(acc, sym, 'a LIMIT was filled').catch((e) => log.error(`OCO ${sym}: ${e.message}`));
+  }
+}
+store.subscribe(watch);
+
+// a local stop touched: the others go BEFORE its market order
+stops.setBeforeFire(async (st) => {
+  if (!on()) return;
+  await cancelOthers(st.accountId, st.symbol, `${st.lim ? 'local LIMIT' : 'STOP'} ${st.trigger} touched`, st.id);
+  // the size-0 placeholder of a cancelled LIMIT on the OTHER side stays on the feed a moment: the market entry would be
+  // refused ("pending BUY order on this market") or rejected by Vest (10006). Waited until it is gone (max 3 s).
+  // (seen on the harness 2026-11-21: local LIMIT SELL touched, BUY LIMIT cancelled, the SELL never sent)
+  const t0 = Date.now();
+  while (Date.now() - t0 < 3000 && entry.placeholderOn(st.accountId, st.symbol) && !entry.positionOn(st.accountId, st.symbol)) {
+    const ph = entry.placeholderOn(st.accountId, st.symbol);
+    if (ph.side === st.side) break; // same side: the entry goes onto it
+    await new Promise((r) => setTimeout(r, 150));
+  }
+});
+
+module.exports = { setConfig: (fn) => (on = fn), enabled: () => !!on() };
+
+  },
   "core/orders.js": function (module, exports, require) {
 // Sending of the orders: FLAT, breakeven, SL/TP (new or moved), entries.
 // Rules: 'Orders' switch on (off at every reload), account that can trade, one action at a time per position,
@@ -3940,6 +5120,7 @@ const log = require('../diag/log');
 const { S } = store;
 const busy = new Map(); // positionId -> description of the action in progress
 const listeners = new Set();
+let accountGuard = null; // copier: reason why an account may not trade by hand now (copier ON, not the master), or null
 let sentHook = null,
   snapOf = null; // copier: notified after every successful order, with the account state captured BEFORE sending
 
@@ -3972,15 +5153,22 @@ function blocked(accountId) {
 }
 
 /** Sends an order { method, path, body } for an account. On 401 renews the token and retries ONCE (nothing was executed). */
-async function send(accountId, order, label, positionId) {
-  const why = blocked(accountId);
-  if (why) throw new Error(why);
+async function send(accountId, order, label, positionId, opts = {}) {
+  // copier guard on entries only (open / append): closing, reducing, cancelling and SL / TP stay possible on a copy, to fix it by hand
+  const entry = /\/v3\/positions\/(open|append)$/.test(order.path || '');
+  const why = blocked(accountId) || (entry && !opts.copy && accountGuard ? accountGuard(accountId) : null);
+  if (why) {
+    log.warn(`✗ ${label}: ${why}`);
+    throw new Error(why);
+  }
   if (positionId && busy.has(positionId)) throw new Error(`wait: "${busy.get(positionId)}" is still in progress`);
   if (positionId) busy.set(positionId, label);
   notify();
   const key = uuid();
   const before = snapOf ? snapOf(accountId) : null;
   const t0 = performance.now();
+  // the account in every line (Gerry 2026-11-23: an order went to a copy account selected by mistake and the log did not say so)
+  if (!/^COPY /.test(label)) label = `${(S.accounts[accountId] || {}).label || accountId}: ${label}`;
   log.info(`→ ${label}`);
   try {
     let tok = (await session.accountToken(accountId)).token;
@@ -4064,9 +5252,325 @@ module.exports = {
   busyOn: (pid) => busy.get(pid) || null,
   onChange: (fn) => (listeners.add(fn), () => listeners.delete(fn)),
   onSent: (fn, snap) => ((sentHook = fn), (snapOf = snap)),
+  setAccountGuard: (fn) => (accountGuard = fn),
   flat,
   breakeven,
   setLeg,
+};
+
+  },
+  "core/runner.js": function (module, exports, require) {
+// SAFE RUNNER (experimental) on the selected account's positions. Engine in domain/runner.js, research in research/.
+// Modes: off / view (lines and status only, no orders) / live (orders). Live is never restored after a reload.
+// How it works in live:
+//  - before the profit reaches "start after" nothing is touched: the user's stop stays.
+//  - then the size is split into tranches (tight / pause low / runner); at every live price (realtime since v0.20.12) each
+//    tranche gets a stop from the engine (only forward); pause lows, ATR and climax from the closed 1m candles. The LOWEST of them (long) is the NATIVE stop on Vest, for the whole remaining
+//    size: with the tab closed that one still protects (at entry + lock or better). The tranches above it are LOCAL:
+//    when the price touches one, that tranche is reduced at market (this tab must be open).
+//  - the runner keeps a wide stop only when the 1h trend guide is in favour (EMA20 above EMA50 for a long).
+// Known limits: as trailing (tab open, Orders ON, mark every 0.5 s); one stop only on the position; if the size or the
+// entry changes by hand the runner starts again from zero; candles from Vest's chart endpoint (1m refreshed at every
+// close, 1h every 5 min).
+
+const store = require('./store');
+const orders = require('./orders');
+const klines = require('./klines');
+const O = require('../domain/orders');
+const R = require('../domain/runner');
+const TA = require('../domain/ta');
+const Z = require('../domain/sizing');
+const { roundToTick } = require('../domain/num');
+const log = require('../diag/log');
+
+const { S } = store;
+const STALE_MS = 3000;
+const MIN_GAP_MS = 1000;
+const FAIL_WAIT_MS = 5000;
+const SENT_HOLD_MS = 4000;
+const st = new Map(); // positionId -> state
+let cfgOf = () => ({});
+
+const pnum = (v, def) => (v === '' || v == null || !Number.isFinite(+v) ? def : +v);
+/** Panel settings -> engine settings. */
+function engineCfg(c) {
+  const run = Math.min(100, Math.max(0, pnum(c.srRunPct, 33))) / 100,
+    pause = Math.min(100, Math.max(0, pnum(c.srPausePct, 0))) / 100;
+  const tight = Math.max(0.05, pnum(c.srTight, 0.3));
+  return {
+    act: Math.max(0, pnum(c.srAct, 10)),
+    lock: Math.max(0, pnum(c.srLock, 1)),
+    tr: [{ r: null, m: tight }, { r: 1, m: null }, { r: null, m: tight }, { r: null, m: Math.max(0.1, pnum(c.srRunAtr, 3)) }],
+    w: [Math.max(0, 1 - run - pause), pause, 0, run],
+    htfGate: c.srGate !== false,
+    climaxAtr: c.srClimax ? 2.5 : 99,
+    climaxK: 0.6,
+    buf: 0.2,
+    pivotK: 2,
+  };
+}
+const mode = () => {
+  const m = cfgOf().srMode;
+  return m === 'view' || m === 'live' ? m : 'off';
+};
+const NAMES = { t1: 'TIGHT', t2: 'PAUSE LOW', t3: 'TIGHT 2', run: 'RUNNER' };
+
+function positions() {
+  return ((S.state[S.selected] || {}).positions || []).filter((p) => p.qty > 0);
+}
+
+/** 1h trend guide in the direction of the side: EMA20 above EMA50 (long) on the last closed 1h candle. */
+function htfOf(symbol, side) {
+  const h = klines.get(symbol, '1h');
+  if (h.length < 60) return { aligned: false, why: '1h candles not loaded yet' };
+  const e20 = TA.emaSeries(h, 20),
+    e50 = TA.emaSeries(h, 50);
+  const a = e20[h.length - 1],
+    b = e50[h.length - 1];
+  return { aligned: side === 'long' ? a > b : a < b, e20: a, e50: b };
+}
+
+/** Engine on the closed candles (recomputed when a new candle closes). Returns the state s. */
+function update(pos, s, c) {
+  const bars = klines.get(pos.symbol, '1m');
+  if (!bars.length) return (s.why = 'loading 1m candles'), s;
+  const lastT = bars[bars.length - 1].t;
+  const h1 = klines.get(pos.symbol, '1h');
+  const h1T = h1.length ? h1[h1.length - 1].t : 0;
+  // realtime (Gerry 2026-11-20 "non aspettando la chiusura candela"): the live price counts too, so the start and the stops
+  // follow the price at once; pause lows, ATR and climax still come from the closed 1m candles
+  const mk = S.marks[pos.symbol];
+  const mark = mk && Date.now() - mk.at <= STALE_MS && Number.isFinite(mk.px) ? mk.px : undefined;
+  if (s.lastBarT === lastT && s.h1T === h1T && s.res && s.mark === mark) return s; // recomputed at every new candle or price
+  const entryMs = s.entryMs;
+  let iEntry = 0;
+  for (let i = 0; i < bars.length; i++) if (bars[i].t * 1000 <= entryMs) iEntry = i;
+  if (bars[0].t * 1000 > entryMs) iEntry = 0; // entry older than the candles read: best from what is there
+  const prev = s.res ? { ...s.res, iTop: s.topT != null ? bars.findIndex((b) => b.t === s.topT) : null } : null;
+  if (prev && !(prev.iTop >= 0)) prev.iTop = null;
+  if (h1.length < 60) return (s.why = 'loading 1h candles (trend guide)'), s;
+  // trend guide read once, when the engine takes over (as in the tests): a later change does not widen the runner
+  const htf = s.htfFixed || htfOf(pos.symbol, pos.side);
+  const res = R.evaluate({ side: pos.side, entry: pos.openPrice, bars, iEntry, mark, prev, cfg: engineCfg(c), htf });
+  s.mark = mark;
+  if (res.active && !s.htfFixed) s.htfFixed = htf;
+  s.res = res;
+  s.htf = htf;
+  s.topT = res.iTop >= 0 && bars[res.iTop] ? bars[res.iTop].t : s.topT;
+  s.lastBarT = lastT;
+  s.h1T = h1T;
+  s.why = res.why || '';
+  return s;
+}
+
+function fire(pos, order, label, s, now) {
+  s.next = now + MIN_GAP_MS;
+  return orders.send(S.selected, order, label, pos.id).catch((e) => {
+    s.next = Date.now() + FAIL_WAIT_MS;
+    log.error(`${label}: ${e.message}`);
+  });
+}
+
+/** At every price. */
+function check() {
+  const c = cfgOf();
+  const md = mode();
+  const live = positions();
+  for (const id of [...st.keys()]) if (!live.some((p) => p.id === id)) st.delete(id);
+  if (md === 'off') return;
+  const now = Date.now();
+  for (const pos of live) {
+    const sym = S.symbols[pos.symbol] || {};
+    const tick = sym.tick,
+      step = sym.step;
+    let s = st.get(pos.id);
+    // same entry / same size compared with a tolerance: REST gives the average entry rounded (26149.06) and the feed
+    // in full (26149.0625); compared as text they looked like an add and the runner restarted at every update (seen on
+    // Vest 2026-11-20, tranches thrown out again and again)
+    const eqQ = (a, b) => Math.abs(a - b) < (step > 0 ? step / 2 : 1e-9);
+    const eqPx = (a, b) => Math.abs(a - b) < (tick > 0 ? tick / 2 : 1e-6);
+    let fresh = false;
+    if (s) {
+      if (eqPx(pos.openPrice, s.px) && eqQ(pos.qty, s.qty)) s.px = pos.openPrice;
+      else if (s.expect && eqPx(pos.openPrice, s.px) && eqQ(pos.qty, s.expect.qty)) Object.assign(s, { qty: pos.qty, px: pos.openPrice, expect: null }); // our tranche out
+      else if (eqPx(pos.openPrice, s.px) && pos.qty < s.qty) {
+        // closed in part by hand: same trade, the open tranches shrink in proportion (what is left over goes to the last one)
+        if (s.q) {
+          const open = R.KEYS.filter((k) => !s.done.has(k));
+          let used = 0;
+          for (const k of open) {
+            const v = step > 0 ? Math.floor(((s.q[k] * pos.qty) / s.qty) / step + 1e-9) * step : (s.q[k] * pos.qty) / s.qty;
+            s.q[k] = +v.toFixed(10);
+            used += s.q[k];
+          }
+          if (open.length) s.q[open[open.length - 1]] = +(s.q[open[open.length - 1]] + pos.qty - used).toFixed(10);
+          for (const k of open) if (!(s.q[k] > 0)) s.done.add(k);
+        }
+        log.info(`SAFE RUNNER ${pos.symbol}: reduced by hand ${s.qty} -> ${pos.qty}, tranches resized`);
+        Object.assign(s, { qty: pos.qty, px: pos.openPrice, expect: null });
+      } else {
+        // an add (or a new entry): a NEW trade from now on. The profit is counted from this moment, never from prices
+        // seen before the add (seen on Vest: an add to a losing short took over at once on the old best price)
+        log.info(`SAFE RUNNER ${pos.symbol}: size or entry changed (${s.qty} @ ${s.px} -> ${pos.qty} @ ${pos.openPrice}): starting again, profit counted from now`);
+        s = null;
+        fresh = true;
+      }
+    }
+    if (!s) {
+      const entryMs = !fresh && Number.isFinite(pos.openedAt) ? pos.openedAt : now;
+      st.set(pos.id, (s = { qty: pos.qty, px: pos.openPrice, entryMs, q: null, done: new Set(), next: 0 }));
+    }
+    update(pos, s, c);
+    const res = s.res;
+    if (!res || !res.active || !res.stops || !(tick > 0)) continue;
+    const d = pos.side === 'long' ? 1 : -1;
+    // tranches fixed at the activation, on the size at that moment
+    if (!s.q) {
+      s.q = R.split(pos.qty, engineCfg(c).w, step);
+      for (const k of R.KEYS) if (!(s.q[k] > 0)) s.done.add(k);
+      log.warn(`SAFE RUNNER ${pos.symbol} ${pos.side.toUpperCase()} active: ` + R.KEYS.filter((k) => !s.done.has(k)).map((k) => `${NAMES[k]} ${s.q[k]}`).join(', ') + (s.htf && s.htf.aligned ? ' (1h trend in favour: runner wide)' : ' (1h trend NOT in favour: runner tight)'));
+    }
+    const open = R.KEYS.filter((k) => !s.done.has(k));
+    if (!open.length) continue;
+    const px = (k) => roundToTick(res.stops[k], tick, d > 0 ? 'down' : 'up');
+    // native stop = the lowest (long) of the open tranches
+    const nativeKey = open.reduce((a, k) => (d * (px(k) - px(a)) < 0 ? k : a), open[0]);
+    const target = px(nativeKey);
+    s.view = { open: open.map((k) => ({ k, price: px(k), qty: s.q[k], native: k === nativeKey })), native: target };
+    if (md !== 'live' || !orders.enabled()) continue;
+    if (c.trOn || c.beAuto) {
+      s.why = 'switch off trailing and auto BE: they move the same stop';
+      continue;
+    }
+    const mk = S.marks[pos.symbol];
+    if (!mk || now - mk.at > STALE_MS || orders.busyOn(pos.id) || now < s.next) continue;
+    const sls = pos.triggers.filter((t) => t.kind === 'sl');
+    if (sls.length > 1) {
+      s.why = 'more than one stop on the position: paused';
+      continue;
+    }
+    const sl = sls[0] || null;
+    let slPx = sl ? sl.price : null;
+    if (s.sent != null && now - s.sentAt < SENT_HOLD_MS && (slPx == null || d * (s.sent - slPx) > 0)) slPx = s.sent;
+    // 1) local tranches above the native stop: touched -> reduce that tranche at market
+    for (const k of open) {
+      if (k === nativeKey || d * (px(k) - target) < tick - 1e-9) continue;
+      if (d * (mk.px - px(k)) > 0) continue;
+      const left = +(pos.qty - s.q[k]).toFixed(10);
+      if (!(left > 0)) break; // it would be all of it: the native stop / the close below handle it
+      s.done.add(k);
+      s.expect = { qty: left };
+      fire(pos, Z.reduceOrder({ pos, qty: s.q[k], leverage: pos.leverage > 0 ? pos.leverage : O.DEFAULT_LEVERAGE, step }), `SAFE RUNNER: ${NAMES[k]} out, ${s.q[k]} at market (stop ${px(k)})`, s, now);
+      s.next = now + SENT_HOLD_MS;
+      break;
+    }
+    if (now < s.next) continue;
+    // 2) native stop forward to the target
+    if (slPx != null && d * (slPx - target) >= 0) continue; // already there or beyond
+    if (d * (mk.px - target) <= 0) {
+      // the price is already past the target: out at market, only while the price is in profit (as trailing)
+      if (d * (mk.px - pos.openPrice) < tick - 1e-9) continue;
+      log.warn(`SAFE RUNNER ${pos.symbol}: price ${mk.px} past the stop ${target}: closing at market`);
+      fire(pos, O.closeOrder(pos), `SAFE RUNNER: close ${pos.side.toUpperCase()} ${pos.qty} ${pos.symbol}`, s, now);
+      s.next = now + SENT_HOLD_MS;
+      continue;
+    }
+    if (O.checkLeg({ kind: 'sl', side: pos.side, price: target, mark: mk.px, tick })) continue; // too close: next round
+    // Vest checks the stop against the best ask (short) / best bid (long), not the mark: keep a margin for the spread
+    // (seen on Vest 2026-11-20: "Stop loss trigger must be above best ask for a short position" with the mark 2 ticks away)
+    const room = Math.max(4 * tick, 0.1 * (res.atr > 0 ? res.atr : 0));
+    if (d * (mk.px - target) < room) continue;
+    Object.assign(s, { sent: target, sentAt: now });
+    fire(pos, O.legOrder(pos, 'sl', target, tick, sl), `SAFE RUNNER: stop ${sl ? sl.price + ' -> ' : 'at '}${target} (${NAMES[nativeKey]})`, s, now);
+  }
+}
+
+/**
+ * Lines for the chart: [{ key, price, text, color, dashed, length }] for the positions on the given market.
+ * Kept away from the overlay labels (Gerry 2026-11-20: "si sovrappone tutto"): no line for the stop that is already the SL on
+ * Vest (its SL label shows it), tranches at the same price merged into one line, labels further left (line 45% long).
+ */
+function lineSpecs(isChartSym) {
+  if (mode() === 'off') return [];
+  const out = [];
+  const c = cfgOf();
+  for (const pos of positions()) {
+    if (!isChartSym(pos.symbol)) continue;
+    const s = st.get(pos.id);
+    if (!s || !s.res) continue;
+    if (!s.res.active) {
+      const tick = (S.symbols[pos.symbol] || {}).tick || 0.01;
+      const a = roundToTick(pos.openPrice + (pos.side === 'long' ? 1 : -1) * engineCfg(c).act, tick, 'nearest');
+      out.push({ key: 'sr:start:' + pos.id, price: a, text: 'SR start', qty: '', color: '#94a3b8', dashed: true, length: 45 });
+      continue;
+    }
+    const v = s.view;
+    if (!v) continue;
+    const byPx = new Map();
+    for (const t of v.open) {
+      if (mode() === 'live' && t.price === v.native) continue; // that one is the SL on Vest
+      if (!byPx.has(t.price)) byPx.set(t.price, []);
+      byPx.get(t.price).push(t);
+    }
+    for (const [price, ts] of byPx) {
+      const run = ts.some((t) => t.k === 'run');
+      const col = run && ts.length === 1 ? (s.htf && s.htf.aligned ? '#a78bfa' : '#64748b') : ts.some((t) => t.k === 't2') ? '#f59e0b' : '#22d3ee';
+      const qty = +ts.reduce((a, t) => a + t.qty, 0).toFixed(10);
+      out.push({ key: `sr:${price}:${pos.id}`, price, text: 'SR ' + ts.map((t) => NAMES[t.k].toLowerCase()).join(' + '), qty: String(qty), color: col, dashed: true, length: 45 });
+    }
+  }
+  return out;
+}
+
+/**
+ * 1h trend guide of a market BEFORE any trade (Gerry 2026-11-20): which side would have the runner held wide.
+ * -> { dir: 'up' | 'down' | null, text }. Reads the 1h candles (cached, refreshed every 5 min).
+ */
+function trend(symbol) {
+  if (!symbol) return { dir: null, text: '' };
+  const h = klines.get(symbol, '1h');
+  if (h.length < 60) return { dir: null, text: '1h trend: loading candles' };
+  const e20 = TA.emaSeries(h, 20),
+    e50 = TA.emaSeries(h, 50);
+  const a = e20[h.length - 1],
+    b = e50[h.length - 1];
+  const dir = a > b ? 'up' : 'down';
+  const fav = dir === 'up' ? 'LONG' : 'SHORT';
+  const gate = cfgOf().srGate !== false;
+  return {
+    dir,
+    text: `1h trend ${dir === 'up' ? 'UP' : 'DOWN'} (EMA20 ${a.toFixed(2)} ${dir === 'up' ? '>' : '<'} EMA50 ${b.toFixed(2)}): in favour of ${fav}` +
+      (gate ? `, runner wide only on a ${fav}` : ' (filter off: runner always wide)'),
+  };
+}
+
+function status() {
+  const md = mode();
+  if (md === 'off') return null;
+  const live = positions();
+  if (!live.length) return `${md === 'live' ? 'LIVE' : 'VIEW'}: waiting for a position`;
+  return live
+    .map((p) => {
+      const s = st.get(p.id);
+      if (!s || !s.res) return `${p.symbol}: ${s && s.why ? s.why : 'starting'}`;
+      if (md === 'live' && !orders.enabled()) return `${p.symbol}: Orders OFF (lines only)`;
+      const noSl = !p.triggers.some((t) => t.kind === 'sl') ? ' · NO STOP on the position: the runner places one only after start, when the price allows' : '';
+      if (noSl && !s.res.active) return `${p.symbol}: ${s.why || 'waiting'}${noSl}`;
+      if (!s.res.active) return `${p.symbol}: ${s.why || 'waiting'}`;
+      const parts = ((s.view && s.view.open) || []).map((t) => `${NAMES[t.k]} ${t.qty} @ ${t.price}${t.native ? ' (Vest)' : ''}`);
+      return `${p.symbol}: ${parts.join(', ')}; 1h trend ${s.htf && s.htf.aligned ? 'in favour' : 'not in favour'}${s.why ? ' · ' + s.why : ''}${noSl}`;
+    })
+    .join(' · ');
+}
+
+module.exports = {
+  check,
+  status,
+  trend,
+  lineSpecs,
+  engineCfg,
+  setConfig: (fn) => (cfgOf = fn),
+  wants: () => mode() !== 'off' && positions().length > 0,
 };
 
   },
@@ -4315,18 +5819,26 @@ let seq = 1;
 const armed = new Map(); // id -> { id, accountId, symbol, side, trigger, qty, lev, at, firing, plan? }
 // plan STOP (Risk & targets): when touched, this sends the market entry WITH the plan's SL / TP (set by main.js)
 let planFire = null;
+// OCO (core/oco.js): runs before the market order of a touched stop (cancels the other entries of the market)
+let beforeFire = null;
+let ocoOn = () => false;
 const listeners = new Set();
 const notify = () => {
   for (const fn of listeners) fn();
   store.changed();
 };
 
-/** Arms an entry stop at the given price (size and leverage fixed now). With plan: size, SL and TP of the plan. */
-function arm({ accountId, symbol, price, pct, cap, plan }) {
+/**
+ * Arms an entry stop at the given price (size and leverage fixed now). With plan: size, SL and TP of the plan.
+ * lim = LOCAL LIMIT (Gerry 2026-11-21, OCO): Vest keeps one pending side per market, so with OCO on a LIMIT on the side
+ * opposite to a pending Vest LIMIT is kept here: a BUY below / SELL above the price, sent at market when the price gets
+ * there (after OCO has cancelled the other side).
+ */
+function arm({ accountId, symbol, price, pct, cap, plan, lim }) {
   if (!plan) entry.checkPct(pct, cap);
   const m = S.symbols[symbol],
     mk = S.marks[symbol];
-  const side = Z.entrySide('st', price, mk && mk.px);
+  const side = Z.entrySide(lim ? 'lm' : 'st', price, mk && mk.px);
   if (!side) throw new Error('current price not available');
   if (Z.tooClose(price, mk.px, m.tick)) throw new Error('too close to the price: to enter now use ADD or the ticket');
   if (plan) {
@@ -4334,12 +5846,14 @@ function arm({ accountId, symbol, price, pct, cap, plan }) {
     if (entry.positionOn(accountId, symbol)) throw new Error('plan STOP: only with no position on this market');
     if (entry.placeholderOn(accountId, symbol)) throw new Error('plan STOP: a pending order is on this market (cancel it first)');
     if ([...armed.values()].some((x) => x.accountId === accountId && x.symbol === symbol)) throw new Error('plan STOP: another local stop is armed on this market');
-  } else entry.target(accountId, symbol, side, 'a stop'); // same side as the position or the pending orders
+  } else if (lim) {
+    if (!ocoOn() || entry.positionOn(accountId, symbol)) throw new Error('local LIMIT: only with OCO on and no position on this market');
+  } else if (!(ocoOn() && !entry.positionOn(accountId, symbol))) entry.target(accountId, symbol, side, 'a stop'); // same side as the position or the pending orders (OCO with no position: either side)
   const sz = plan ? { qty: plan.qty, lev: null } : entry.sizeFor(accountId, symbol, pct);
   if (sz.why) throw new Error(sz.why);
-  const st = { id: 'st' + seq++, accountId, symbol, side, trigger: price, qty: sz.qty, lev: sz.lev, at: Date.now(), firing: false, plan: plan || null };
+  const st = { id: 'st' + seq++, accountId, symbol, side, trigger: price, qty: sz.qty, lev: sz.lev, at: Date.now(), firing: false, plan: plan || null, lim: !!lim };
   armed.set(st.id, st);
-  log.warn(`STOP ${side === 'long' ? 'BUY' : 'SELL'} ${st.qty} at ${price} armed${plan ? ` with plan SL ${plan.sl} and ${plan.targets.length} TP` : ''} (LOCAL: lives in this tab, triggers at market)`);
+  log.warn(`${lim ? 'LIMIT' : 'STOP'} ${side === 'long' ? 'BUY' : 'SELL'} ${st.qty} at ${price} armed${plan ? ` with plan SL ${plan.sl} and ${plan.targets.length} TP` : ''} (LOCAL: lives in this tab, ${lim ? 'sent at market when the price gets there' : 'triggers at market'})`);
   notify();
   return st;
 }
@@ -4359,9 +5873,10 @@ function move(id, price, plan) {
   if (!st) throw new Error('local stop not found (triggered or cancelled?)');
   const mk = S.marks[st.symbol],
     m = S.symbols[st.symbol];
-  const side = Z.entrySide('st', price, mk && mk.px);
+  const side = Z.entrySide(st.lim ? 'lm' : 'st', price, mk && mk.px);
   if (!side) throw new Error('current price not available');
-  if (side !== st.side) throw new Error(`a ${st.side === 'long' ? 'BUY stop goes above' : 'SELL stop goes below'} the price: for the other side cancel it and place a new one`);
+  if (side !== st.side)
+    throw new Error(st.lim ? `a ${st.side === 'long' ? 'BUY limit goes below' : 'SELL limit goes above'} the price` : `a ${st.side === 'long' ? 'BUY stop goes above' : 'SELL stop goes below'} the price: for the other side cancel it and place a new one`);
   if (Z.tooClose(price, mk.px, m.tick)) throw new Error('too close to the price');
   log.info(`STOP ${st.side === 'long' ? 'BUY' : 'SELL'} moved ${st.trigger} -> ${price} (local)${plan ? `: plan ${plan.qty} with SL ${plan.sl}` : ''}`);
   if (plan) {
@@ -4384,6 +5899,16 @@ function cancelWhere(accountId, symbol, why) {
   return ids.length;
 }
 
+/** Bracket SL / TP distances of one local entry (dragged on the chart): { sl, tp } in points, kept when the entry is moved. */
+function setBracketOf(id, br) {
+  const st = armed.get(id);
+  if (!st) throw new Error('local entry not found (triggered or cancelled?)');
+  st.br = { ...(st.br || {}), ...br };
+  log.info(`${st.lim ? 'LIMIT' : 'STOP'} ${st.side === 'long' ? 'BUY' : 'SELL'} ${st.trigger} (local): bracket ${st.br.sl > 0 ? 'SL ' + st.br.sl + ' pt' : ''}${st.br.tp > 0 ? ' TP ' + st.br.tp + ' pt' : ''} for this entry`);
+  notify();
+  return st;
+}
+
 function cancelAll(why) {
   for (const id of [...armed.keys()]) cancel(id, why);
 }
@@ -4395,13 +5920,18 @@ function check() {
     if (st.firing) continue;
     const mk = S.marks[st.symbol];
     if (!mk || now - mk.at > STALE_MS) continue;
-    if (!Z.stopHit(st.side, st.trigger, mk.px)) continue;
+    // a local LIMIT is reached from the other direction (BUY: price down to it, SELL: price up to it)
+    if (!(st.lim ? Z.stopHit(st.side === 'long' ? 'short' : 'long', st.trigger, mk.px) : Z.stopHit(st.side, st.trigger, mk.px))) continue;
     st.firing = true;
     armed.delete(st.id);
-    log.warn(`STOP ${st.side === 'long' ? 'BUY' : 'SELL'} ${st.trigger} touched (price ${mk.px}): sending at market${st.plan ? ' with the plan' : ''}`);
-    (st.plan && planFire
-      ? planFire(st)
-      : entry.marketEntry({ accountId: st.accountId, symbol: st.symbol, side: st.side, qty: st.qty, lev: st.lev, why: 'STOP' }))
+    log.warn(`${st.lim ? 'local LIMIT' : 'STOP'} ${st.side === 'long' ? 'BUY' : 'SELL'} ${st.trigger} touched (price ${mk.px}): sending at market${st.plan ? ' with the plan' : ''}`);
+    Promise.resolve(beforeFire ? beforeFire(st) : null)
+      .catch((e) => log.warn(`OCO before STOP ${st.trigger}: ${e.message}`))
+      .then(() =>
+        st.plan && planFire
+          ? planFire(st)
+          : entry.marketEntry({ accountId: st.accountId, symbol: st.symbol, side: st.side, qty: st.qty, lev: st.lev, why: st.lim ? 'local LIMIT' : 'STOP', br: st.br || null }),
+      )
       .catch((e) => log.error(`STOP not executed: ${e.message}`))
       .finally(notify);
   }
@@ -4413,8 +5943,11 @@ module.exports = {
   cancel,
   cancelAll,
   cancelWhere,
+  setBracketOf,
   check,
   setPlanFire: (fn) => (planFire = fn),
+  setBeforeFire: (fn) => (beforeFire = fn),
+  setOco: (fn) => (ocoOn = fn),
   list: () => [...armed.values()],
   count: () => armed.size,
   onChange: (fn) => (listeners.add(fn), () => listeners.delete(fn)),
@@ -5216,7 +6749,8 @@ async function request(path, opts = {}) {
     if (!isOrder) throw new Error(`blocked: ${op} (not allowed)`);
     if (!ordersEnabled && !(opts.emergency && EMERGENCY_WRITES.has(op))) throw new Error('orders off: switch them on in the panel');
   }
-  if (!path.startsWith('/v3/')) throw new Error('path not allowed: ' + bare);
+  // /v3/ API, plus the public candles of the chart (read-only, safe runner)
+  if (!path.startsWith('/v3/') && !(method === 'GET' && bare === '/v2/klines')) throw new Error('path not allowed: ' + bare);
   const headers = { Accept: 'application/json' };
   if (opts.token) headers.Authorization = 'Bearer ' + opts.token;
   if (opts.body !== undefined) headers['Content-Type'] = 'application/json';
@@ -5372,6 +6906,13 @@ const legOf = (kind) => (b) => ({
   qty: b.quantity != null && b.sizeMode !== 'full_position' ? num(b.quantity) : null,
 });
 
+/** Time in ms from a number (s or ms) or an ISO string; NaN when missing. */
+function msOf(v) {
+  if (v == null || v === '') return NaN;
+  const n = typeof v === 'number' ? v : /^\d+(\.\d+)?$/.test(String(v)) ? +v : Date.parse(v);
+  return Number.isFinite(n) ? (n < 1e12 ? n * 1000 : n) : NaN;
+}
+
 /** GET /v3/positions/opened -> open positions (quantity > 0). */
 function parseRestPositions(res) {
   return ((res && res.positions) || [])
@@ -5381,6 +6922,7 @@ function parseRestPositions(res) {
       side: p.side,
       qty: num(p.quantity),
       openPrice: num(p.openPrice),
+      openedAt: msOf(p.openDate), // ms, NaN when Vest does not give it (safe runner: candle of the entry)
       collateral: num(p.collateral) || 0,
       leverage: num(p.leverage) || null,
       triggers: [...(p.takeProfits || []).map(legOf('tp')), ...(p.stopLosses || []).map(legOf('sl'))].filter(
@@ -5461,6 +7003,7 @@ function mergePosition(st, ev) {
     side: ev.side,
     qty: size,
     openPrice: num(ev.open_price),
+    openedAt: known && Number.isFinite(known.openedAt) ? known.openedAt : msOf(ev.open_date ?? ev.created_at),
     collateral: num(ev.collateral) || 0,
     leverage: num(ev.leverage) || known?.leverage || null,
     triggers: known ? known.triggers : [],
@@ -5580,22 +7123,32 @@ function valuesOf(acc, st, marks, perf, dayStartEq) {
  *     Used = limit - (equity - daily_loss_floor). Without the field: pct x balance at reset.
  * [D] maximum: limit = initial capital - max_drawdown_limit (right if the limit is fixed, not trailing).
  */
-function limitsOf(a, v) {
+/**
+ * man: manual limits from the panel (Gerry 2026-11-23, for Instant accounts that have none on Vest): { day: $ daily drawdown
+ * limit, goal: $ profit target }; a value > 0 replaces Vest's. Manual daily: left = limit + P&L of the day.
+ */
+function limitsOf(a, v, man = {}) {
   if (!a || !(v.equity >= 0)) return {};
-  const dayLimit = !(a.dailyFloor > 0) ? NaN : a.dailyLimit > 0 ? a.dailyLimit : a.dailyPct > 0 && a.dailyResetBalance > 0 ? a.dailyPct * a.dailyResetBalance : NaN;
+  const mDay = man.day > 0,
+    mGoal = man.goal > 0;
+  // P&L of the day on Vest's base (balance at daily reset); without the field, the series one (20:00 New York)
+  const dayPl = a.dailyResetBalance > 0 ? v.equity - a.dailyResetBalance : v.dayPnl;
+  const dayLimit = mDay ? man.day : !(a.dailyFloor > 0) ? NaN : a.dailyLimit > 0 ? a.dailyLimit : a.dailyPct > 0 && a.dailyResetBalance > 0 ? a.dailyPct * a.dailyResetBalance : NaN;
   const maxLimit = a.floor > 0 && a.initial > a.floor ? a.initial - a.floor : NaN;
+  // room: $ left before the account fails. Daily = limit + P&L of the day (moves, 0 = account lost); maximum: static
+  const dayLeft = mDay ? (Number.isFinite(dayPl) ? man.day + dayPl : NaN) : a.dailyFloor > 0 ? v.equity - a.dailyFloor : NaN;
   return {
-    dayUsed: Math.max(0, dayLimit - (v.equity - a.dailyFloor)),
+    dayUsed: Math.max(0, dayLimit - dayLeft),
     dayLimit,
     maxUsed: Math.max(0, maxLimit - (v.equity - a.floor)),
     maxLimit,
     pl: v.equity - a.initial,
-    goal: a.target > a.initial ? a.target - a.initial : NaN,
-    // room: $ left before the account fails. Daily = limit + P&L of the day (moves, 0 = account lost); maximum: static
-    dayLeft: a.dailyFloor > 0 ? v.equity - a.dailyFloor : NaN,
+    goal: mGoal ? man.goal : a.target > a.initial ? a.target - a.initial : NaN,
+    dayLeft,
     maxLeft: a.floor > 0 ? v.equity - a.floor : NaN,
-    // P&L of the day on Vest's base (balance at daily reset); without the field, the series one (20:00 New York)
-    dayPl: a.dailyResetBalance > 0 ? v.equity - a.dailyResetBalance : v.dayPnl,
+    dayPl,
+    dayManual: mDay,
+    goalManual: mGoal,
   };
 }
 /**
@@ -5626,6 +7179,48 @@ module.exports = {
 };
 
   },
+  "domain/bracket.js": function (module, exports, require) {
+// BRACKET follows a DCA (pure): after an add moved the average entry, where SL and TP should go to keep the bracket
+// distances from the NEW average. Returns the moves to make, or a reason when nothing is done.
+// Since v0.20.62 the average is AVG ALL (position + entry LIMITs waiting on the same side, Gerry 2026-11-23) and the SL
+// never sits between two entries: if avg - SL is at or past the farthest LIMIT, the SL goes SL points beyond that LIMIT.
+const { roundToTick } = require('./num');
+
+/**
+ * side 'long'|'short', avg = new average entry (AVG ALL), oldAvg = average before the add, sl / tp = distances in points
+ * (tp NaN = none), far = farthest entry LIMIT waiting (optional),
+ * legs = [{ id, kind 'sl'|'tp', price, qty }], tick.
+ * Rules: one SL and at most one TP are moved (several partial legs: left alone, they were placed on purpose);
+ * a SL already at breakeven or in profit of the OLD entry (BE / trailing / safe runner moved it) is left where it is;
+ * a missing SL is added, a missing TP is added only if a TP distance is set.
+ * -> { moves: [{ kind, leg|null, price }], skip: [text] }
+ */
+function follow({ side, avg, oldAvg, sl, tp, legs, tick, far }) {
+  const d = side === 'long' ? 1 : -1;
+  const moves = [],
+    skip = [];
+  if (!(avg > 0) || !(tick > 0)) return { moves, skip: ['no entry price'] };
+  const sls = legs.filter((l) => l.kind === 'sl'),
+    tps = legs.filter((l) => l.kind === 'tp');
+  if (sl > 0) {
+    let px = roundToTick(avg - d * sl, tick, d > 0 ? 'down' : 'up');
+    // a LIMIT at or beyond that SL would never fill before it: the SL goes beyond the farthest LIMIT
+    if (far > 0 && d * (px - far) > -tick / 2) px = roundToTick(far - d * sl, tick, d > 0 ? 'down' : 'up');
+    if (sls.length > 1) skip.push('more than one SL: not moved');
+    else if (sls.length === 1 && oldAvg > 0 && d * (sls[0].price - oldAvg) >= 0) skip.push(`SL ${sls[0].price} already at breakeven or in profit: not moved`);
+    else if (!sls.length || Math.abs(sls[0].price - px) >= tick / 2) moves.push({ kind: 'sl', leg: sls[0] || null, price: px });
+  }
+  if (tp > 0) {
+    const px = roundToTick(avg + d * tp, tick, d > 0 ? 'up' : 'down');
+    if (tps.length > 1) skip.push('more than one TP: not moved');
+    else if (!tps.length || Math.abs(tps[0].price - px) >= tick / 2) moves.push({ kind: 'tp', leg: tps[0] || null, price: px });
+  }
+  return { moves, skip };
+}
+
+module.exports = { follow };
+
+  },
   "domain/copy.js": function (module, exports, require) {
 // Copier, PURE part: from the master's successful order to each copy's order. No network, no state.
 // MARKET entries and adds, reductions and closes. PENDING orders (limits, ticket stops, limit reductions) with the same
@@ -5634,6 +7229,9 @@ module.exports = {
 // price; the copy's leg is recognised by the price of the master's leg before the change.
 // Sizing: 1:1 = same size; Cap-to-fit = size proportional to equity, ONLY scaling down
 // (a copy that is larger or equal sends the master's size), with a 5% margin and rounded down to the step.
+// DD left: size x (copy's drawdown left / master's drawdown left), ONLY scaling down: with the same SL price the copy risks
+// the same share of what it has left as the master (Gerry 2026-11-23). Drawdown left = the smaller of daily and max left.
+// Multiplier (per copy, ON + value): master size x value, replaces 1:1 / Cap-to-fit / DD left for that copy.
 
 const Z = require('./sizing');
 const { closeOrder } = require('./orders');
@@ -5647,10 +7245,26 @@ const ACTION_RE = /\/v3\/positions\/(open|append|reduce|close|cancel-order|stop-
 /** Action of an order from its path: 'open', 'append', 'reduce', 'close', ... or null. */
 const actionOf = (path) => (String(path).match(ACTION_RE) || [])[1] || null;
 
-/** Size of a copy for an entry. { qty, scaled } or { skip: reason }. */
-function capQty({ mode, masterQty, mEq, fEq, step }) {
+/** Size of a copy for an entry. { qty, scaled } or { skip: reason }.
+ *  mult > 0: multiplier of this copy (Gerry 2026-11-23): master size x mult, rounded down to the step; it replaces 1:1 / Cap-to-fit. */
+function capQty({ mode, masterQty, mEq, fEq, step, mult, mRoom, fRoom }) {
   const mQ = +masterQty;
   if (!(mQ > 0)) return { skip: 'invalid master size' };
+  if (mult > 0) {
+    if (Math.abs(mult - 1) < EPS) return { qty: mQ, scaled: false };
+    const q = floorStep(mQ * mult, step);
+    if (!(q > 0)) return { skip: `size x${mult} below the minimum size` };
+    return { qty: q, scaled: true };
+  }
+  if (mode === 'dd') {
+    // unknown or used up: skipped (never the full size on an account that may be at its limit)
+    if (!(fRoom > 0)) return { skip: 'drawdown left of the copy unknown or used up: entry not copied' };
+    if (!(mRoom > 0)) return { skip: 'drawdown left of the master unknown or used up: entry not copied' };
+    if (fRoom >= mRoom * (1 - CAP_SAME_SIZE)) return { qty: mQ, scaled: false };
+    const q = floorStep((mQ * fRoom) / mRoom, step);
+    if (!(q > 0)) return { skip: `size for ${Math.round((fRoom / mRoom) * 100)}% of the master's drawdown left is below the minimum size` };
+    return { qty: q, scaled: true };
+  }
   if (mode !== 'cap') return { qty: mQ, scaled: false };
   // without equity it cannot scale: better to skip than to send the full size to a possibly much smaller account
   if (!(mEq > 0) || !(fEq > 0)) return { skip: 'equity unknown: Cap-to-fit cannot compute the size' };
@@ -5693,7 +7307,7 @@ function planFollower(p) {
     let q;
     if (action === 'append' && fPos && mBefore && mBefore.qty > 0) q = scaleQty(body.quantity, fPos.qty, mBefore.qty, step);
     else {
-      const c = capQty({ mode: p.mode, masterQty: body.quantity, mEq: p.mEq, fEq: p.fEq, step });
+      const c = capQty({ mode: p.mode, masterQty: body.quantity, mEq: p.mEq, fEq: p.fEq, step, mult: p.mult, mRoom: p.mRoom, fRoom: p.fRoom });
       if (c.skip) return { skip: c.skip };
       q = c.qty;
     }
@@ -5795,7 +7409,7 @@ function planPending(p, lev) {
   let q;
   if (fPos && mBefore && mBefore.qty > 0 && fPos.side === side) q = scaleQty(body.quantity, fPos.qty, mBefore.qty, step);
   else {
-    const c = capQty({ mode: p.mode, masterQty: body.quantity, mEq: p.mEq, fEq: p.fEq, step });
+    const c = capQty({ mode: p.mode, masterQty: body.quantity, mEq: p.mEq, fEq: p.fEq, step, mult: p.mult, mRoom: p.mRoom, fRoom: p.fRoom });
     if (c.skip) return { skip: c.skip };
     q = c.qty;
   }
@@ -5896,16 +7510,24 @@ function closedPointsAt(rows) {
   return out;
 }
 
-/** Points and count of the positions closed from t0 (ms) on, from a map { id: { pts, at } }. */
+/**
+ * Points and count of the positions closed from t0 (ms) on, from a map { id: { pts, at } }.
+ * One Vest position = one trade: adds (DCA) and partial closes stay on the same position id, so they are not counted again.
+ * win / loss by the sign of the points (fees not counted: a trade closed a fraction of a point up can be a $ loss).
+ */
 function sumSince(map, t0) {
   let pts = 0,
-    n = 0;
+    n = 0,
+    win = 0,
+    loss = 0;
   for (const v of Object.values(map || {})) {
     if (!v || !(v.at >= t0)) continue;
     pts += v.pts;
     n++;
+    if (v.pts > 1e-9) win++;
+    else if (v.pts < -1e-9) loss++;
   }
-  return { pts, n };
+  return { pts, n, win, loss };
 }
 
 /** Sum of the points in a map { id: points }. */
@@ -5940,6 +7562,360 @@ const roomBars = (px, barSpacing) => (barSpacing > 0 ? Math.ceil(px / barSpacing
 module.exports = { priceToY, yToPrice, roomBars };
 
   },
+  "domain/grid.js": function (module, exports, require) {
+// Exit grid (column section, experimental): several SL and TP legs on the open position, from a nearest and a farthest
+// distance, a number of levels in between and two distribution curves (distances and sizes). PURE: nothing is sent here.
+// Gerry 2026-11-23. Distances in points from the average entry; sizes as shares of the position.
+const { roundToTick, floorStep, decimalsOf } = require('./num');
+
+// curves: equal = all the same; linear = growing step by step; invlin = shrinking step by step; hyper = grows fast at the far
+// end; inv = big at the near end; custom (sizes) / manual (distances) = set by hand with the sliders
+const SHAPES = ['equal', 'linear', 'invlin', 'hyper', 'inv', 'custom', 'manual'];
+const MAX_LEVELS = 12; // per ladder (2 ends + up to 10 in between)
+
+/** n weights (n >= 1) of a curve. 'custom' is handled by the caller. */
+function shapeWeights(n, shape) {
+  const w = [];
+  for (let i = 1; i <= n; i++) w.push(shape === 'linear' ? i : shape === 'invlin' ? n + 1 - i : shape === 'hyper' ? 1 / (n + 1 - i) : shape === 'inv' ? 1 / i : 1);
+  return w;
+}
+
+/**
+ * Distances of the levels: first = near, last = far, gaps between them in proportion to the curve.
+ * 'manual': man = "25, 60" = the levels in between, each as % of the way from near to far (wrong count = equal gaps).
+ */
+function distances(near, far, n, shape, man) {
+  if (n <= 1) return [near];
+  if (shape === 'manual') {
+    const p = parsePct(man);
+    if (p.length === n - 2 && p.every((x, i) => x > 0 && x < 100 && (i === 0 || x > p[i - 1]))) return [near, ...p.map((x) => near + ((far - near) * x) / 100), far];
+  }
+  const g = shapeWeights(n - 1, shape === 'custom' || shape === 'manual' ? 'equal' : shape);
+  const sum = g.reduce((a, b) => a + b, 0);
+  const out = [near];
+  let d = near;
+  for (let i = 0; i < g.length; i++) {
+    d += ((far - near) * g[i]) / sum;
+    out.push(d);
+  }
+  out[n - 1] = far; // no rounding drift on the far end
+  return out;
+}
+
+/** "30, 30, 40" or "30 30 40" -> [30, 30, 40] (comma, semicolon or spaces; decimals with a dot). */
+function parsePct(text) {
+  return String(text || '')
+    .split(/[;,\s]+/)
+    .map((x) => parseFloat(x))
+    .filter((x) => Number.isFinite(x) && x >= 0);
+}
+
+/** Size of each level: total qty split by the weights, each part rounded down to the step, the last one takes the rest. */
+function sizes(total, weights, step) {
+  const sum = weights.reduce((a, b) => a + b, 0);
+  const out = [];
+  let used = 0;
+  for (let i = 0; i < weights.length; i++) {
+    const q = i === weights.length - 1 ? floorStep(total - used, step) : floorStep((total * weights[i]) / sum, step);
+    out.push(Math.max(0, q));
+    used += Math.max(0, q);
+  }
+  return out;
+}
+
+/**
+ * No level left at size 0 when the total is enough (Gerry 2026-11-23: a level merged into the next made the first line drawn
+ * level 2, with Nearest showing the distance of an invisible level): each level with a weight > 0 and size 0 gets one step,
+ * taken from the biggest level. Only when the total is below one step per level a level stays at 0 (then merged).
+ */
+function fillMin(q, weights, step) {
+  const out = q.slice();
+  const dec = decimalsOf(step);
+  for (let i = 0; i < out.length; i++) {
+    if (out[i] > 0 || !(weights[i] > 0)) continue;
+    let k = -1;
+    for (let j = 0; j < out.length; j++) if (out[j] >= 2 * step - step / 2 && (k < 0 || out[j] > out[k])) k = j;
+    if (k < 0) break; // not enough to give one step to every level
+    out[k] = +(out[k] - step).toFixed(dec);
+    out[i] = +step.toFixed(dec);
+  }
+  return out;
+}
+
+const num = (v) => {
+  const n = parseFloat(String(v ?? '').replace(',', '.'));
+  return Number.isFinite(n) ? n : NaN;
+};
+
+/**
+ * Distances of a ladder with the levels moved by hand on the chart: ov = "d2, d3, ..." = the levels BETWEEN nearest and farthest
+ * (as many as there are), each one a distance in points. Wrong count or empty = the curve. Sorted from near to far.
+ */
+function withOv(d, ov) {
+  const o = parsePct(ov);
+  if (d.length < 3 || o.length !== d.length - 2 || !o.every((x) => x > 0)) return d;
+  return [d[0], ...o, d[d.length - 1]].sort((a, b) => a - b);
+}
+
+/**
+ * One ladder. cfg = { near, far, mid (levels in between), dist (curve), size (curve), pct (% of the position, TP only), custom }
+ * -> { legs: [{ n, kind, dist, price, qty, pct, usd, all }], why, warn: [] }
+ * all = the farthest leg of a ladder that covers 100 % of the position is sent WITHOUT a quantity: it closes whatever is left
+ * (also after the other legs or a DCA changed the size).
+ */
+function ladder(kind, cfg, pos, m) {
+  const warn = [];
+  if (cfg.off) return { legs: [], why: '', warn };
+  const near = num(cfg.near),
+    far0 = num(cfg.far);
+  if (!(near > 0)) return { legs: [], why: `${kind.toUpperCase()}: set the nearest distance`, warn };
+  const far = far0 > 0 ? far0 : near;
+  if (far < near) return { legs: [], why: `${kind.toUpperCase()}: the farthest distance is below the nearest`, warn };
+  const mid = Math.max(0, Math.min(MAX_LEVELS - 2, Math.floor(num(cfg.mid) || 0)));
+  const n = far > near ? mid + 2 : 1; // near = far: a single level
+  const pct = kind === 'tp' ? Math.min(100, Math.max(0, Number.isFinite(num(cfg.pct)) ? num(cfg.pct) : 100)) : 100;
+  if (!(pct > 0)) return { legs: [], why: '', warn };
+  const d = withOv(distances(near, far, n, cfg.dist, cfg.man), cfg.ov);
+  let w;
+  if (cfg.size === 'custom') {
+    const c = parsePct(cfg.custom);
+    if (c.length !== n) return { legs: [], why: `${kind.toUpperCase()}: ${n} levels but ${c.length} custom % (e.g. ${Array(n).fill(Math.floor(100 / n)).join(', ')})`, warn };
+    const s = c.reduce((a, b) => a + b, 0);
+    if (!(s > 0)) return { legs: [], why: `${kind.toUpperCase()}: custom % all zero`, warn };
+    if (Math.abs(s - 100) > 0.01) warn.push(`${kind.toUpperCase()} custom % add up to ${+s.toFixed(2)}: used in proportion`);
+    w = c;
+  } else w = shapeWeights(n, cfg.size);
+  const total = floorStep((pos.qty * pct) / 100, m.step);
+  if (!(total > 0)) return { legs: [], why: `${kind.toUpperCase()}: ${pct}% of the position is below the minimum size`, warn };
+  const q = fillMin(sizes(total, w, m.step), w, m.step);
+  const sgn = (pos.side === 'long' ? 1 : -1) * (kind === 'tp' ? 1 : -1);
+  // reference of the distances: TP from tpRef (first entry to fill / position average), SL from slRef (farthest entry), else the average
+  const ref = (kind === 'tp' ? pos.tpRef : pos.slRef) > 0 ? (kind === 'tp' ? pos.tpRef : pos.slRef) : pos.openPrice;
+  const wSum = w.reduce((a, b) => a + b, 0);
+  if (q.some((x, i) => Math.abs(x / total - w[i] / wSum) > 0.05))
+    warn.push(`${kind.toUpperCase()}: size too small to follow the shares (each level is a multiple of ${m.step}): ${q.map((x) => Math.round((x / total) * 100) + '%').join(' / ')} instead of ${w.map((x) => Math.round((x / wSum) * 100) + '%').join(' / ')}`);
+  const legs = [];
+  let carry = 0;
+  for (let i = 0; i < n; i++) {
+    const qi = q[i] + carry;
+    if (!(qi > 0)) {
+      carry = qi;
+      warn.push(`${kind.toUpperCase()} level ${i + 1}: below the minimum size, merged with the next one`);
+      continue;
+    }
+    carry = 0;
+    const price = roundToTick(ref + sgn * d[i], m.tick);
+    legs.push({ kind, i, of: n, dist: d[i], price, qty: +qi.toFixed(decimalsOf(m.step)), pct: (qi / pos.qty) * 100, usd: (pos.side === 'long' ? 1 : -1) * (price - pos.openPrice) * qi });
+  }
+  // the same price twice (distances closer than a tick): merged
+  for (let i = legs.length - 1; i > 0; i--)
+    if (Math.abs(legs[i].price - legs[i - 1].price) < m.tick / 2) {
+      legs[i - 1].qty = +(legs[i - 1].qty + legs[i].qty).toFixed(decimalsOf(m.step));
+      legs[i - 1].pct += legs[i].pct;
+      legs[i - 1].usd += legs[i].usd;
+      legs.splice(i, 1);
+      warn.push(`${kind.toUpperCase()}: two levels on the same price, merged`);
+    }
+  legs.forEach((l, i) => {
+    l.n = i + 1;
+    l.all = i === legs.length - 1 && pct >= 100;
+  });
+  return { legs, why: '', warn };
+}
+
+/**
+ * grid({ pos: { side, qty, openPrice }, m: { step, tick }, mark, tp: cfg, sl: cfg })
+ * -> { tp: [...legs], sl: [...legs], why: [], warn: [] }. Legs on the wrong side of the current price get bad: reason.
+ */
+function grid({ pos, m, mark, tp, sl }) {
+  if (!pos || !(pos.qty > 0) || !(pos.openPrice > 0)) return { tp: [], sl: [], why: ['no open position on this market'], warn: [] };
+  if (!(m && m.step > 0 && m.tick > 0)) return { tp: [], sl: [], why: ['market data not read yet'], warn: [] };
+  const a = ladder('tp', tp || {}, pos, m),
+    b = ladder('sl', sl || {}, pos, m);
+  const long = pos.side === 'long';
+  const gap = 2 * m.tick;
+  for (const l of [...a.legs, ...b.legs]) {
+    const ok = l.kind === 'tp' ? (long ? l.price >= mark + gap : l.price <= mark - gap) : long ? l.price <= mark - gap : l.price >= mark + gap;
+    if (mark > 0 && !ok) l.bad = `${l.kind === 'tp' ? 'target' : 'stop'} on the wrong side of the current price`;
+  }
+  return { tp: a.legs, sl: b.legs, why: [a.why, b.why].filter(Boolean), warn: [...a.warn, ...b.warn] };
+}
+
+/**
+ * Entry grid: LIMIT orders from the current price outwards (LONG below, SHORT above). Gerry 2026-11-23.
+ * entries({ side, mark, total (qty for the whole grid), m: { step, tick }, cfg: { near, far, mid, dist, size, custom } })
+ * -> { legs: [{ n, kind: 'en', side, dist, price, qty, pct }], avg (average price if all fill), qty, why, warn }
+ */
+function entries({ side, mark, total, m, cfg }) {
+  const warn = [];
+  const out = (why) => ({ legs: [], avg: NaN, qty: 0, why, warn });
+  if (side !== 'long' && side !== 'short') return out('ENTRIES: side?');
+  if (!(mark > 0)) return out('ENTRIES: price not read yet');
+  if (!(m && m.step > 0 && m.tick > 0)) return out('ENTRIES: market data not read yet');
+  const near = num(cfg.near),
+    far0 = num(cfg.far);
+  if (!(near > 0)) return out('ENTRIES: set the nearest distance');
+  const far = far0 > 0 ? far0 : near;
+  if (far < near) return out('ENTRIES: the farthest distance is below the nearest');
+  if (side === 'long' && !(mark - far > 0)) return out('ENTRIES: the farthest level is below zero');
+  if (near < 2 * m.tick) return out('ENTRIES: the nearest level is less than 2 ticks from the price');
+  const mid = Math.max(0, Math.min(MAX_LEVELS - 2, Math.floor(num(cfg.mid) || 0)));
+  const n = far > near ? mid + 2 : 1;
+  if (!(total > 0)) return out('ENTRIES: total size below the minimum size');
+  const d = withOv(distances(near, far, n, cfg.dist, cfg.man), cfg.ov);
+  let w;
+  if (cfg.size === 'custom') {
+    const c = parsePct(cfg.custom);
+    if (c.length !== n) return out(`ENTRIES: ${n} levels but ${c.length} custom %`);
+    if (!(c.reduce((a, b) => a + b, 0) > 0)) return out('ENTRIES: custom % all zero');
+    w = c;
+  } else w = shapeWeights(n, cfg.size);
+  const q = fillMin(sizes(total, w, m.step), w, m.step);
+  const sgn = side === 'long' ? -1 : 1;
+  const legs = [];
+  let carry = 0;
+  for (let i = 0; i < n; i++) {
+    const qi = q[i] + carry;
+    if (!(qi > 0)) {
+      carry = qi;
+      warn.push(`ENTRY level ${i + 1}: below the minimum size, merged with the next one`);
+      continue;
+    }
+    carry = 0;
+    legs.push({ kind: 'en', i, of: n, side, dist: d[i], price: roundToTick(mark + sgn * d[i], m.tick, side === 'long' ? 'down' : 'up'), qty: +qi.toFixed(decimalsOf(m.step)) });
+  }
+  for (let i = legs.length - 1; i > 0; i--)
+    if (Math.abs(legs[i].price - legs[i - 1].price) < m.tick / 2) {
+      legs[i - 1].qty = +(legs[i - 1].qty + legs[i].qty).toFixed(decimalsOf(m.step));
+      legs.splice(i, 1);
+      warn.push('ENTRIES: two levels on the same price, merged');
+    }
+  const tq = legs.reduce((a, l) => a + l.qty, 0);
+  legs.forEach((l, i) => {
+    l.n = i + 1;
+    l.pct = (l.qty / tq) * 100;
+  });
+  const avg = tq > 0 ? legs.reduce((a, l) => a + l.price * l.qty, 0) / tq : NaN;
+  return { legs, avg, qty: +tq.toFixed(decimalsOf(m.step)), why: '', warn };
+}
+
+module.exports = { SHAPES, MAX_LEVELS, shapeWeights, distances, withOv, parsePct, sizes, fillMin, ladder, grid, entries };
+
+  },
+  "domain/guards.js": function (module, exports, require) {
+// ACCOUNT LIMITS guard (Gerry 2026-11-21): every bar of the Account limits section can close everything (FLAT) when its
+// level is reached. Each row has an ON / OFF switch (in memory only: OFF after every reload) and a level set with a slider.
+// Pure functions: values from the account, slider range, which rows fire.
+
+// Order and names from Gerry 2026-11-23 (DAILY LOSS LIMIT and CURRENT PROFIT added; the others renamed).
+// MARGIN USED / MARGIN USED + ORDERS: bars only, no FLAT setting (Gerry 2026-11-23)
+const ROWS = {
+  dg: { name: 'DAILY PROFIT TARGET', unit: '$', dir: 'up' }, // FLAT when today's P&L reaches +$X (profit kept)
+  dl: { name: 'DAILY LOSS LIMIT', unit: '$', dir: 'up' }, // FLAT when today's P&L reaches -$X (today's loss = X)
+  cp: { name: 'MAX OPEN PROFIT', unit: '$', dir: 'up' }, // FLAT when the open profit reaches $X
+  rk: { name: 'MAX OPEN LOSS', unit: '$', dir: 'up' }, // FLAT when the open loss reaches $X
+  dd: { name: 'DAILY DRAWDOWN BUFFER', unit: '$', dir: 'down' }, // FLAT when only $X are left before the daily loss limit
+  dm: { name: 'MAX DRAWDOWN BUFFER', unit: '$', dir: 'down' }, // FLAT when only $X are left before the drawdown limit
+  tg: { name: 'ACCOUNT PROFIT TARGET', unit: '$', dir: 'up' }, // FLAT when the account P&L reaches $X
+};
+const KEYS = Object.keys(ROWS);
+
+/** Values compared with the levels. risk: { marginPos, marginAll }, limits: limitsOf(), openLoss / openProfit: $ (>= 0). */
+function values({ risk = {}, limits = {}, openLoss, openProfit }) {
+  return {
+    dg: limits.dayPl,
+    dl: Number.isFinite(limits.dayPl) ? Math.max(0, -limits.dayPl) : NaN,
+    cp: openProfit,
+    rk: openLoss,
+    dd: limits.dayLeft,
+    dm: limits.maxLeft,
+    tg: limits.pl,
+  };
+}
+
+/** 1 / 2 / 5 x 10^n at or above v. */
+function niceUp(v) {
+  if (!(v > 0)) return 1;
+  const p = Math.pow(10, Math.floor(Math.log10(v)));
+  const r = v / p;
+  return (r <= 1 ? 1 : r <= 2 ? 2 : r <= 5 ? 5 : 10) * p;
+}
+/** 1 / 2 / 5 x 10^n at or below v. */
+function niceDown(v) {
+  if (!(v > 0)) return 1;
+  const p = Math.pow(10, Math.floor(Math.log10(v)));
+  const r = v / p;
+  return (r >= 5 ? 5 : r >= 2 ? 2 : 1) * p;
+}
+
+// How each row is set (Gerry 2026-11-21): slider ON the bar for the margins (0-100 %) and the open loss (0 .. the most it can
+// lose today); a number for the others. No level beyond the account's own limit.
+const KIND = { cp: 'slider', rk: 'slider', dg: 'num', dl: 'num', dd: 'num', dm: 'num', tg: 'num' };
+
+/** Highest level of each row (NaN = no cap): margins 100 %, open loss = room to the daily loss limit, the left-rows their
+ *  limit, profit target the account target. */
+function caps({ risk = {}, limits = {} }) {
+  const fin = (x) => (Number.isFinite(x) && x > 0 ? x : NaN);
+  const room = (Number.isFinite(risk.used) ? Math.max(0, risk.used) : 0) + (Number.isFinite(risk.left) ? Math.max(0, risk.left) : 0);
+  const rk = fin(room) || fin(limits.dayLimit) || fin(limits.maxLimit);
+  // current profit: up to what is missing to the account target, else the same range as the current loss
+  const toGoal = fin(limits.goal) && Number.isFinite(limits.pl) ? fin(limits.goal - limits.pl) : NaN;
+  return { cp: toGoal || rk, rk, dg: NaN, dl: fin(limits.dayLimit), dd: fin(limits.dayLimit), dm: fin(limits.maxLimit), tg: fin(limits.goal) };
+}
+
+/**
+ * Price of the chart market at which a $ row reaches its level, with the open position there and everything else unchanged
+ * (fees and funding excluded). base: { dayPl, upnl, dayLeft, maxLeft, pl } now; pos: { side, qty }; mark: price now.
+ * NaN for % rows, no position, or a level the price cannot reach (<= 0).
+ */
+function priceOf(k, level, base, pos, mark) {
+  if (!ROWS[k] || ROWS[k].unit !== '$' || !(level > 0) || !pos || !(pos.qty > 0) || !(mark > 0)) return NaN;
+  const now = { dg: base.dayPl, dl: base.dayPl, cp: base.upnl, rk: base.upnl, dd: base.dayLeft, dm: base.maxLeft, tg: base.pl }[k];
+  const want = k === 'dl' || k === 'rk' ? -level : level; // P&L-like value that fires
+  if (!Number.isFinite(now)) return NaN;
+  const px = mark + (want - now) / ((pos.side === 'long' ? 1 : -1) * pos.qty);
+  return px > 0 ? px : NaN;
+}
+
+/** "$ left" rows: the level must be BELOW the limit (at the limit they would fire at the first cent lost). */
+const LEFT_ROWS = new Set(['dd', 'dm']);
+/** A typed level that cannot be used: a "$ left" row at or above its limit (Gerry 2026-11-23). */
+const tooHigh = (k, raw, cap) => LEFT_ROWS.has(k) && cap > 0 && parseFloat(raw) >= cap;
+
+/** Level in force: what was set, never above the cap; profit target left empty = the account target (automatic).
+ *  "$ left" rows at or above their limit: not set (0), never capped to the limit. */
+function levelOf(k, raw, cap) {
+  const v = parseFloat(raw);
+  if (!(v > 0)) return k === 'tg' && cap > 0 ? cap : 0;
+  if (tooHigh(k, raw, cap)) return 0;
+  return cap > 0 ? Math.min(v, cap) : v;
+}
+
+/** Slider step: about 1/200 of the range, 1 / 2 / 5 x 10^n. */
+const stepOf = (k, cap) => (cap > 0 ? niceDown(cap / 200) : 1);
+
+/** Has the row reached its level? A level of 0 / empty = not set (never fires). */
+function reached(k, value, level) {
+  if (!ROWS[k] || !(level > 0) || !Number.isFinite(value)) return false;
+  return ROWS[k].dir === 'up' ? value >= level : value <= level;
+}
+
+/** Rows that fire now: [{ k, value, level }] among those switched ON. */
+function firing(vals, on, levels) {
+  return KEYS.filter((k) => on[k] && reached(k, vals[k], +levels[k])).map((k) => ({ k, value: vals[k], level: +levels[k] }));
+}
+
+/** Text of a level: "FLAT at >= 80 %" / "FLAT at <= $3.00". */
+function levelText(k, level, auto) {
+  if (!(level > 0)) return k === 'tg' ? 'no target: set one' : 'level not set';
+  const r = ROWS[k];
+  const v = r.unit === '%' ? `${+(+level).toFixed(2)} %` : `$${(+level).toFixed(2)}`;
+  return `FLAT ${r.dir === 'up' ? '≥' : '≤'} ${v}${auto ? ` (${auto === true ? 'Vest target' : auto})` : ''}`;
+}
+
+module.exports = { ROWS, KEYS, KIND, values, caps, levelOf, tooHigh, stepOf, reached, firing, levelText, priceOf, niceUp, niceDown };
+
+  },
   "domain/ladder.js": function (module, exports, require) {
 // "If all limits fill" calculator: size, average entry and P&L when the price touches the last entry limit
 // (the farthest against the position), with the equity and drawdown left at that point. Calculation only, no orders.
@@ -5952,7 +7928,8 @@ const { roundToTick } = require('./num');
  * pos: { side, qty, openPrice } or null · orders: [{ id, side, price, qty }] Vest entry limits on the market
  * equity: account equity · mark: current price · floors: { total, daily } (equity below which it fails) · sl: SL price or null
  * Returns null if there are no useful limits, otherwise
- * { side, lastId, last, n, qty, avg, pnl, equityAt, ddLeft, floorKind, slPnl, slEquityAt, slDdLeft }
+ * { side, lastId, last, n, parts, qty, avg, pnl, equityAt, ddLeft, floorKind, slPnl, slEquityAt, slDdLeft }
+ * parts = entries averaged (open position + limits): with 1 the average is just that order's price
  */
 function ladder({ pos, orders, equity, mark, floors, sl }) {
   const side = pos ? pos.side : orders.length ? orders[0].side : null;
@@ -5977,7 +7954,7 @@ function ladder({ pos, orders, equity, mark, floors, sl }) {
   const t = floors && floors.total > 0 ? floors.total : 0,
     d = floors && floors.daily > 0 ? floors.daily : 0;
   const floor = Math.max(t, d);
-  const out = { side, lastId: lastO.id, last, n: lms.length, qty, avg, pnl, equityAt, ddLeft: floor > 0 ? equityAt - floor : NaN, floorKind: !floor ? null : d > t ? 'daily' : 'total' };
+  const out = { side, lastId: lastO.id, last, n: lms.length, parts: lms.length + (pos && pos.qty > 0 ? 1 : 0), qty, avg, pnl, equityAt, ddLeft: floor > 0 ? equityAt - floor : NaN, floorKind: !floor ? null : d > t ? 'daily' : 'total' };
   // open position + ONLY the next limit (the nearest against the position), if there is more than one
   if (pos && pos.qty > 0 && lms.length > 1) {
     const nextO = lms.reduce((a, o) => (dir * o.price > dir * a.price ? o : a));
@@ -6069,7 +8046,7 @@ function ddHalf({ pos, orders = [], equity, balance, mark, floors, initial, tick
   // position P&L (with the filled limits) at the rounded price
   const loss = dir * (r.qty * price - r.avg * r.qty);
   return {
-    price, qty: r.qty, avg: r.avg, filled: r.filled, avail, half, loss,
+    price, qty: r.qty, avg: r.avg, filled: r.filled, avail, half, loss, pct,
     fromNow: r.base + loss - equity,
     pl: initial > 0 ? balance - initial : NaN,
     ddInit: initial > 0 ? initial - t : NaN,
@@ -6420,6 +8397,154 @@ function entryLegs({ qty, sl, targets, each, step, tick }) {
 module.exports = { plan, stopPrice, weights, splitQty, entryLegs, SPLITS, SIZE_BY, STOP_BY, TGT_BY };
 
   },
+  "domain/runner.js": function (module, exports, require) {
+// SAFE RUNNER engine. PURE (no window, no Date): called at every live price (realtime) and at every closed 1m candle.
+//
+// Idea (from Gerry's brief + NQ 1m statistics in research/):
+//  - before the profit reaches `act` points nothing changes: the user's stop stays.
+//  - after that the position is split into tranches, each with its own stop, all at or above the FLOOR (entry + lock):
+//      t1 tight   = top - r1 x (current leg)      current leg = from the last pause low to the top
+//      t2 middle  = top - r2 x (current leg)
+//      t3 deep    = top - r3 x (current leg)      r3 ~ 1 = the pause low: below it the "opposite trade" is right
+//      run runner = top - rRun x (whole move)     whole move = from the origin of the trade to the top
+//    each tranche exits when its stop is touched; stops only move forward (never widened).
+//  - a climax candle at the top (range >= climaxAtr ATR) tightens the leg stops (x climaxK): NQ 1m data say that after a
+//    climax bar the run continues much less often (about 30% against 50%).
+//  - weight of each tranche = fraction of the size (w1..w3, wRun).
+// Everything is computed for a LONG; shorts are mirrored (prices negated) in and out.
+
+const TA = require('./ta');
+
+const DEFAULTS = {
+  act: 10, // points of profit (best price) before the engine takes over
+  lock: 1, // points of profit the floor keeps (entry + lock)
+  // per tranche: stop = top - min(r x base, m x ATR); base = current leg (t1 t2 t3) or whole move (runner).
+  // r = structure (fraction of the impulse), m = adaptive trailing (ATR multiple); null = not used
+  tr: [
+    { r: 0.38, m: 0.75 },
+    { r: 0.62, m: 1.5 },
+    { r: 1.0, m: 2.5 },
+    { r: 0.5, m: 4 },
+  ],
+  w: [0.25, 0.25, 0.25, 0.25], // fractions of the size: t1 t2 t3 runner
+  buf: 0.2, // ATR beyond the pause low (when r >= 1)
+  climaxAtr: 2.5,
+  climaxK: 0.6,
+  pivotK: 2, // a pause low = low lower than the pivotK candles before and after
+  waitAtStart: true, // on the activation candle no stop already past the close (measured from the close)
+  htfGate: true, // runner wide only with the 1h trend guide in favour (EMA20 above EMA50 for a long)
+};
+const KEYS = ['t1', 't2', 't3', 'run'];
+
+const cfgOf = (c) => ({ ...DEFAULTS, ...(c || {}) });
+
+/**
+ * input: { side, entry, bars (1m closed, ascending), iEntry (index of the candle of the entry), mark? (live price),
+ *          prev (previous result or null), cfg }
+ * returns { active, best, top, iTop, origin, legLo, atr, climax, stops: { t1, t2, t3, run } (prices, real side) | null,
+ *           floor, why? }
+ */
+function evaluate({ side, entry, bars, iEntry, mark, prev, cfg, atr: atr0, htf }) {
+  const c = cfgOf(cfg);
+  const d = side === 'short' ? -1 : 1;
+  const B = d > 0 ? bars : bars.map(TA.mirrorBar);
+  const E = d * entry;
+  const P = prev ? { ...prev, best: d * prev.best, top: d * prev.top, origin: d * prev.origin, stops: prev.stops && mir(prev.stops, d) } : null;
+  const n = B.length;
+  if (!(iEntry >= 0) || iEntry >= n + 1) return { active: false, why: 'entry candle not in the bars' };
+  // best: highs of the candles AFTER the entry candle (inside the entry candle the order of high / low is unknown) + live
+  let best = P ? P.best : E,
+    iTop = P && P.iTop != null ? P.iTop : iEntry;
+  for (let i = Math.max(iEntry + 1, 0); i < n; i++) if (B[i].h > best) (best = B[i].h), (iTop = i);
+  if (Number.isFinite(mark) && d * mark > best) best = d * mark;
+  const atr = Number.isFinite(atr0) && atr0 > 0 ? atr0 : TA.atrSeries(B, 14)[n - 1]; // atr0: already computed by the caller
+  const out = { active: !!(P && P.active), best: d * best, iTop, atr };
+  if (!out.active && best - E < c.act) return { ...out, why: `waiting for ${c.act} pt of profit` };
+  out.active = true;
+  // origin of the trade: lowest low from 2 candles before the entry to the top
+  let origin = P && P.active && Number.isFinite(P.origin) ? P.origin : Infinity;
+  if (!Number.isFinite(origin)) for (let i = Math.max(0, iEntry - 2); i <= Math.min(n - 1, iTop); i++) origin = Math.min(origin, B[i].l);
+  if (!Number.isFinite(origin)) origin = E;
+  const top = Math.max(best, P && Number.isFinite(P.top) ? P.top : -Infinity);
+  // last pause low before the top: pivot low after the origin, confirmed by pivotK candles on both sides;
+  // none yet = the lowest low after the entry candle (the leg starts in the trade, not before it)
+  let legLo = Infinity;
+  for (let i = iEntry + 1; i <= Math.min(iTop, n - 1); i++) legLo = Math.min(legLo, B[i].l);
+  if (!Number.isFinite(legLo)) legLo = Math.min(E, origin);
+  const k = c.pivotK;
+  for (let i = Math.min(iTop, n - 1) - 1; i > Math.max(iEntry - 2, k - 1); i--) {
+    let ok = i + k <= n - 1;
+    for (let j = 1; ok && j <= k; j++) if (!(B[i].l < B[i - j].l && B[i].l <= B[i + j].l)) ok = false;
+    if (ok && B[i].l > origin && i > iEntry) {
+      legLo = B[i].l;
+      break;
+    }
+  }
+  const leg = Math.max(top - legLo, 1e-9),
+    move = Math.max(top - origin, 1e-9);
+  // climax: a big candle at the top (the top candle or the one after)
+  const climax = iTop >= n - 2 && iTop >= 0 && iTop < n && atr > 0 && B[iTop].h - B[iTop].l >= c.climaxAtr * atr;
+  const f = climax ? c.climaxK : 1;
+  const floor = E + c.lock;
+  const buf = (atr > 0 ? atr : 0) * c.buf;
+  const A = atr > 0 ? atr : 0;
+  const dist = (t, base, isLeg) => {
+    const ds = [];
+    if (t && t.r != null) ds.push(t.r * (isLeg ? f : 1) * base + (t.r >= 1 ? buf : 0));
+    if (t && t.m != null && A > 0) ds.push(t.m * (isLeg ? f : 1) * A);
+    return ds.length ? Math.min(...ds) : Infinity;
+  };
+  let T = c.tr || DEFAULTS.tr;
+  // trend guide gate: without the higher timeframe trend in favour, the runner is managed like t1 (no wide stop)
+  const gated = c.htfGate && !(htf && htf.aligned);
+  if (gated) T = [T[0], T[1], T[2], T[0]];
+  const raw = {
+    t1: top - dist(T[0], leg, true),
+    t2: top - dist(T[1], leg, true),
+    t3: top - dist(T[2], leg, true),
+    run: top - dist(T[3], move, false),
+  };
+  if (!gated) raw.run = Math.min(raw.run, raw.t3); // the runner is the last one out
+  // start without exits (Gerry 2026-11-20): on the candle where the engine takes over, a stop that is already past the
+  // close is put at the same distance from the close instead of from the top (no tranche thrown out at once)
+  const startNow = !(P && P.active) && c.waitAtStart !== false;
+  // realtime (Gerry 2026-11-20): with a live price the "close" is that price, not the last closed candle
+  const close = Number.isFinite(mark) ? d * mark : B[n - 1].c;
+  if (startNow) for (const key of KEYS) if (raw[key] >= close) raw[key] = close - (top - raw[key]);
+  const stops = {};
+  for (const key of KEYS) {
+    let v = Math.max(raw[key], floor);
+    if (P && P.stops && Number.isFinite(P.stops[key])) v = Math.max(v, P.stops[key]); // never widened
+    stops[key] = v;
+  }
+  return { ...out, best: d * best, top: d * top, origin: d * origin, legLo: d * legLo, climax, gated, floor: d * floor, stops: mir(stops, d) };
+}
+
+function mir(stops, d) {
+  const o = {};
+  for (const key of KEYS) o[key] = stops[key] == null ? stops[key] : d * stops[key];
+  return o;
+}
+
+/** Quantities of the tranches for a size (rounded down to step; what is left over goes to the runner). */
+function split(qty, w, step) {
+  const ws = w && w.length === 4 ? w : DEFAULTS.w;
+  const tot = ws.reduce((s, x) => s + Math.max(0, x), 0) || 1;
+  const q = {};
+  let used = 0;
+  KEYS.forEach((key, i) => {
+    if (key === 'run') return;
+    const v = step > 0 ? Math.floor(((qty * Math.max(0, ws[i])) / tot) / step + 1e-9) * step : (qty * Math.max(0, ws[i])) / tot;
+    q[key] = +v.toFixed(10);
+    used += q[key];
+  });
+  q.run = +(qty - used).toFixed(10);
+  return q;
+}
+
+module.exports = { evaluate, split, DEFAULTS, KEYS };
+
+  },
   "domain/shapes.js": function (module, exports, require) {
 // Data shapes: only field NAMES and TYPES, never values. Used by the startup check and the diagnostics
 // (shareable without exposing tokens, ids or amounts). PURE.
@@ -6570,6 +8695,89 @@ function reduceOrder({ pos, qty, leverage, step }) {
 }
 
 module.exports = { maxLeverageFor, orderLeverage, tradingPower, maxQty, qtyForPct, entrySide, tooClose, stopHit, openOrder, appendOrder, reduceOrder, SPREAD };
+
+  },
+  "domain/ta.js": function (module, exports, require) {
+// Technical analysis helpers for the safe runner. PURE. Bars = [{ t (s), o, h, l, c }] ascending.
+
+/** Wilder ATR series (same length as bars; NaN until n bars). */
+function atrSeries(bars, n = 14) {
+  const out = new Array(bars.length).fill(NaN);
+  let a = NaN;
+  for (let i = 0; i < bars.length; i++) {
+    const b = bars[i],
+      pc = i ? bars[i - 1].c : b.c;
+    const tr = Math.max(b.h - b.l, Math.abs(b.h - pc), Math.abs(b.l - pc));
+    if (i < n) {
+      a = i === 0 ? tr : (a * i + tr) / (i + 1);
+      if (i === n - 1) out[i] = a;
+    } else {
+      a = (a * (n - 1) + tr) / n;
+      out[i] = a;
+    }
+  }
+  return out;
+}
+
+/** EMA series of the closes. */
+function emaSeries(bars, n) {
+  const k = 2 / (n + 1),
+    out = new Array(bars.length);
+  let e = NaN;
+  for (let i = 0; i < bars.length; i++) {
+    e = i === 0 ? bars[i].c : bars[i].c * k + e * (1 - k);
+    out[i] = i >= n - 1 ? e : NaN;
+  }
+  return out;
+}
+
+/** Slow stochastic %K (n, smoothed by s) series, 0..100. */
+function stochSeries(bars, n = 14, s = 3) {
+  const raw = bars.map((b, i) => {
+    if (i < n - 1) return NaN;
+    let hh = -Infinity,
+      ll = Infinity;
+    for (let j = i - n + 1; j <= i; j++) {
+      if (bars[j].h > hh) hh = bars[j].h;
+      if (bars[j].l < ll) ll = bars[j].l;
+    }
+    return hh > ll ? (100 * (b.c - ll)) / (hh - ll) : 50;
+  });
+  return raw.map((v, i) => {
+    if (i < n - 1 + s - 1) return NaN;
+    let t = 0;
+    for (let j = i - s + 1; j <= i; j++) t += raw[j];
+    return t / s;
+  });
+}
+
+/** Candles of tfSec seconds built from shorter ones (buckets aligned from 00:00 UTC). The last one may be partial. */
+function aggregate(bars, tfSec) {
+  const out = [];
+  for (const b of bars) {
+    const t = Math.floor(b.t / tfSec) * tfSec;
+    const cur = out[out.length - 1];
+    if (cur && cur.t === t) {
+      if (b.h > cur.h) cur.h = b.h;
+      if (b.l < cur.l) cur.l = b.l;
+      cur.c = b.c;
+    } else out.push({ t, o: b.o, h: b.h, l: b.l, c: b.c });
+  }
+  return out;
+}
+
+/** Kaufman efficiency ratio of the closes in [i0, i1]: 1 = straight line, 0 = pure noise. */
+function efficiency(bars, i0, i1) {
+  if (i1 <= i0) return 0;
+  let path = 0;
+  for (let i = i0 + 1; i <= i1; i++) path += Math.abs(bars[i].c - bars[i - 1].c);
+  return path > 0 ? Math.abs(bars[i1].c - bars[i0].c) / path : 0;
+}
+
+/** Mirror of a bar for shorts: prices negated, high / low swapped (the engine then reasons as a long). */
+const mirrorBar = (b) => ({ t: b.t, o: -b.o, h: -b.l, l: -b.h, c: -b.c });
+
+module.exports = { atrSeries, emaSeries, stochSeries, aggregate, efficiency, mirrorBar };
 
   },
   "domain/trail.js": function (module, exports, require) {
@@ -6747,7 +8955,42 @@ function clampInt(v, lo, hi, def) {
   return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : def;
 }
 
+/**
+ * Two VestTool scripts enabled together in Tampermonkey = two copiers, two grids, double orders on the same events.
+ * The first one marks the page; any later one does NOT start (no hooks, no panel) and says so at the top of the page.
+ * Only versions with this check (v0.20.46+) leave the mark: an older one enabled before this one is not seen.
+ */
+function alreadyRunning(version) {
+  const root = document.documentElement;
+  const other = (root && root.getAttribute('data-vesttool')) || window.__vestToolRunning;
+  if (!other) {
+    const me = `VestTool v${version}`;
+    if (root) root.setAttribute('data-vesttool', me);
+    window.__vestToolRunning = me;
+    return false;
+  }
+  const text = `VestTool v${version} NOT started: ${other} is already running in this page. Keep only ONE VestTool enabled in Tampermonkey, then reload.`;
+  console.warn(text);
+  const show = () => {
+    if (!document.body || document.getElementById('vt-double')) return;
+    const d = document.createElement('div');
+    d.id = 'vt-double';
+    d.textContent = text;
+    d.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:2147483647;padding:8px 36px 8px 12px;background:#b91c1c;color:#fff;font:700 13px/1.35 system-ui,sans-serif;text-align:center;box-shadow:0 2px 8px #0008';
+    const x = document.createElement('span');
+    x.textContent = '✕';
+    x.style.cssText = 'position:absolute;right:12px;top:7px;cursor:pointer';
+    x.onclick = () => d.remove();
+    d.appendChild(x);
+    document.body.appendChild(d);
+  };
+  if (document.body) show();
+  else document.addEventListener('DOMContentLoaded', show);
+  return true;
+}
+
 function start(version) {
+  if (alreadyRunning(version)) return;
   hooks.install(); // synchronous, right away
 
   const log = require('./diag/log');
@@ -6766,17 +9009,25 @@ function start(version) {
   const entry = require('./core/entry');
   const stops = require('./core/stops');
   const trail = require('./core/trail');
+  const bracketDca = require('./core/bracket');
+const oco = require('./core/oco');
+  const runner = require('./core/runner');
   const { toPts } = require('./domain/trail');
   const { breakevenPrice, legOrder } = require('./domain/orders');
   const copier = require('./core/copier');
   const { knockout, ladder, ddHalf } = require('./domain/ladder');
 const { limitsOf } = require('./domain/account');
+  const GD = require('./domain/guards');
+  const GR = require('./domain/grid');
+  const { legDeleteOrder } = require('./domain/orders');
+  const { decimalsOf } = require('./domain/num');
   const panel = require('./ui/panel');
   const calc = require('./ui/calc');
   const F = require('./ui/format');
   const { rate } = require('./core/transport');
   const { S } = store;
   const DP = require('./domain/daypts');
+  const Z = require('./domain/sizing');
   const { vestDayStart } = require('./domain/vestday');
 
   log.info(`VestTool v${version} started (${document.readyState})`);
@@ -6824,6 +9075,7 @@ const { limitsOf } = require('./domain/account');
         specs.push({ key: 'leg:' + t.id, price: t.price, text: `${t.kind.toUpperCase()} ${F.usd(usd, true)}`, qty: '', color: t.kind === 'sl' ? RED : GREEN, length: 25 });
       }
     }
+    // safe runner (experimental): one line per tranche stop, or the start level before it takes over
     // no calculator previews on the chart: SL and TP are placed only by dragging them from the overlay
     return specs;
   }
@@ -6850,6 +9102,70 @@ on that market are closed. Real money on every account. It switches off at every
     if (ok) copier.start();
   };
   const copyToggle = () => (copier.state().armed ? copier.stop('from the card') : copyStart());
+  // ── ACCOUNT LIMITS guard: each row of Account limits can FLAT everything when its level is reached. ON states in memory
+  // only (OFF after every reload); levels saved in the panel (lg_<row>). Selected account, plus its copies when it is the
+  // copier master. One shot: a row that fires switches itself OFF.
+  const guardOn = {};
+  let guardBusy = false;
+  // DAILY PROFIT TARGET uses the panel's daily goal; the others their own saved level. Never beyond the account's limit (GD.caps).
+  // manual daily drawdown limit / profit target from the panel (ON + amount): they replace Vest's (Instant accounts)
+  const manLim = () => {
+    const u = panel.ui();
+    return { day: u.mdOn ? parseFloat(u.mdUsd) : NaN, goal: u.mtOn ? parseFloat(u.mtUsd) : NaN };
+  };
+  // ACCOUNT PROFIT TARGET has no level of its own any more: the target itself (an old saved lg_tg is ignored)
+  const guardRaw = (k) => (k === 'dg' ? panel.ui().dailyGoal : k === 'tg' ? '' : panel.ui()['lg_' + k]);
+  const guardLevels = (g) => {
+    const c = GD.caps(g);
+    return Object.fromEntries(GD.KEYS.map((k) => [k, GD.levelOf(k, guardRaw(k), c[k])]));
+  };
+  function guardInputs(acc) {
+    const a = S.accounts[acc],
+      v = (acc && store.values(acc)) || {},
+      st = S.state[acc];
+    const posColl = ((st && st.positions) || []).reduce((t, p) => t + (p.collateral || 0), 0);
+    const all = posColl + ((st && st.ordersCollateral) || 0);
+    const openLoss = Number.isFinite(v.upnl) ? Math.max(0, -v.upnl) : NaN; // whole account, every market
+    const limits = limitsOf(a, v, manLim());
+    const left = limits.dayManual ? limits.dayLeft : a && a.dailyFloor > 0 && v.equity >= 0 ? v.equity - a.dailyFloor : v.toFloor;
+    const risk = { marginPos: v.equity > 0 ? posColl / v.equity : NaN, marginAll: v.equity > 0 ? all / v.equity : NaN, used: openLoss, left };
+    const openProfit = Number.isFinite(v.upnl) ? Math.max(0, v.upnl) : NaN;
+    const base = { dayPl: limits.dayPl, upnl: v.upnl, dayLeft: limits.dayLeft, maxLeft: limits.maxLeft, pl: limits.pl };
+    return { risk, limits, base, vals: GD.values({ risk, limits, openLoss, openProfit }), open: !!(((st && st.positions) || []).some((p) => p.qty > 0) || ((st && st.orders) || []).length || stops.list().some((x) => x.accountId === acc)) };
+  }
+  function guardModel() {
+    const acc = S.selected;
+    if (!acc) return null;
+    const g = guardInputs(acc);
+    const lv = guardLevels(g);
+    const c = GD.caps(g);
+    return Object.fromEntries(
+      GD.KEYS.map((k) => {
+        const raw = guardRaw(k);
+        const auto = k === 'tg' && !(parseFloat(raw) > 0) && lv[k] > 0 ? (g.limits.goalManual ? 'manual target' : 'Vest target') : '';
+        return [k, { kind: GD.KIND[k], eye: panel.ui()['ue_' + k] !== false, on: !!guardOn[k], level: lv[k], raw: raw == null ? '' : String(raw), cap: c[k], step: GD.stepOf(k, c[k]), text: GD.tooHigh(k, raw, c[k]) ? `must be below the limit $${c[k].toFixed(2)}` : GD.levelText(k, lv[k], auto), auto, hit: GD.reached(k, g.vals[k], lv[k]) }];
+      }),
+    );
+  }
+  function guardCheck() {
+    const acc = S.selected;
+    if (!acc || guardBusy || S.flattening || !GD.KEYS.some((k) => guardOn[k])) return;
+    const g = guardInputs(acc);
+    const f = GD.firing(g.vals, guardOn, guardLevels(g));
+    if (!f.length || !g.open) return; // nothing open: nothing to close (the row stays ON)
+    for (const x of f) guardOn[x.k] = false; // one shot
+    const cs = copier.state();
+    const ids = [acc, ...(cs.master === acc ? cs.followers.filter((id) => id !== acc) : [])];
+    const why = f.map((x) => `${GD.ROWS[x.k].name} ${GD.ROWS[x.k].unit === '%' ? x.value.toFixed(1) + ' %' : '$' + x.value.toFixed(2)} (${GD.levelText(x.k, x.level)})`).join(', ');
+    log.warn(`ACCOUNT LIMITS: ${why} -> FLAT ${ids.length} account${ids.length === 1 ? '' : 's'}`);
+    panel.say(`ACCOUNT LIMITS: ${f.map((x) => GD.ROWS[x.k].name).join(', ')} reached -> FLAT`, 'warn');
+    guardBusy = true;
+    for (const x of stops.list()) if (ids.includes(x.accountId)) stops.cancel(x.id, 'ACCOUNT LIMITS'); // local entries first: they must not open anything
+    Promise.resolve(flatten.flattenAll(ids, 'ACCOUNT LIMITS'))
+      .catch((e) => log.error(`ACCOUNT LIMITS FLAT: ${e.message}`))
+      .finally(() => (guardBusy = false));
+  }
+  setInterval(guardCheck, 500);
   function tradeModel() {
     const found = lastFound;
     if (!found) return null;
@@ -6861,6 +9177,10 @@ on that market are closed. Real money on every account. It switches off at every
     const st = S.state[acc];
     const pos = ((st && st.positions) || []).find((p) => p.symbol === symbol) || null;
     const size = acc ? entry.sizeFor(acc, symbol, +ui.sizePct || 0) : { why: '' };
+    const gBase = ui.gdOn ? gridBase(acc, symbol, m) : null;
+    const gLive = gdLiveOn(acc, symbol);
+    const gGrid = gBase && (ui.gdTpOn || ui.gdSlOn) ? gridOf(gBase, m) : null;
+    if (gGrid && gLive && gBase.src === 'position') gridDiff(gBase.pos, gGrid, m, ui); // marks the legs already on Vest
     // pending orders on this market (Vest: entry limits; local: entry stops) for the lines with X
     const pendings = [
       ...((st && st.orders) || [])
@@ -6869,7 +9189,7 @@ on that market are closed. Real money on every account. It switches off at every
       ...stops
         .list()
         .filter((x) => x.accountId === acc && x.symbol === symbol)
-        .map((x) => ({ id: x.id, kind: 'st', side: x.side, price: x.trigger, qty: x.qty, local: true, plan: x.plan ? { sl: x.plan.sl, targets: x.plan.targets } : null })),
+        .map((x) => ({ id: x.id, kind: 'st', label: x.lim ? 'LIMIT' : undefined, lim: !!x.lim, br: x.br || null, side: x.side, price: x.trigger, qty: x.qty, local: true, plan: x.plan ? { sl: x.plan.sl, targets: x.plan.targets } : null })),
     ];
     // account equity and room to the TOTAL drawdown limit (max drawdown + profit = equity - floor)
     const a = S.accounts[acc],
@@ -6887,7 +9207,8 @@ on that market are closed. Real money on every account. It switches off at every
       const lb = S.accounts[id].label;
       const num = (/^(\S{1,3})\s/.exec(lb) || [])[1] || String((S.accounts[id].order ?? 0) + 1); // "3 7fe467" -> 3, "A 7fe467" -> A
       const act = store.activityOf(id);
-      return { id, label: lb, num, act: act.lvl, actTip: act.tip, master: id === cs.master, qty: p ? p.qty : 0, side: p ? p.side : null, ...Object.fromEntries(KEYS.map((k) => [k, cv[k]])) };
+      const sy = copier.syncOf(id, symbol);
+      return { id, label: lb, num, mult: copier.multOf(id), act: act.lvl, actTip: act.tip, sync: sy, master: id === cs.master, qty: p ? p.qty : 0, side: p ? p.side : null, ...Object.fromEntries(KEYS.map((k) => [k, cv[k]])) };
     });
     // one account without data makes the total unknown, as in the panel
     const copyTot = Object.fromEntries(KEYS.map((k) => [k, copyRows.reduce((t, r) => t + r[k], 0)]));
@@ -6899,7 +9220,9 @@ on that market are closed. Real money on every account. It switches off at every
       points: (() => {
         let closed = 0,
           open = 0,
-          n = 0;
+          n = 0,
+          win = 0,
+          loss = 0;
         const ids = pointsIds();
         if (!ids.length) return null;
         for (const id of ids) {
@@ -6909,17 +9232,24 @@ on that market are closed. Real money on every account. It switches off at every
           const d = DP.sumSince(h.map, vestDayStart(Date.now()));
           closed += d.pts;
           n += d.n; // REALISED only: the open position does not count
+          win += d.win;
+          loss += d.loss;
         }
-        return { closed, open, n, label: (S.accounts[ids[0]] || {}).label || ids[0], master: ids[0] === copier.state().master };
+        return { closed, open, n, win, loss, label: (S.accounts[ids[0]] || {}).label || ids[0], master: ids[0] === copier.state().master };
       })(),
       selected: S.selected,
-      copy: cs.followers.length && copyRows.length ? { armed: cs.armed, rows: copyRows, tot: copyTot } : null,
+      copy: cs.followers.length && copyRows.length ? { armed: cs.armed, dry: cs.dry, rows: copyRows, tot: copyTot } : null,
       market: { symbol, label: m.label, tick: m.tick, step: m.step, fee: m.takerFee, priceDec: m.priceDec, mark: (S.marks[symbol] || {}).px },
       pos,
       lev: size.lev,
       size,
       capPct: +ui.capPct || 0, // per-order cap: also limits the Risk & targets plan
-      tb: { trOn: !!ui.trOn, trUnit: ui.trUnit, trAct: ui.trAct, trDist: ui.trDist, trStep: ui.trStep, beOn: !!ui.beOn, beUnit: ui.beUnit, beOff: ui.beOff, beAuto: !!ui.beAuto, beAt: ui.beAt, note: panel.trailNote() },
+      tb: { trOn: !!ui.trOn, trUnit: ui.trUnit, trAct: ui.trAct, trDist: ui.trDist, trStep: ui.trStep, beOn: !!ui.beOn, beUnit: ui.beUnit, beOff: ui.beOff, beAuto: !!ui.beAuto, beAt: ui.beAt, note: panel.trailNote(), brOn: !!ui.brOn, brSl: ui.brSl, brTp: ui.brTp, brDca: !!ui.brDca, ocoOn: !!ui.ocoOn, srMode: ui.srMode, srAct: ui.srAct, srLock: ui.srLock, srTight: ui.srTight, srPausePct: ui.srPausePct, srRunPct: ui.srRunPct, srRunAtr: ui.srRunAtr, srGate: !!ui.srGate, srClimax: !!ui.srClimax, notes: { ...panel.sideNotes(), gd: gridNote(m) }, srTrend: runner.trend(chartMarket()), ...gridKeys(ui) },
+      grid: gGrid,
+      gridEn: ui.gdOn ? gridEnOf(acc, symbol, m).g : null,
+      gdLive: gLive,
+      gdHide: gLive && pos ? { tp: !!ui.gdTpOn, sl: !!ui.gdSlOn } : null, // ACTIVE: the grid labels stand for the legs on Vest
+      gdFar: gBase ? { ref: gBase.tpRef, tpRef: gBase.tpRef, slRef: gBase.slRef, side: gBase.side, tp: !!ui.gdTpOn, sl: !!ui.gdSlOn } : null,
       pct: +ui.sizePct || 0,
       pendings,
       phLegs: (((st && st.placeholders) || []).find((p) => p.symbol === symbol) || {}).triggers || null, // legs Vest keeps on the pending LIMIT
@@ -6938,11 +9268,16 @@ on that market are closed. Real money on every account. It switches off at every
           maxQty: acc ? entry.sizeFor(acc, symbol, 100).max : NaN,
           used: Math.max(0, -upnl),
           upnl,
-          left: a && a.dailyFloor > 0 && v.equity >= 0 ? v.equity - a.dailyFloor : v.toFloor, // down to Vest's daily loss limit
+          // down to the daily loss limit (Vest's, or the manual one from the panel)
+          left: (() => {
+            const L = limitsOf(a, v, manLim());
+            return L.dayManual ? L.dayLeft : a && a.dailyFloor > 0 && v.equity >= 0 ? v.equity - a.dailyFloor : v.toFloor;
+          })(),
         };
       })(),
       // average entry if all entry limits fill (position + limits): AVG label
       // fail price: where the equity reaches the drawdown limit, with the entry limits that fill on the way
+      sr: runner.lineSpecs(isChartSym), // safe runner levels: labels in the overlay column, like SL / TP
       avg: ladder({ pos, orders: pendings.filter((o) => !o.local && o.label === 'LIMIT'), equity: v.equity, mark: (S.marks[symbol] || {}).px }),
       ko: knockout({
         pos,
@@ -6951,20 +9286,41 @@ on that market are closed. Real money on every account. It switches off at every
         mark: (S.marks[symbol] || {}).px,
         floors: { total: a && a.floor, daily: a && a.dailyFloor },
       }),
-      limits: limitsOf(a, v),
-      // 50% drawdown label (can be switched off in the panel)
-      dd50: panel.ui().dd50 !== false
-        ? ddHalf({
-            pos,
-            orders: pendings.filter((o) => !o.local && o.label === 'LIMIT'),
-            equity: v.equity,
-            balance: v.balance,
-            mark: (S.marks[symbol] || {}).px,
-            floors: { total: a && a.floor, daily: a && a.dailyFloor },
-            initial: a && a.initial,
-            tick: (S.symbols[symbol] || {}).tick,
-          })
-        : null,
+      limits: limitsOf(a, v, manLim()),
+      guards: guardModel(), // Account limits: ON / OFF and level of each row (FLAT when reached)
+      // Account limits switched ON: the price of this market where each $ row fires, drawn as a USER line (Gerry 2026-11-23)
+      userLines: (() => {
+        const mk = (S.marks[symbol] || {}).px;
+        if (!acc || !pos || !(mk > 0) || !GD.KEYS.some((k) => guardOn[k])) return [];
+        const g = guardInputs(acc);
+        const lv = guardLevels(g);
+        return GD.KEYS.filter((k) => guardOn[k] && panel.ui()['ue_' + k] !== false)
+          .map((k) => ({ k, name: GD.ROWS[k].name, level: lv[k], price: GD.priceOf(k, lv[k], g.base, pos, mk) }))
+          .filter((x) => x.price > 0);
+      })(),
+      // drawdown levels: three labels, each ON / OFF with its own % (panel, Chart display); dd50 = the middle one's switch
+      ddLv: [
+        ['dd25On', 'ddP1', 25],
+        ['dd50', 'ddP2', 50],
+        ['dd75On', 'ddP3', 75],
+      ].map(([on, pk, def]) => {
+        const u = panel.ui();
+        const pct = parseFloat(u[pk]);
+        const p = pct > 0 && pct < 100 ? pct : def;
+        return u[on] !== false
+          ? ddHalf({
+              pos,
+              orders: pendings.filter((o) => !o.local && o.label === 'LIMIT'),
+              equity: v.equity,
+              balance: v.balance,
+              mark: (S.marks[symbol] || {}).px,
+              floors: { total: a && a.floor, daily: a && a.dailyFloor },
+              initial: a && a.initial,
+              tick: (S.symbols[symbol] || {}).tick,
+              pct: p,
+            })
+          : null;
+      }),
       // LONG / SHORT hover preview: fail price (FAIL NEW) with the size in %, added to the position when it is on the same side;
       // the opposite side has no preview (it would cut the position). Pending orders excluded.
       preview: (() => {
@@ -6988,6 +9344,7 @@ on that market are closed. Real money on every account. It switches off at every
       }),
       blockPct: ui.blockPct,
       lineStyles: panel.lineStyles(),
+      chartCommon: panel.chartCommon(),
       btnColors: panel.btnColors(),
       // positions on the same side on ALL accounts (TP and SL show the P&L of every account in the trade)
       allPos: pos
@@ -7016,7 +9373,7 @@ on that market are closed. Real money on every account. It switches off at every
       theme: ui.theme === 'sonar' || ui.theme === 'classic' ? ui.theme : 'console',
       cardsCol: panel.cardsColumn(), // cards in the docked column (null = next to the price axis)
       hlOn: ui.hlOn !== false,
-      atrOn: ui.atrOn !== false,
+      atrOn: false, // multi-timeframe volatility removed (Gerry 2026-11-23): swing range only, in the panel
       // out of range -> nearest limit (not the default: a value that silently does nothing is worse); empty -> default
       atrH: clampInt(ui.atrH, 1, 48, 14),
       atrR: clampInt(ui.atrR, 1, 20, 3),
@@ -7030,8 +9387,238 @@ on that market are closed. Real money on every account. It switches off at every
     return m.pos;
   };
   // switching orders on (panel and card): switching off is immediate, switching on asks for confirmation with the account name
+  // Vest data needed before the tool can be used (Gerry 2026-11-23: after a reload the panel looked ready but was not).
+  // Once everything has arrived it stays ready (a later session blip must not grey out FLAT in the middle of a trade).
+  let vestReady = false;
+  function waitingFor() {
+    if (vestReady) return [];
+    const w = [];
+    if (session.status().state !== 'ok') w.push('session');
+    if (!Object.keys(S.accounts).length || !S.selected || !S.accounts[S.selected]) w.push('accounts');
+    else if (!S.state[S.selected]) w.push('positions');
+    if (!w.length) vestReady = true;
+    return w;
+  }
+  // ── Grid (column section, experimental): entry LIMITs + SL / TP ladders. Gerry 2026-11-23.
+  // OFF / PLAN (lines on the chart, nothing sent) / ACTIVE (after START: entries placed once, SL / TP follow every change).
+  // ACTIVE lives in this tab only and is never restored after a reload (like Risk ON).
+  const GD_KEYS = ['gdTpFixPx', 'gdSlFixPx', 'gdOn', 'gdEnOn', 'gdTpOn', 'gdSlOn', 'gdEnAvg', 'gdTpAvg', 'gdSlAvg', 'gdEnSide', 'gdEnNear', 'gdEnFar', 'gdEnMid', 'gdEnPct', 'gdEnDist', 'gdEnSize', 'gdEnCustom', 'gdEnOv', 'gdEnMan', 'gdEnFixPx', 'gdTpNear', 'gdTpFar', 'gdTpMid', 'gdTpPct', 'gdTpDist', 'gdTpSize', 'gdTpCustom', 'gdTpOv', 'gdTpMan', 'gdSlNear', 'gdSlFar', 'gdSlMid', 'gdSlDist', 'gdSlSize', 'gdSlCustom', 'gdSlOv', 'gdSlMan'];
+  const GD_BOOL = new Set(['gdOn', 'gdEnOn', 'gdTpOn', 'gdSlOn', 'gdEnAvg', 'gdTpAvg', 'gdSlAvg']);
+  const gridKeys = (ui) => Object.fromEntries(GD_KEYS.map((k) => [k, GD_BOOL.has(k) ? !!ui[k] : ui[k]]));
+  const gnum = (v) => parseFloat(String(v ?? '').replace(',', '.'));
+  let gdLive = null; // ACTIVE: { acc, symbol, enSent, hadPos, t0, sig, since, until, tries, busy, msg }
+  const gdLiveOn = (acc, symbol) => !!(gdLive && gdLive.acc === acc && gdLive.symbol === symbol);
+  const gdCfg = (u, p) => ({ off: !u[`gd${p}On`], near: u[`gd${p}Near`], far: u[`gd${p}Far`], mid: u[`gd${p}Mid`], dist: u[`gd${p}Dist`], size: u[`gd${p}Size`], custom: u[`gd${p}Custom`], ov: u[`gd${p}Ov`], man: u[`gd${p}Man`], pct: p === 'Tp' ? u.gdTpPct : 100 });
+  // what the SL / TP ladders are computed on: the open position; without one, the entries waiting on this market (LIMITs on
+  // Vest, local STOPs and, in PLAN, the grid's own entries) as if they all filled
+  function gridBase(acc, symbol, m) {
+    const st = (acc && S.state[acc]) || {};
+    const pos = (st.positions || []).find((p) => p.symbol === symbol && p.qty > 0);
+    const ent = [
+      ...(st.orders || []).filter((o) => o.symbol === symbol && o.price > 0 && !o.reduceOnly).map((o) => ({ side: o.side, price: o.price, qty: o.qty })),
+      ...stops.list().filter((x) => x.accountId === acc && x.symbol === symbol).map((x) => ({ side: x.side, price: x.trigger, qty: x.qty })),
+    ];
+    const live = gdLiveOn(acc, symbol);
+    if (!live) for (const l of gridEnOf(acc, symbol, m).g.legs) ent.push({ side: l.side, price: l.price, qty: l.qty });
+    // SL beyond the farthest entry (also the ones already filled: kept from START), never between two entries
+    const worst = (side, prices) => (side === 'long' ? Math.min(...prices) : Math.max(...prices));
+    if (pos) {
+      const more = ent.filter((e) => e.side === pos.side).map((e) => e.price);
+      if (live && gdLive.slRef > 0) more.push(gdLive.slRef);
+      return { side: pos.side, qty: pos.qty, openPrice: pos.openPrice, tpRef: pos.openPrice, slRef: worst(pos.side, [pos.openPrice, ...more]), symbol, src: 'position', pos };
+    }
+    if (!ent.length) {
+      // nothing open or waiting: as if opened now at the market price with the Trade commands size, on the grid's Side
+      const mark = (S.marks[symbol] || {}).px;
+      const sz = acc && mark > 0 ? entry.sizeFor(acc, symbol, +panel.ui().sizePct || 0) : null;
+      if (!sz || sz.why || !(sz.qty > 0)) return null;
+      const side = panel.ui().gdEnSide === 'short' ? 'short' : 'long';
+      // FIX on TP / SL: measured from the price frozen when FIX was pressed (Gerry 2026-11-23)
+      const fT = gnum(panel.ui().gdTpFixPx), fS = gnum(panel.ui().gdSlFixPx);
+      return { side, qty: sz.qty, openPrice: mark, tpRef: fT > 0 ? fT : mark, slRef: fS > 0 ? fS : mark, symbol, src: 'market', fixTp: fT > 0, fixSl: fS > 0 };
+    }
+    const side = ent[0].side;
+    const same = ent.filter((e) => e.side === side && e.qty > 0);
+    const qty = same.reduce((a, e) => a + e.qty, 0);
+    if (!(qty > 0)) return null;
+    const px = same.map((e) => e.price);
+    if (live && gdLive.slRef > 0) px.push(gdLive.slRef);
+    // TP from the entry that fills first (the position starts there; after each fill they follow the position average)
+    const first = side === 'long' ? Math.max(...same.map((e) => e.price)) : Math.min(...same.map((e) => e.price));
+    return { side, qty: +qty.toFixed(decimalsOf(m.step)), openPrice: same.reduce((a, e) => a + e.price * e.qty, 0) / qty, tpRef: first, slRef: worst(side, px), symbol, src: 'pending', n: same.length, mixed: same.length < ent.length };
+  }
+  function gridOf(base, m) {
+    const u = panel.ui();
+    const g = GR.grid({ pos: base, m, mark: (S.marks[base.symbol] || {}).px, tp: gdCfg(u, 'Tp'), sl: gdCfg(u, 'Sl') });
+    for (const l of [...g.tp, ...g.sl]) {
+      l.ref = l.kind === 'tp' ? base.tpRef : base.slRef;
+      l.side = base.side;
+      if (base.src !== 'position') delete l.bad; // on entries still waiting the current price says nothing
+    }
+    return g;
+  }
+  // entry LIMITs of the grid: total = % of the maximum size (as Trade commands), split over the levels
+  function gridEnOf(acc, symbol, m) {
+    const u = panel.ui();
+    const none = (why) => ({ g: { legs: [], avg: NaN, qty: 0, why, warn: [] } });
+    if (!u.gdEnOn || (gdLiveOn(acc, symbol) && gdLive.enSent)) return none('');
+    const pct = gnum(u.gdEnPct);
+    if (!(pct > 0)) return none(u.gdEnNear ? 'ENTRIES: set the total size %' : '');
+    const sz = acc && symbol ? entry.sizeFor(acc, symbol, pct) : { why: 'no market' };
+    if (sz.why) return { ...none('ENTRIES: ' + sz.why), sz };
+    // FIX: the entries are measured from the price frozen when FIX was pressed, not from the market price (Gerry 2026-11-23)
+    const mark = (S.marks[symbol] || {}).px;
+    const fix = gnum(u.gdEnFixPx);
+    const g = GR.entries({ side: u.gdEnSide === 'short' ? 'short' : 'long', mark: fix > 0 ? fix : mark, total: sz.qty, m, cfg: { near: u.gdEnNear, far: u.gdEnFar, mid: u.gdEnMid, dist: u.gdEnDist, size: u.gdEnSize, custom: u.gdEnCustom, ov: u.gdEnOv, man: u.gdEnMan } });
+    if (fix > 0 && mark > 0)
+      for (const l of g.legs) {
+        // a LIMIT on the wrong side of the price now would fill at once (or be refused): marked, START refuses it
+        const ok = l.side === 'long' ? l.price <= mark - 2 * m.tick : l.price >= mark + 2 * m.tick;
+        if (!ok) l.bad = 'the price has already gone past it';
+      }
+    g.fix = fix > 0 ? fix : NaN;
+    return { g, sz };
+  }
+  // grid legs vs the legs on Vest (only the kinds whose ladder is on): what to add, what to remove. Marks the matched ones (on).
+  function gridDiff(pos, g, m, u) {
+    const want = [...(u.gdSlOn ? g.sl : []), ...(u.gdTpOn ? g.tp : [])];
+    const free = pos.triggers.filter((t) => (t.kind === 'tp' ? u.gdTpOn : u.gdSlOn));
+    const add = [];
+    // size of a leg: from Vest when it gives it, else the one this grid sent at that price (Vest may not echo it)
+    const sent = (gdLive && gdLive.sent) || {};
+    const qOf = (t) => (t.qty > 0 ? t.qty : sent[t.kind + '|' + t.price]);
+    for (const l of want) {
+      const j = free.findIndex((t) => {
+        if (t.kind !== l.kind || Math.abs(t.price - l.price) >= m.tick / 2) return false;
+        const q = qOf(t);
+        return l.all ? q === undefined || q === 'all' || Math.abs(q - pos.qty) < m.step / 2 : q > 0 && Math.abs(q - l.qty) < m.step / 2;
+      });
+      if (j >= 0) {
+        l.on = true;
+        free.splice(j, 1);
+      } else add.push(l);
+    }
+    return { add, del: free };
+  }
+  // new legs first (SL before TP), then the old ones removed: the position is never left without its stop in between
+  async function gridSend(acc, pos, d, m) {
+    const dec = decimalsOf(m.step);
+    for (const l of d.add) {
+      const o = legOrder(pos, l.kind, l.price, m.tick);
+      if (!l.all) o.body.quantity = l.qty.toFixed(dec);
+      if (gdLive) (gdLive.sent = gdLive.sent || {})[l.kind + '|' + +o.body.triggerPrice] = l.all ? 'all' : l.qty;
+      await orders.send(acc, o, `GRID ${l.kind.toUpperCase()}${l.n} at ${l.price}${l.all ? ' (rest)' : ' x ' + l.qty}`, pos.id);
+    }
+    for (const t of d.del) await orders.send(acc, legDeleteOrder(pos, t), `GRID: ${t.kind.toUpperCase()} at ${t.price} removed`, pos.id);
+  }
+  function gridEnd(why) {
+    log.warn(`GRID: ACTIVE ended — ${why}. Orders left as they are on Vest; the grid is back to PLAN.`);
+    panel.say(`GRID ACTIVE ended: ${why}`, 'warn');
+    gdLive = null;
+  }
+  // ACTIVE: every second, SL / TP on Vest brought back to the grid (after 1.5 s of no change, 4 s pause after each update)
+  async function gridFollow() {
+    if (!gdLive || gdLive.busy) return;
+    const u = panel.ui();
+    if (!u.gdOn) return void (gdLive = null);
+    const { acc, symbol } = gdLive;
+    const m = S.symbols[symbol];
+    const st = S.state[acc] || {};
+    const pos = (st.positions || []).find((p) => p.symbol === symbol && p.qty > 0);
+    const now = Date.now();
+    const pause = (why) => void (gdLive.msg = 'ACTIVE but PAUSED: ' + why);
+    if (!pos) {
+      const waiting = (st.orders || []).some((o) => o.symbol === symbol && !o.reduceOnly) || stops.list().some((x) => x.accountId === acc && x.symbol === symbol);
+      if (gdLive.hadPos) return gridEnd('the position was closed');
+      if (!waiting && !gdLive.market && now - gdLive.t0 > 15000) return gridEnd('no position and no entry waiting on this market');
+      gdLive.msg = waiting
+        ? 'ACTIVE: waiting for the fill — the SL / TP are placed on the position as soon as it opens.'
+        : 'ACTIVE: waiting for a position on this market (open it with LONG / SHORT): the grid SL / TP go on it at once.';
+      return;
+    }
+    gdLive.hadPos = true;
+    if (!m) return;
+    if (!(u.gdTpOn || u.gdSlOn)) return void (gdLive.msg = 'ACTIVE: TP and SL ladders both off, nothing to follow.');
+    if (u.trOn || u.beAuto || u.srMode === 'live') return pause('trailing / auto BE / Safe runner LIVE move one stop: switch them off');
+    if (u.brOn && u.brDca) return pause('Bracket "follow adds" is on: switch it off');
+    if (!orders.enabled()) return pause('ORDERS are off');
+    if (now < gdLive.until || orders.busyOn(pos.id)) return;
+    const g = gridOf(gridBase(acc, symbol, m), m);
+    if (g.why.length) return pause(g.why[0]);
+    const bad = [...(u.gdTpOn ? g.tp : []), ...(u.gdSlOn ? g.sl : [])].find((l) => l.bad);
+    if (bad) return pause(`${bad.kind.toUpperCase()}${bad.n} at ${bad.price}: ${bad.bad}`);
+    const d = gridDiff(pos, g, m, u);
+    if (!d.add.length && !d.del.length) {
+      Object.assign(gdLive, { sig: '', tries: 0, msg: 'ACTIVE: the SL / TP on Vest match the grid.' });
+      return;
+    }
+    const sig = JSON.stringify([d.add.map((l) => [l.kind, l.price, l.all ? 0 : l.qty]), d.del.map((t) => t.id)]);
+    if (sig !== gdLive.sig) return void Object.assign(gdLive, { sig, since: now, msg: 'ACTIVE: grid changed, SL / TP updated in a moment…' });
+    if (now - gdLive.since < 1500) return;
+    if (++gdLive.tries > 2) return gridEnd('the SL / TP on Vest still differ from the grid after 2 updates: check them by hand');
+    gdLive.busy = true;
+    try {
+      await gridSend(acc, pos, d, m);
+      if (gdLive) Object.assign(gdLive, { until: Date.now() + 4000, msg: 'ACTIVE: SL / TP updated.' });
+    } catch (e) {
+      gridEnd('update refused (' + e.message + ')');
+    } finally {
+      if (gdLive) gdLive.busy = false;
+    }
+  }
+  setInterval(() => gridFollow().catch((e) => log.error('GRID: ' + e.message)), 1000);
+  function gridNote(m) {
+    const u = panel.ui();
+    if (!u.gdOn) return { text: 'OFF. Press OFF in the title for PLAN: the grid is drawn on the chart, nothing is sent until START.', warn: false };
+    if (!m) return { text: '', warn: false };
+    const acc = S.selected,
+      symbol = chartMarket();
+    const live = gdLiveOn(acc, symbol);
+    const dec = m.priceDec;
+    const en = gridEnOf(acc, symbol, m).g;
+    const tx = [live ? gdLive.msg || 'ACTIVE' : 'PLAN: nothing is sent. START places it; from then on the SL / TP follow every change.'];
+    let warn = false;
+    if (live && gdLive.enSent && u.gdEnOn) tx.push('ENTRIES: placed — they are normal LIMITs now (move or cancel them on the chart).');
+    else if (u.gdEnOn) {
+      tx.push(en.fix > 0 ? `ENTRIES FIXED at ${F.price(en.fix, dec)} (they no longer follow the price)` : '', en.why, en.legs.length ? `ENTRIES: ${en.legs.map((l) => `${l.side === 'long' ? 'BUY' : 'SELL'}${l.n} ${l.price} ${F.qty(l.qty)}`).join(' · ')} — total ${F.qty(en.qty)}, average if all fill ${F.price(en.avg, dec)}` : '', ...en.warn);
+      warn = !!en.why;
+    }
+    if (u.gdTpOn || u.gdSlOn) {
+      const b = gridBase(acc, symbol, m);
+      if (!b) tx.push('SL / TP: no position, no entry waiting and no grid entry on this market to compute them on.');
+      else {
+        const g = gridOf(b, m);
+        const line = (l) => `${l.kind.toUpperCase()}${l.n} ${l.price} ${l.all ? 'ALL ' : ''}${F.qty(l.qty)}${l.bad ? ' (wrong side!)' : ''}`;
+        tx.push(
+          b.src === 'position'
+            ? `SL / TP on the position ${b.side.toUpperCase()} ${F.qty(b.qty)} @ ${F.price(b.openPrice, dec)}`
+            : b.src === 'market'
+            ? `SL / TP at the market price ${F.price(b.openPrice, dec)}${b.fixTp ? `, TP FIXED from ${F.price(b.tpRef, dec)}` : ''}${b.fixSl ? `, SL FIXED from ${F.price(b.slRef, dec)}` : ''}, ${b.side.toUpperCase()} (Side) with the Trade commands size ${F.qty(b.qty)} — after START they go on the next position you open with LONG / SHORT (from its entry price, FIX no longer counts)`
+            : `SL / TP on the ${b.n} entr${b.n > 1 ? 'ies' : 'y'} waiting (${b.side.toUpperCase()} ${F.qty(b.qty)} if all fill, average ${F.price(b.openPrice, dec)}): TP from the first entry ${F.price(b.tpRef, dec)}, SL from the farthest ${F.price(b.slRef, dec)} — placed on the position after the fill, then TP follow the average and the sizes follow the position`,
+          b.mixed ? `entries on both sides: only the ${b.side.toUpperCase()} ones counted` : '',
+          b.src !== 'market' && (gnum(u.gdTpFixPx) > 0 || gnum(u.gdSlFixPx) > 0) ? 'FIX on TP / SL ignored: they are measured from the position / entries' : '',
+          ...g.why,
+          g.tp.length ? 'TP: ' + g.tp.map(line).join(' · ') : '',
+          g.sl.length ? 'SL: ' + g.sl.map(line).join(' · ') : '',
+          ...g.warn,
+        );
+        warn = warn || g.why.length > 0 || [...g.tp, ...g.sl].some((l) => l.bad);
+      }
+      if (u.trOn || u.beAuto || u.srMode === 'live') {
+        tx.push('Trailing / auto BE / Safe runner LIVE move ONE stop: switch them off before START.');
+        warn = true;
+      }
+      if (u.brOn && u.brDca) {
+        tx.push('Bracket "follow adds" is on: it would move SL / TP back after every grid update. Switch it off.');
+        warn = true;
+      }
+    }
+    tx.push('Drag a GRID level on the chart to move it (the others stay where they are, the sizes are recalculated); a TP / SL dragged from Trade commands becomes the farthest level. Typing in a box recalculates the in-between levels.');
+    return { text: tx.filter(Boolean).join('  —  '), warn };
+  }
   function toggleOrders() {
     if (orders.enabled()) return orders.setEnabled(false);
+    if (waitingFor().length) return panel.say('Wait for Vest data: ORDERS can be switched on in a moment', 'warn');
     const acc = S.accounts[S.selected];
     const ok = window.confirm(
       `Switch orders on?
@@ -7045,7 +9632,168 @@ It switches off by itself at every page reload.`,
   }
 
   const tradeActions = {
+    guardToggle: (k) => {
+      if (!GD.ROWS[k]) return;
+      if (!guardOn[k]) {
+        const g = guardInputs(S.selected);
+        const lv = guardLevels(g)[k];
+        if (!(lv > 0)) throw new Error(`${GD.ROWS[k].name}: set the level first`);
+        if (GD.reached(k, g.vals[k], lv) && !window.confirm(`${GD.ROWS[k].name}: the level (${GD.levelText(k, lv)}) is ALREADY reached.\n\nSwitch it ON anyway? Everything open on this account${copier.state().master === S.selected ? ' and its copies' : ''} is closed at once.`)) return;
+      }
+      guardOn[k] = !guardOn[k];
+      log.info(`ACCOUNT LIMITS ${GD.ROWS[k].name}: ${guardOn[k] ? 'ON, ' + GD.levelText(k, guardLevels(guardInputs(S.selected))[k]) : 'OFF'}`);
+    },
+    // eye of an Account limits row: its USER line on the chart or not (saved)
+    guardEye: (k) => GD.ROWS[k] && panel.setUiInput('ue_' + k, panel.ui()['ue_' + k] === false),
+    guardLevel: (k, v) => GD.ROWS[k] && panel.setUiInput(k === 'dg' ? 'dailyGoal' : 'lg_' + k, String(v).trim().replace(',', '.')),
+    panelOpen: (open) => panel.setMin(!open), // Trade commands floating: the main panel is shown in the column
     toggleOrders: () => toggleOrders(),
+    // Grid: title button OFF <-> PLAN; ACTIVE -> asks, then OFF (orders stay on Vest)
+    gridMode: () => {
+      if (gdLive) {
+        if (!window.confirm('Grid ACTIVE: stop following?\n\nThe orders already on Vest (entry LIMITs, SL, TP) STAY as they are: the grid only stops updating them.')) return;
+        gdLive = null;
+        log.info('GRID: ACTIVE stopped by hand (orders left on Vest)');
+        return panel.setUiInput('gdOn', false);
+      }
+      panel.setUiInput('gdOn', !panel.ui().gdOn);
+    },
+    gridStart: () =>
+      Promise.resolve().then(async () => {
+        if (gdLive) throw new Error('the grid is already ACTIVE');
+        const u = panel.ui();
+        if (!u.gdOn) throw new Error('the grid is OFF');
+        if (!orders.enabled()) throw new Error('Orders are off: switch ORDERS on');
+        const symbol = chartMarket();
+        const acc = S.selected;
+        const m = symbol && S.symbols[symbol];
+        if (!m) throw new Error('chart market not recognised');
+        const exits = u.gdTpOn || u.gdSlOn;
+        if (!u.gdEnOn && !exits) throw new Error('Entries, TP and SL are all off');
+        if (exits && (u.trOn || u.beAuto || u.srMode === 'live')) throw new Error('switch off trailing, auto BE and Safe runner LIVE first: they move one stop');
+        if (exits && u.brOn && u.brDca) throw new Error('Bracket "follow adds" is on: it would move SL / TP back after every grid update. Switch it off first');
+        let en = null;
+        if (u.gdEnOn) {
+          en = gridEnOf(acc, symbol, m);
+          if (en.g.why) throw new Error(en.g.why);
+          if (!en.g.legs.length) throw new Error('the entry grid is empty');
+          if (u.ocoOn) throw new Error('OCO is on: the first fill would cancel the other grid LIMITs. Switch OCO off first');
+          const cap = +u.capPct;
+          const big = en.g.legs.find((l) => en.sz.max > 0 && (l.qty / en.sz.max) * 100 > cap + 1e-9);
+          if (big) throw new Error(`${big.side === 'long' ? 'BUY' : 'SELL'}${big.n} is ${+((big.qty / en.sz.max) * 100).toFixed(2)}% of the max size, above the per-order cap (${cap}%)`);
+          const past = en.g.legs.find((l) => l.bad);
+          if (past) throw new Error(`${past.side === 'long' ? 'BUY' : 'SELL'}${past.n} at ${past.price}: ${past.bad} (entries FIXED at ${en.g.fix})`);
+        }
+        const base = gridBase(acc, symbol, m);
+        if (exits && !base && !en) throw new Error('no position and no entry waiting on this market: nothing to put SL / TP on');
+        const g = exits && base ? gridOf(base, m) : null;
+        if (g && g.why.length) throw new Error(g.why[0]);
+        const pos = base && base.src === 'position' ? base.pos : null;
+        const bad = g && pos && [...(u.gdTpOn ? g.tp : []), ...(u.gdSlOn ? g.sl : [])].find((l) => l.bad);
+        if (bad) throw new Error(`${bad.kind.toUpperCase()}${bad.n} at ${bad.price}: ${bad.bad}`);
+        const a = S.accounts[acc];
+        const line = (l) => `  ${l.kind.toUpperCase()}${l.n}  ${l.price}  ${l.all ? 'the rest of the position' : F.qty(l.qty)}  (${F.usd(l.usd, true)})`;
+        const sl = g && u.gdSlOn ? g.sl : [],
+          tp = g && u.gdTpOn ? g.tp : [];
+        const enTx = en ? `\nENTRY LIMITs, now\n${en.g.legs.map((l) => `  ${l.side === 'long' ? 'BUY' : 'SELL'}${l.n}  LIMIT ${F.qty(l.qty)} @ ${l.price}`).join('\n')}\n  total ${F.qty(en.g.qty)}, average if all fill ${F.price(en.g.avg, m.priceDec)}\n` : '';
+        const exTx = exits ? `\n${pos ? 'SL / TP on the position, now (the SL / TP already on it are REPLACED)' : base && base.src === 'market' ? 'SL / TP placed on the NEXT position you open on this market (LONG / SHORT), sized on it' : 'SL / TP placed on the position as soon as an entry fills (sizes then follow the position)'}\n${[...sl, ...tp].map(line).join('\n') || '  (computed after the entries)'}\n` : '';
+        const ok = window.confirm(`Grid START (experimental) on ${a ? a.label : acc}, ${m.label || symbol}:
+${enTx}${exTx}
+Then the grid stays ACTIVE: when you change a box or drag a level, and when the position size changes, its SL / TP on Vest are updated (about 2 s later). The entry LIMITs are placed once: after that they are normal LIMITs.
+OFF in the title stops it (orders stay). ACTIVE is never restored after a reload.
+${u.brOn && en && !pos ? 'Bracket ON: its SL / TP go on the first LIMIT, then the grid replaces them after the fill.\n' : ''}${copier.state().armed ? 'Copier ON: everything is copied.\n' : ''}Try at minimum size first.`);
+        if (!ok) throw new Error('not sent');
+        gdLive = { acc, symbol, market: !!(base && base.src === 'market' && !en), slRef: base && base.src !== 'market' ? base.slRef : NaN, enSent: !!en, hadPos: !!pos, t0: Date.now(), sig: '', since: 0, until: 0, tries: 0, busy: true, msg: 'ACTIVE: starting…' };
+        try {
+          if (en) await entry.placeGrid({ accountId: acc, symbol, legs: en.g.legs, lev: en.sz.lev });
+          if (pos && g) {
+            await gridSend(acc, pos, gridDiff(pos, g, m, u), m);
+            gdLive.until = Date.now() + 4000;
+          }
+        } catch (e) {
+          gdLive = null;
+          throw e;
+        }
+        gdLive.busy = false;
+        gdLive.t0 = Date.now();
+        log.info(`GRID: ACTIVE on ${a ? a.label : acc} ${symbol}${en ? `, ${en.g.legs.length} entry LIMIT(s) sent` : ''}${exits ? (pos ? ', SL / TP on the position' : ', SL / TP after the fill') : ''}`);
+        return 'GRID ACTIVE';
+      }),
+    // a GRID level dropped on the chart: that level goes there, the others stay where they are (their distances are kept)
+    gridDrag: (kind, i, of, price, which, other) => {
+      const P = kind === 'en' ? 'En' : kind === 'tp' ? 'Tp' : 'Sl';
+      const u = panel.ui();
+      const symbol = chartMarket();
+      const m = symbol && S.symbols[symbol];
+      if (!m || !(of >= 1) || !(i >= 0 && i < of)) return '';
+      let ref, sgn;
+      if (kind === 'en') {
+        ref = gnum(u.gdEnFixPx) > 0 ? gnum(u.gdEnFixPx) : (S.marks[symbol] || {}).px;
+        sgn = u.gdEnSide === 'short' ? 1 : -1;
+      } else {
+        const b = gridBase(S.selected, symbol, m);
+        if (!b) return '';
+        ref = kind === 'tp' ? b.tpRef : b.slRef;
+        sgn = (b.side === 'long' ? 1 : -1) * (kind === 'tp' ? 1 : -1);
+      }
+      const d = +(sgn * (price - ref)).toFixed(decimalsOf(m.tick) + 2);
+      if (!(d > 0)) throw new Error(`GRID ${kind.toUpperCase()}: wrong side of ${kind === 'en' ? 'the price' : 'the entry'}`);
+      const near = gnum(u[`gd${P}Near`]);
+      const far = gnum(u[`gd${P}Far`]) > 0 ? gnum(u[`gd${P}Far`]) : near;
+      panel.setUiInput(`gd${P}Ov`, ''); // no level is kept aside any more (Gerry: the curve must follow)
+      const realEnd = (k) => k === 0 || k === of - 1;
+      if (which && of > 2 && other >= 0 && other < of && other !== i && !(realEnd(i) && realEnd(other))) {
+        // the first / last level DRAWN is not level 1 / last (that one was merged, too small, Gerry 2026-11-23): every
+        // distance is near + (far - near) * c, so Nearest and Farthest are solved to put the dragged level where it was
+        // dropped and keep the other end drawn where it is; the curve stays
+        const c = GR.distances(0, 1, of, u[`gd${P}Dist`], u[`gd${P}Man`]);
+        const dOther = near + (far - near) * c[other];
+        const span = (d - dOther) / (c[i] - c[other]);
+        const nn = d - span * c[i], ff = nn + span;
+        if (!(nn > 0) || !(ff > nn) || !Number.isFinite(nn) || !Number.isFinite(ff))
+          throw new Error(`GRID ${kind === 'en' ? 'entry' : kind.toUpperCase()}: that level cannot go there with this curve (set Nearest / Farthest in the section)`);
+        panel.setUiInput(`gd${P}Near`, String(+nn.toFixed(6)));
+        panel.setUiInput(`gd${P}Far`, String(+ff.toFixed(6)));
+        return `GRID ${kind === 'en' ? 'entry' : kind.toUpperCase()} ${which === 'near' ? 'nearest' : 'farthest'} level at ${d} pt, the other end stays at ${+dOther.toFixed(2)} pt, the levels in between follow the ${u[`gd${P}Dist`] === 'manual' ? 'Manual slider' : 'curve'}`;
+      }
+      if (of <= 2 || i === 0 || i === of - 1) {
+        // nearest or farthest moved: only that end changes, the levels in between follow the curve (or the Manual slider,
+        // in proportion)
+        let nn = of === 1 || i === 0 ? d : near,
+          ff = of === 1 || i === of - 1 ? d : far;
+        if (nn > ff) [nn, ff] = [ff, nn]; // dragged past the other end
+        panel.setUiInput(`gd${P}Near`, String(+nn.toFixed(6)));
+        panel.setUiInput(`gd${P}Far`, of > 1 && ff > nn ? String(+ff.toFixed(6)) : '');
+        return `GRID ${kind === 'en' ? 'entry' : kind.toUpperCase()} ${i === 0 ? 'nearest' : 'farthest'} level at ${d} pt: the others follow the ${u[`gd${P}Dist`] === 'manual' ? 'Manual slider' : 'curve'}`;
+      }
+      // a level in between: the ladder becomes Manual with the levels where they are now (the slider shows them)
+      const cur = GR.withOv(GR.distances(near, far, of, u[`gd${P}Dist`], u[`gd${P}Man`]), u[`gd${P}Ov`]);
+      cur[i] = Math.min(far - 1e-9, Math.max(near + 1e-9, d)); // between the two ends
+      const s = cur.sort((a, b) => a - b);
+      const span = far - near;
+      const pc = s.slice(1, -1).map((x) => Math.min(99.9, Math.max(0.1, +(((x - near) / span) * 100).toFixed(1))));
+      panel.setUiInput(`gd${P}Man`, pc.join(', '));
+      panel.setUiInput(`gd${P}Dist`, 'manual');
+      return `GRID ${kind === 'en' ? 'entry' : kind.toUpperCase()} level ${i + 1} at ${+cur[i].toFixed(2)} pt: Distances set to Manual (slider)`;
+    },
+    // TP / SL dragged from Trade commands while the grid is on: it becomes the farthest level of that ladder (nothing sent)
+    gridFar: (kind, price) => {
+      const P = kind === 'tp' ? 'Tp' : 'Sl';
+      const u = panel.ui();
+      const symbol = chartMarket();
+      const m = symbol && S.symbols[symbol];
+      const b = m && gridBase(S.selected, symbol, m);
+      if (!b) throw new Error('GRID: no position or entry to measure from');
+      const d = +((b.side === 'long' ? 1 : -1) * (kind === 'tp' ? 1 : -1) * (price - (kind === 'tp' ? b.tpRef : b.slRef))).toFixed(decimalsOf(m.tick) + 2);
+      if (!(d > 0)) throw new Error(`GRID ${kind.toUpperCase()}: wrong side of the entry`);
+      const near = gnum(u[`gd${P}Near`]);
+      if (!(near > 0) || d <= near) {
+        panel.setUiInput(`gd${P}Near`, String(d));
+        panel.setUiInput(`gd${P}Far`, '');
+      } else panel.setUiInput(`gd${P}Far`, String(d));
+      panel.setUiInput(`gd${P}Ov`, ''); // the levels in between follow the curve
+      return `GRID ${kind.toUpperCase()}: farthest level at ${price} (${d} pt)`;
+    },
     // FLAT: local stops, pending orders and position on the chart's market; active even when flat and with Orders OFF
     flat: () =>
       Promise.resolve().then(async () => {
@@ -7054,7 +9802,8 @@ It switches off by itself at every page reload.`,
         const st = stops.cancelWhere(S.selected, symbol, 'FLAT');
         const acc = S.selected;
         const [r] = await Promise.all([flatten.flattenMarket(acc, symbol), copier.mirrorFlat(acc, symbol)]); // master: FLAT on the copies too
-        if (!r.cancelled && !r.closed && !st) throw new Error('nothing to close or cancel on this market');
+        const cp = await copier.flatIdleCopies(acc, symbol); // copier OFF: copies still open on this market -> asked (after the master)
+        if (!r.cancelled && !r.closed && !st && !cp) throw new Error('nothing to close or cancel on this market');
       }),
     closePct: () => Promise.resolve().then(() => entry.closePct({ accountId: S.selected, symbol: chartMarket(), pct: +panel.ui().closePct || 0 })),
     setClosePct: (v) => panel.setUi('closePct', v),
@@ -7073,11 +9822,22 @@ It switches off by itself at every page reload.`,
           return r;
         });
       }),
-    setSetting: (k, v) => panel.setUiInput(k, v), // Trailing & breakeven section of the column
+    setSetting: (k, v) => {
+      panel.setUiInput(k, v); // Trailing & breakeven, Bracket, Grid... sections of the column
+      // a grid box typed by hand: the in-between levels follow the curve again (those moved on the chart are dropped)
+      const g = /^gd(En|Tp|Sl)(Near|Far|Mid|Dist|Side|Man)$/.exec(k);
+      if (g) panel.setUiInput(`gd${g[1]}Ov`, '');
+    },
+    exclusive: (k) => panel.exclusive(k, true), // Risk & targets switched ON: incompatible functions OFF
     setLeg: (kind, price, existing) => Promise.resolve().then(() => orders.setLeg(S.selected, curPos(), kind, price, existing)),
     removeLeg: (leg) => Promise.resolve().then(() => orders.removeLeg(S.selected, curPos(), leg)),
     // second card
-    setPct: (v) => panel.setUi('sizePct', v),
+    setPct: (v) => {
+      panel.setUi('sizePct', v);
+      // Grid on with Entries: the % buttons of Trade commands also set the grid's total size (Gerry 2026-11-23)
+      const u = panel.ui();
+      if (u.gdOn && u.gdEnOn) panel.setUiInput('gdEnPct', String(v));
+    },
     copyToggle: () => {
       try {
         copyToggle();
@@ -7099,7 +9859,14 @@ It switches off by itself at every page reload.`,
         if (!symbol) throw new Error('chart market not recognised');
         if (!orders.enabled()) throw new Error('Orders are off: switch ORDERS on (Trade commands)');
         const args = { accountId: S.selected, symbol, price, pct: +ui.sizePct || 0, cap: +ui.capPct || 0 };
-        return kind === 'lm' ? entry.placeLimit(args) : stops.arm(args);
+        if (kind === 'lm') {
+          // OCO: a LIMIT on the side opposite to a pending Vest LIMIT (Vest keeps one side per market) is kept LOCAL
+          const ph = entry.placeholderOn(S.selected, symbol);
+          const side = Z.entrySide('lm', price, (S.marks[symbol] || {}).px);
+          if (ui.ocoOn && ph && side && ph.side !== side && !entry.positionOn(S.selected, symbol)) return stops.arm({ ...args, lim: true });
+          return entry.placeLimit(args);
+        }
+        return stops.arm(args);
       }),
     // Risk & targets, Active mode: entries with the plan's size and SL / TP (in place of the % size)
     planEntry: (type, side, price, plan) =>
@@ -7137,6 +9904,7 @@ It switches off by itself at every page reload.`,
       }),
     say: (text, kind) => panel.say(text, kind),
     head: (d) => panel.headPos(d),
+    swing: (t) => panel.swingNote(t),
     market: (side) => Promise.resolve().then(() => entry.marketOpen({ accountId: S.selected, symbol: chartMarket(), side, pct: +panel.ui().sizePct || 0, cap: +panel.ui().capPct || 0 })),
     // cancel limits / cancel local stops / cancel both. Cancellations only: allowed with Orders OFF
     cancelOrders: (kind) =>
@@ -7151,6 +9919,19 @@ It switches off by itself at every page reload.`,
       }),
     add: () => Promise.resolve().then(() => entry.addMarket({ accountId: S.selected, symbol: chartMarket(), pct: +panel.ui().sizePct || 0, cap: +panel.ui().capPct || 0 })),
     cut: () => Promise.resolve().then(() => entry.cutHalf({ accountId: S.selected, symbol: chartMarket() })),
+    // SL / TP of a PENDING entry dragged on the chart (Gerry 2026-11-21). prices = { sl, tp } (tp NaN = none).
+    // Local entry: its own distances, used when it fires. Vest LIMIT: cancelled and placed again at the same price and size
+    // with these legs (Vest attaches legs to /open only).
+    pendingBracket: (o, prices) =>
+      Promise.resolve().then(() => {
+        const d = o.side === 'long' ? 1 : -1;
+        if (!(d * (o.price - prices.sl) > 0)) throw new Error('SL on the wrong side of the entry');
+        if (prices.tp > 0 && !(d * (prices.tp - o.price) > 0)) throw new Error('TP on the wrong side of the entry');
+        if (o.local) return stops.setBracketOf(o.id, { sl: +Math.abs(o.price - prices.sl).toFixed(8), tp: prices.tp > 0 ? +Math.abs(prices.tp - o.price).toFixed(8) : NaN });
+        if (!orders.enabled()) throw new Error('Orders are off: switch ORDERS on (Trade commands)');
+        const plan = { qty: o.qty, sl: prices.sl, targets: prices.tp > 0 ? [{ price: prices.tp, qty: o.qty }] : [], each: false };
+        return entry.planMove({ accountId: S.selected, symbol: chartMarket(), order: o, price: o.price, plan });
+      }),
     cancelPending: (o) =>
       Promise.resolve().then(() => (o.local ? stops.cancel(o.id, 'by hand') : entry.cancelOrder({ accountId: S.selected, orderId: o.id, label: `LIMIT ${o.side === 'long' ? 'BUY' : 'SELL'} @ ${o.price}` }))),
     // LIMIT / STOP already placed and dragged on the chart: the local stop changes price, the Vest limit is replaced (new one, then the old one cancelled)
@@ -7255,14 +10036,92 @@ It switches off by itself at every page reload.`,
     return [...(st.orders || []).filter((o) => o.symbol === symbol && !o.reduceOnly), ...stops.list().filter((x) => x.accountId === acc && x.symbol === symbol)];
   }
   const cancelPendingAny = (o) =>
-    Promise.resolve().then(() => (o.local ? stops.cancel(o.id, 'by hand') : entry.cancelOrder({ accountId: S.selected, orderId: o.id, label: o.kind + ' @ ' + o.price })));
+    Promise.resolve().then(() => (o.local ? stops.cancel(o.id, 'by hand') : entry.cancelOrder({ accountId: o.accountId || S.selected, orderId: o.id, label: o.kind + ' @ ' + o.price })));
+  // pending orders of every account for the panel's Accounts overview (Vest limits + local stops)
+  function pendingsAll() {
+    const ids = Object.keys(S.accounts).sort((a, b) => String(S.accounts[a].label).localeCompare(String(S.accounts[b].label), 'en', { numeric: true }));
+    return ids.flatMap((id) => {
+      const st = S.state[id] || {};
+      const account = S.accounts[id].label;
+      return [
+        ...(st.orders || []).map((o) => ({ key: id + '|' + o.id, accountId: id, account, id: o.id, kind: o.reduceOnly ? 'close' : 'LIMIT', side: o.side, price: o.price, qty: o.qty, symbol: o.symbol, local: false })),
+        ...stops.list().filter((x) => x.accountId === id).map((x) => ({ key: id + '|' + x.id, accountId: id, account, id: x.id, kind: 'local STOP', side: x.side, price: x.trigger, qty: x.qty, symbol: x.symbol, local: true })),
+      ];
+    });
+  }
+
+  // KILL SWITCH (Gerry 2026-11-20): Ctrl+Shift+K twice within 2 s = FLATTEN ALL on every account, local stops removed,
+  // copier off. Two presses instead of a confirm: fast, but one stray keystroke does nothing. Works even with Orders OFF.
+  let killAt = 0;
+  const killKey = (e) => {
+      if (e.repeat || !e.ctrlKey || !e.shiftKey || e.altKey || e.code !== 'KeyK') return;
+      e.preventDefault();
+      e.stopPropagation();
+      const now = Date.now();
+      if (now - killAt > 2000) {
+        killAt = now;
+        log.warn('KILL SWITCH: press Ctrl+Shift+K again within 2 s to FLATTEN ALL');
+        panel.say('KILL SWITCH: press Ctrl+Shift+K again within 2 s to FLATTEN ALL', 'warn');
+        return;
+      }
+      killAt = 0;
+      if (S.flattening) return;
+      log.warn('KILL SWITCH: FLATTEN ALL');
+      panel.say('KILL SWITCH: FLATTEN ALL sent', 'warn');
+      stops.cancelAll('KILL SWITCH');
+      copier.stop('KILL SWITCH');
+      flatten.flattenAll();
+  };
+  window.addEventListener('keydown', killKey, true);
+  // the chart is a same-origin iframe: with the focus on it the keys go to its document
+  const killDocs = new WeakSet();
+  setInterval(() => {
+    for (const f of document.querySelectorAll('iframe')) {
+      let d = null;
+      try {
+        d = f.contentDocument;
+      } catch {
+        /* other origin */
+      }
+      if (d && !killDocs.has(d)) {
+        killDocs.add(d);
+        d.addEventListener('keydown', killKey, true);
+      }
+    }
+  }, 3000);
 
   // local stops: checked at every price, prices every 0.5 s while one exists; when orders are off, they are removed
   sync.onPrices(() => stops.check());
   // trailing and auto BE: native stop moved behind the price, only with Orders ON
   trail.setConfig(() => panel.ui());
   sync.onPrices(() => trail.check());
-  sync.setFastPrices(() => stops.count() > 0 || trail.wants());
+  // safe runner (experimental): tranche stops from the 1m candles, native stop + local tranche exits
+  runner.setConfig(() => panel.ui());
+  // bracket: fixed SL / TP in points on every new position opened from the tool (Risk & targets OFF only: plans have their own)
+  bracketDca.setConfig(() => {
+    const u = panel.ui();
+    const sl = parseFloat(u.brSl),
+      tp = parseFloat(u.brTp);
+    return u.brOn && sl > 0 ? { sl, tp: tp > 0 ? tp : NaN, follow: !!u.brDca } : null;
+  });
+  sync.onPrices(() => bracketDca.check());
+  oco.setConfig(() => !!panel.ui().ocoOn);
+  // copier "DD left" sizing: $ left before an account fails = the smaller of daily and max drawdown left (equity with open P&L)
+  copier.setRoom((id) => {
+    const L = limitsOf(S.accounts[id], store.values(id) || {}, manLim());
+    const r = [L.dayLeft, L.maxLeft].filter(Number.isFinite);
+    return r.length ? Math.min(...r) : NaN;
+  });
+  stops.setOco(() => !!panel.ui().ocoOn);
+  entry.setBracket(() => {
+    const u = panel.ui();
+    if (!u.brOn) return null; // Risk & targets plans go through planOpen / planMove: no bracket there
+    const sl = parseFloat(u.brSl),
+      tp = parseFloat(u.brTp);
+    return sl > 0 ? { sl, tp: tp > 0 ? tp : NaN } : null;
+  });
+  sync.onPrices(() => runner.check());
+  sync.setFastPrices(() => stops.count() > 0 || trail.wants() || runner.wants());
   orders.onChange(() => {
     if (!orders.enabled() && stops.count()) stops.cancelAll('Orders off');
   });
@@ -7349,15 +10208,21 @@ It switches off by itself at every page reload.`,
 
   function boot() {
     panel.mount(version, {
+      riskOn: () => overlay.riskOn(),
+      riskOff: () => overlay.riskOff(),
       trailStatus: () => trail.status(),
+      runnerStatus: () => runner.status(),
+      runnerTrend: () => runner.trend(chartMarket()),
       sync: () => sync.full('manual'),
       check: () => check.run(),
       diag,
       calcResult,
       sessionState: () => session.status().state,
+      waitingFor,
       onInput: () => chartTick(),
       toggleOrders,
       tradeInfo,
+      pendingsAll,
       cancelPending: cancelPendingAny,
       flattenAll: () => {
         const n = Object.keys(S.accounts).length;
@@ -7377,11 +10242,26 @@ Works even with Orders OFF. It cannot be undone.`,
         state: () => copier.state(),
         setRole: (id, r) => copier.setRole(id, r),
         setMode: (m) => copier.setMode(m),
+        setDry: (v) => copier.setDry(v),
+        setLimit: (id, k, v) => copier.setLimit(id, k, v),
+        setMult: (id, p) => copier.setMult(id, p),
         stop: () => copier.stop('from the panel'),
         start: copyStart,
       },
     });
     overlay.mount({ getModel: tradeModel, actions: tradeActions });
+    // start: the panel (right column, header says what is missing) is there at once; the sections and the chart lines are
+    // invisible until Vest data are in, then they fade in; after 10 s still waiting they are shown anyway, not clickable.
+    // Gerry 2026-11-23: no grey see-through start.
+    const t0show = Date.now();
+    const showNow = () => {
+      const w = waitingFor().length > 0;
+      overlay.setWaiting(w);
+      const vis = !w || Date.now() - t0show > 10000;
+      overlay.reveal(vis);
+    };
+    showNow();
+    setInterval(showNow, 150);
     // every 100 ms at first: hook the chart before Vest draws its lines; then every 500 ms
     const fast = setInterval(chartTick, 100);
     setTimeout(() => clearInterval(fast), 15000);
@@ -7500,6 +10380,115 @@ const triggerUsd = (p, t) => pnlUsd(p.side, t.qty > 0 ? t.qty : p.qty, p.openPri
 module.exports = { compute, refPosition, triggerUsd, DEFAULT_SYMBOL };
 
   },
+  "ui/chartstyle.js": function (module, exports, require) {
+// Chart style (Layout → Chart lines and labels): every line and label the tool draws on the chart, with its own line
+// (colour, dash, width) and label (background, border, name colour / fill, text size, weight). Gerry 2026-11-23.
+// Keys in the panel settings: lc_ ls_ lw_ ll_ (line, as before) and cbg_ cbo_ cbw_ cn_ cnb_ cfs_ cfw_ (label), + _<kind>.
+// An empty label value = the card style's own (Console / Classic / Sonar).
+
+const DASHES = ['solid', 'dashed', 'dotted', 'dashdot'];
+// [kind, name, group, line colour, dash, width, label defaults { bo border, n name colour, nb name fill }]
+const ELEMENTS = [
+  ['long', 'Position LONG', 'Position and orders', '#3ecf8e', 'dashed', 1, { bo: '#2f6b52' }],
+  ['short', 'Position SHORT', 'Position and orders', '#ff6b61', 'dashed', 1, { bo: '#7a3438' }],
+  ['tp', 'TP (target)', 'Position and orders', '#3ecf8e', 'dashed', 1, { bo: '#2f6b52' }],
+  ['sl', 'SL (stop)', 'Position and orders', '#ff6b61', 'dashed', 1, { bo: '#7a3438' }],
+  ['lm', 'LIMIT', 'Position and orders', '#7fb2ff', 'dashed', 1, { bo: '#2f4a70' }],
+  ['st', 'STOP (local)', 'Position and orders', '#e8b84a', 'dashed', 1, { bo: '#5a4520' }],
+  ['avg', 'AVG ALL', 'Levels', '#5ad1e6', 'dotted', 1, { bo: '#2b6672' }],
+  ['avg1', 'AVG NEXT', 'Levels', '#5ad1e6', 'dotted', 1, { bo: '#2b6672' }],
+  ['avgn', 'AVG NEW', 'Levels', '#5ad1e6', 'dotted', 1, { bo: '#2b6672' }],
+  ['ko', 'FAIL', 'Levels', '#c58cff', 'dashed', 1, { bo: '#5b3f80' }],
+  ['mfp', 'FAIL NEW', 'Levels', '#ff9f43', 'dashed', 1, { bo: '#8a5520' }],
+  ['dd50', 'X% DRAWDOWN', 'Levels', '#f472b6', 'dashed', 1, { bo: '#7a2f58' }],
+  ['usr', 'USER (Account limits)', 'Account limits and grid', '#f97316', 'dashed', 1, { bo: '#c2410c', n: '#ffffff', nb: '#c2410c' }],
+  ['gdavg', 'GRID averages (AVG ENTRY / TP / SL)', 'Account limits and grid', '#e5e7eb', 'dotted', 1, { bo: '#6b7280', n: '#0b1220', nb: '#e5e7eb' }],
+  ['gden', 'GRID entries', 'Account limits and grid', '#7dd3fc', 'dashed', 1, { bo: '#2f4a70', n: '#0b1220', nb: '#7dd3fc' }],
+  ['gdtp', 'GRID TP', 'Account limits and grid', '#a3e635', 'dashed', 1, { bo: '#3f6212', n: '#0b1220', nb: '#a3e635' }],
+  ['gdsl', 'GRID SL', 'Account limits and grid', '#fb7185', 'dashed', 1, { bo: '#9f1239', n: '#ffffff', nb: '#e11d48' }],
+  // nearest and farthest level of each grid ladder: their own style, darker and solid (Gerry 2026-11-23)
+  ['gdenE', 'GRID entries: nearest / farthest', 'Account limits and grid', '#3b82f6', 'solid', 2, { bo: '#ffffff', n: '#ffffff', nb: '#1d4ed8' }],
+  ['gdtpE', 'GRID TP: nearest / farthest', 'Account limits and grid', '#22c55e', 'solid', 2, { bo: '#ffffff', n: '#ffffff', nb: '#15803d' }],
+  ['gdslE', 'GRID SL: nearest / farthest', 'Account limits and grid', '#ef4444', 'solid', 2, { bo: '#ffffff', n: '#ffffff', nb: '#7f1d1d' }],
+  // lines only (no label)
+  ['tstop', 'Trailing: stop', 'Segments (line only)', '#ff9f43', 'solid', 3, null],
+  ['tact', 'Trailing: start level', 'Segments (line only)', '#5ad1e6', 'solid', 3, null],
+  ['tnext', 'Trailing: next step', 'Segments (line only)', '#a3e635', 'solid', 3, null],
+  ['beplus', 'BE+', 'Segments (line only)', '#e879f9', 'solid', 3, null],
+  ['beauto', 'Auto BE', 'Segments (line only)', '#e879f9', 'dashed', 3, null],
+  ['hhigh', 'Last swing high', 'Segments (line only)', '#3ecf8e', 'solid', 2, null],
+  ['hlow', 'Last swing low', 'Segments (line only)', '#ff6b61', 'solid', 2, null],
+];
+const SEGS = new Set(['tstop', 'tact', 'tnext', 'beplus', 'beauto']); // these also have a length
+const BY = Object.fromEntries(ELEMENTS.map((e) => [e[0], e]));
+const LABEL_FIELDS = ['cbg', 'cbo', 'cbw', 'cn', 'cnb', 'cfs', 'cfw'];
+const FIELDS = ['lc', 'ls', 'lw', 'll', ...LABEL_FIELDS];
+const HEX = /^#[0-9a-f]{6}$/i;
+
+/** Settings with their default values (only the line ones: the label ones are empty = card style). */
+function defaults() {
+  const d = {};
+  for (const [k, , , c, s, w] of ELEMENTS) Object.assign(d, { ['lc_' + k]: c, ['ls_' + k]: s, ['lw_' + k]: String(w) }, SEGS.has(k) ? { ['ll_' + k]: '' } : {});
+  return d;
+}
+
+/** Style of one element from the settings: { c, s, w, l, lab: { bg, bo, bw, n, nb, fs, fw } | null }. */
+function styleOf(ui, k) {
+  const e = BY[k];
+  if (!e) return null;
+  const [, , , c0, s0, w0, lab0] = e;
+  const v = (f) => ui[f + '_' + k];
+  const hex = (f, d) => (HEX.test(v(f)) ? v(f) : d);
+  const st = { c: hex('lc', c0), s: DASHES.includes(v('ls')) ? v('ls') : s0, w: Math.min(6, Math.max(1, Math.round(+v('lw')) || w0)) };
+  if (SEGS.has(k)) {
+    const l = Math.round(+v('ll'));
+    st.l = l >= 4 && l <= 400 ? l : 0;
+  }
+  if (!lab0) return { ...st, lab: null };
+  const bw = v('cbw');
+  const fs = Math.round(+v('cfs'));
+  // name fill: '' = the default of the element, 'none' = no fill, #hex = that colour
+  const nb = v('cnb') === 'none' ? '' : HEX.test(v('cnb')) ? v('cnb') : lab0.nb || '';
+  st.lab = {
+    bg: hex('cbg', ''),
+    bo: hex('cbo', lab0.n ? lab0.bo : ''), // own elements (USER, GRID): their border; the others: the card style's
+    bw: bw !== '' && bw != null && Number.isFinite(+bw) ? Math.min(4, Math.max(0, Math.round(+bw))) : null,
+    n: hex('cn', lab0.n || ''),
+    nb,
+    fs: fs >= 8 && fs <= 22 ? fs : 0,
+    fw: v('cfw') === 'b' || v('cfw') === 'n' ? v('cfw') : '',
+  };
+  return st;
+}
+
+/** All the elements: { kind: style }. */
+const styles = (ui) => Object.fromEntries(ELEMENTS.map(([k]) => [k, styleOf(ui, k)]));
+
+/** Value shown in the editor for a field (the effective one, also when it is still the default). */
+function shown(ui, k, f) {
+  const e = BY[k];
+  const s = styleOf(ui, k);
+  if (!e || !s) return '';
+  if (f === 'lc') return s.c;
+  if (f === 'ls') return s.s;
+  if (f === 'lw') return String(s.w);
+  if (f === 'll') return s.l ? String(s.l) : '';
+  if (!s.lab) return '';
+  const lab0 = e[6];
+  if (f === 'cbg') return s.lab.bg || '#17181b';
+  if (f === 'cbo') return s.lab.bo || lab0.bo || '#2a2f3a';
+  if (f === 'cbw') return s.lab.bw == null ? '' : String(s.lab.bw);
+  if (f === 'cn') return s.lab.n || s.c;
+  if (f === 'cnb') return s.lab.nb || lab0.nb || s.c;
+  if (f === 'cnbOn') return !!s.lab.nb;
+  if (f === 'cfs') return s.lab.fs ? String(s.lab.fs) : '';
+  if (f === 'cfw') return s.lab.fw;
+  return '';
+}
+
+module.exports = { DASHES, ELEMENTS, SEGS, FIELDS, LABEL_FIELDS, defaults, styleOf, styles, shown };
+
+  },
   "ui/dock.js": function (module, exports, require) {
 // Docked panel: Vest's page is narrowed by W px on the right and the panel fills that column at full height.
 // Done with one <style> added to Vest's page (narrower <body>); switching off removes it and the page is exactly as before.
@@ -7577,7 +10566,10 @@ function ago(ts) {
   return s < 60 ? `${s}s ago` : `${Math.round(s / 60)}m ago`;
 }
 
-module.exports = { usd, usdUS, usdFine, price, priceG, qty, cls, esc, ago };
+/** Multiplier with at least one decimal and a dot: 2 -> "2.0", 0.5 -> "0.5", 1.25 -> "1.25". */
+const mult = (v) => (Number.isFinite(+v) && +v > 0 ? (Number.isInteger(+v) ? (+v).toFixed(1) : String(+(+v).toFixed(3))) : '');
+
+module.exports = { usd, usdUS, usdFine, price, priceG, qty, cls, esc, ago, mult };
 
   },
   "ui/help.js": function (module, exports, require) {
@@ -7587,16 +10579,20 @@ module.exports = { usd, usdUS, usdFine, price, priceG, qty, cls, esc, ago };
 const HELP = {
   // ── sections
   overview: [
-    'Overview',
-    `<b>VestTool is unofficial</b>: an independent project, not made or supported by Vest Markets.<br>Totals of all your active Vest accounts, in dollars.
+    'Accounts overview',
+    `<b>VestTool is unofficial</b>: an independent project, not made or supported by Vest Markets.<br>All your active Vest accounts, in dollars, one row each
+    (the last row is the total).
     <ul>
-      <li><b>Today</b>: equity now minus equity at the start of the Vest day (20:00 New York time). A payout made today shows as a loss.</li>
-      <li><b>Open</b>: P&L of the open positions at the mark price.</li>
-      <li><b>Total</b>: equity minus the initial capital of the account.</li>
-      <li><b>Session</b>: equity now minus the first value read today on this computer (reset it in Diagnostics).</li>
+      <li><b>◀ ACTIVE</b>: the account active on Vest, the one the tool's buttons trade on. Click a row to show it in the panel.</li>
+      <li><b>M</b> / <b>C</b>: master / copy of the copier; <b>C x0.5</b> = copy with a multiplier.</li>
+      <li><b>Equity</b> = balance + open P&L at the mark price (* = from Vest's performance series, about a minute late).</li>
+      <li><b>Open</b>: P&L of the open positions. <b>Today</b>: equity now minus equity at the start of the Vest day (20:00 New York time;
+      a payout made today shows as a loss). <b>Total</b>: equity minus the initial capital.</li>
+      <li><b>Room to DD</b>: what you can still lose before the nearer drawdown limit (total or daily).</li>
+      <li><b>Open positions</b> and <b>Pending orders</b>: of every account. Risk at SL = $ lost if every stop is hit (no fees or slippage).
+      A pending order can be cancelled here, on its own account.</li>
     </ul>
-    If one account has no value, the total shows "—", never a partial total.
-    Click an account to <b>select</b> it: the column and the Trade section follow the selected account.`,
+    If one account has no value, the total shows "—", never a partial total.`,
   ],
   flatall: [
     'FLATTEN ALL',
@@ -7622,6 +10618,14 @@ const HELP = {
       <li><b>1:1</b>: each copy opens the same size as the master.</li>
       <li><b>Cap-to-fit</b>: a copy smaller than the master is scaled down to its equity (5% safety margin);
       a copy that is the same size or larger opens the master's size.</li>
+      <li><b>DD left</b>: a copy with less drawdown left than the master is scaled down in the same proportion
+      (copy left / master left), so with the same stop price it risks the same share of what it has left.
+      Drawdown left = the smaller of daily and maximum, read at every entry with the open P&L. A copy with more left opens
+      the master's size (never more). Unknown or used up = that entry is not copied. Adds, reductions and partial SL / TP keep
+      following the copy's own position in proportion.</li>
+      <li><b>Multiplier</b> (per copy): tick it and type the value with a dot (0.5 = half the master size, 2.0 = double, 1.25...).
+      ON replaces 1:1 / Cap-to-fit / DD left for that account only; the size is rounded down to the market's step. Shown as x0.5 next to the
+      account in Copier accounts of the column. It can be changed only with the copier stopped.</li>
       <li><b>START</b> needs Orders ON and asks for confirmation. The copier switches off at every page reload and when Orders go off.</li>
       <li>The dot next to each account: green = nothing open, red = positions or pending orders, yellow = an empty Vest placeholder,
       grey = not read yet.</li>
@@ -7639,9 +10643,9 @@ const HELP = {
     </ul>`,
   ],
   size: [
-    'Order size and daily goal',
-    `Sizes in Trade commands are a <b>percentage of the maximum size</b> the account can open with its leverage
-    (100% = all the free margin). Example: 2% on an account that can open 50 NQ = 1 NQ.`,
+    'Trade commands settings',
+    `Settings of <b>Trade commands</b> in the column that are not set there. Sizes are a <b>percentage of the maximum size</b> the account
+    can open with its leverage (100% = all the free margin). Example: 2% on an account that can open 50 NQ = 1 NQ.`,
   ],
   stops: [
     'Trailing stop and breakeven',
@@ -7697,12 +10701,10 @@ const HELP = {
       <li><b>Risk &amp; targets</b>: size from the risk in $, stop and up to four targets, drawn on the chart; ON next to the title lets
       Trade commands send the plan. The <b>?</b> next to <i>column width</i> in Panel layout explains every field.</li>
       <li><b>Trailing &amp; breakeven</b>: the same settings as the panel's "Trailing stop and breakeven".</li>
-      <li><b>Account limits</b>: <b>MARGIN USED</b>: margin of the open positions as a % of equity. <b>MARGIN + ORDERS</b>: including pending orders, and the contracts you can still open.
-      <b>DAILY GOAL</b>: today's P&L against the goal set in Order size and daily goal. <b>OPEN LOSS</b>: loss of the open trade out of what you can lose before Vest's daily limit.
-      <b>DAILY LOSS LEFT</b> / <b>DRAWDOWN LEFT</b>: dollars left before the daily / total limit (the limit in brackets), as on Vest's page.
-      <b>PROFIT TARGET</b>: total P&L against the evaluation target. Bars: green in profit, yellow up to 50% used, orange up to 75%, red beyond.</li>
-      <li><b>Swing range and volatility</b>: SWING RANGE = points between the last swing high and low; VOLATILITY = the heatmap described in Chart display.</li>
-      <li><b>Chart space</b>: room in pixels between the last candle and the price axis, for the labels.</li>
+      <li><b>Account limits</b>: <b>MARGIN USED</b>: margin of the open positions as a % of equity. <b>MARGIN USED + ORDERS</b>: including pending orders, and the contracts you can still open.
+      <b>DAILY PROFIT TARGET</b>: today's P&L against the goal set in Order size and daily profit target. <b>DAILY LOSS LIMIT</b>: today's loss against the level you set. <b>MAX OPEN PROFIT</b> / <b>MAX OPEN LOSS</b>: profit / loss of the open trade (loss out of what you can lose before Vest's daily limit).
+      <b>DAILY DRAWDOWN BUFFER</b> / <b>MAX DRAWDOWN BUFFER</b>: dollars left before the daily / total limit (the limit in brackets), as on Vest's page.
+      <b>ACCOUNT PROFIT TARGET</b>: total P&L against the evaluation target. A row switched ON draws its level on the chart as a <b>USER</b> line (the price where it closes everything). Bars: green in profit, yellow up to 50% used, orange up to 75%, red beyond.</li>
       <li>Click a section title to fold it.</li>
       <li><b>Labels on the chart</b>: drag SL, TP, LIMIT and STOP labels (or their line) to move them; ✕ cancels. On the position label ✕ closes 100% at market (two clicks).</li>
     </ul>`,
@@ -7731,7 +10733,43 @@ const HELP = {
     'Size presets',
     'The values of the six % buttons in Trade commands, in % of the maximum size. They are shown in ascending order. The size cap still applies.',
   ],
-  dailyGoal: ['Daily goal', 'Your profit target for the day, in dollars. The DAILY GOAL bar in Account limits compares today\'s P&L with it.'],
+  bracket: [
+    'Bracket',
+    `With <b>bracket</b> on, every NEW position opened from the tool goes to Vest with its own SL (and TP if set), in points from
+    the entry: market LONG / SHORT (from the current price), LIMIT (from the limit price), local STOP when it triggers, a LIMIT
+    moved on the chart. Adds to a position already open have no legs (Vest attaches them only to the first order): the position
+    keeps its SL / TP. With Risk & targets ON the plan's own SL / TP are used instead. Seen on Vest with plan LIMITs: the legs of a
+    LIMIT are live before the fill (a TP crossed before the fill shows "trade rejected").`,
+  ],
+  runner: [
+    'Safe runner (experimental)',
+    `It manages the EXIT of a position already open; it is not an initial stop loss (use Bracket for that).
+    <ul>
+      <li><b>1 · Before "start after"</b>: nothing is touched. With no stop on the position, there is none until then.</li>
+      <li><b>2 · At "start after"</b> the size is split into parts, each with its own stop measured from the best price reached:
+        <b>tight</b> (the rest of the size, at <i>tight</i> x ATR), <b>pause low</b> (optional, just under the last pause low of the move)
+        and <b>runner</b> (at <i>runner</i> x ATR). ATR = average range of the last 14 one-minute candles.</li>
+      <li><b>3 · Then</b>, in real time (at every price, not at the candle close), the stops follow the best price; they only move forward and never below
+        entry + <b>profit always kept</b>.</li>
+    </ul>
+    The LOWEST stop (long) is the real stop on Vest for all the remaining size, so it protects with the tab closed too. The higher
+    ones are kept in this tab: when the price touches one, that part is closed at market (tab open, Orders ON).<br>
+    Example, LONG at 100, start 15, kept 10, tight 1 ATR, runner 2 ATR, ATR 8: the price reaches 132 →
+    tight stop 124 (in this tab), runner stop 116 (on Vest), never below 110.<br>
+    <b>1h trend</b>: the badge in the title shows the side in favour (EMA20 vs EMA50 on 1h). With the box ticked the runner keeps its
+    wide stop only on that side, otherwise it uses the tight distance.<br>
+    <b>LIVE</b> needs trailing and auto BE OFF (they move the same stop) and comes back as VIEW after a reload.`,
+  ],
+  srMode: ['Mode', 'OFF: nothing. VIEW: lines and status only, no orders. LIVE: moves the stop on Vest and closes the tranches at market.'],
+  srAct: ['Start after / lock', 'Points of profit (best price reached, live) before the safe runner takes over; lock = profit every stop keeps at least (entry + lock).'],
+  srTight: ['Tight stop', 'Distance of the tight tranche from the best price, in ATR(14) of the 1m candles. NQ tests: 0.3 to 0.5 worked best.'],
+  srRun: ['Runner', 'Share of the size kept as runner and its distance from the best price in ATR. With the 1h check on, the runner is wide only when the 1h trend (EMA20 / EMA50) is in favour.'],
+  srPause: ['Pause-low tranche', 'Share of the size with its stop under the low of the last pause of the move (structure). 0 = not used: in the NQ tests it did not help.'],
+  srClimax: ['Climax', 'After a very large 1m candle at the top (2.5 ATR or more) the stops are tightened. NQ 1m data: after such a candle the move went on less often; in the exit tests it made no difference.'],
+  manlim: ['Account limits settings', 'Settings of <b>Account limits</b> in the column that are not set there. Manual limits: for accounts that have no daily drawdown limit or profit target on Vest (e.g. Instant); switched ON with an amount, each one replaces the value read from Vest (marked "manual" in Account limits), in its bars and in its FLAT rows. Drawdown labels: the X% DRAWDOWN labels on the chart.'],
+  manDay: ['Manual daily drawdown limit', 'ON + amount: the daily drawdown limit becomes this many $. DAILY DRAWDOWN BUFFER = this amount + today\'s P&L (day from 20:00 New York, or Vest\'s daily reset when the account has one). Also the range of MAX OPEN LOSS and the cap of DAILY LOSS LIMIT. It is only the tool\'s: Vest does not know it and does not close anything by itself.'],
+  manTgt: ['Manual account profit target', 'ON + amount: the account profit target becomes this many $ of profit over the initial capital. ACCOUNT PROFIT TARGET shows it as "manual".'],
+  dailyGoal: ['Daily profit target', 'Your profit target for the day, in dollars. The DAILY PROFIT TARGET bar in Account limits compares today\'s P&L with it.'],
   trailing: [
     'Trailing stop',
     `<ul>
@@ -7754,7 +10792,7 @@ const HELP = {
   ],
   lines: ['Lines on the chart', 'Draws the tool\'s own lines and labels on the chart (position, SL/TP, orders, averages, fail price).'],
   overlay: ['Trade overlay', 'Shows the sections and Trade commands in the column. Off = no sections and no trade buttons.'],
-  dd50: ['50% drawdown label', 'Shows the 50% DRAWDOWN label: the price where the position (plus the entry limits that fill first) loses half of the drawdown still available.'],
+  dd50: ['Drawdown labels', 'Three labels X% DRAWDOWN (25, 50 and 75 by default): the price where the position (plus the entry limits that fill first) loses that % of the drawdown still available. Each one has its box (on / off) and its % (1-99; empty or out of range = the default).'],
   hideVest: [
     'Hide Vest lines',
     `Hides the position line and the SL/TP lines that Vest draws, because the tool draws its own. If the column shows a different
@@ -7763,7 +10801,7 @@ const HELP = {
   blockPct: ['Card scale', 'Size of the cards when they were drawn on the chart. The panel is now always docked and the sections in the column use the column size, so this value has no effect there.'],
   chipPct: ['Label scale', 'Size of the labels on the chart (SL, TP, LIMIT, STOP, position...). 50-250.'],
   roomPx: [
-    'Label space',
+    'Chart space',
     'Fixed space in pixels between the last candle and the price axis, for the labels and the trailing/BE segments (50-900, empty = 360). The chart does not shift when the labels change width.',
   ],
   countdown: [
@@ -7777,15 +10815,15 @@ const HELP = {
     LIMIT, armed local STOP or open position). Font size of each button (default = the column's size). Saved in this browser. <b>Default colours</b> puts them all back. Keep LONG and SHORT easy to tell apart.`,
   ],
   layout: [
-    'Panel layout',
-    'Where the panel sits and how it looks. Saved in this browser; nothing here sends orders.',
+    'Panel and column',
+    'Width of the docked column and style of this panel. Saved in this browser; nothing here sends orders.',
   ],
   dock: [
     'Dock as a column',
     `The panel becomes a full-height column on the right and Vest's page is narrowed to leave room for it, so the panel no longer covers
     the chart. Width 320-900 px. It always stays docked; only the Trade commands panel can float (⇱ in its title, ⇥ puts it back).
     <br>Under the folded panel the column holds <b>Trade commands</b> (every trade button) and the sections Risk &amp; targets,
-    Trailing &amp; breakeven, Account limits, Swing range and volatility, Chart space (a click on a section title folds it);
+    Trailing &amp; breakeven, Account limits (a click on a section title folds it);
     the position is shown in the panel header.
     The <b>Trailing &amp; breakeven</b> section holds the same settings as the panel's "Trailing stop and breakeven" (that section
     is hidden from the panel while the column shows its sections).
@@ -7837,6 +10875,7 @@ const HELP = {
     (lowest) of 91 candles. The candles read go back 300 candles: with a big K there may be no confirmed swing in them (the line then
     is missing on that side).
     If the price goes past the last swing, the line follows the price until a new swing is confirmed.
+    The <b>Swing range</b> section of the panel switches the lines on / off and shows the points between the last swing high and low.
     Colours in Line colours. The candles (the last 300) are read from Vest's chart once a second; if the chart does not provide them the lines
     are not shown (see the log).`,
   ],
@@ -7861,7 +10900,7 @@ module.exports = { HELP };
 
   },
   "ui/panel.css": function (module, exports, require) {
-module.exports = ":host { all: initial; }\n.panel {\n  position: fixed; top: 64px; right: 16px; z-index: 2147483000;\n  width: 640px; max-width: calc(100vw - 32px); max-height: calc(100vh - 80px);\n  display: flex; flex-direction: column;\n  background: #12151b; color: #d7dbe3; border: 1px solid #2a2f3a; border-radius: 8px;\n  font: 12px/1.4 system-ui, -apple-system, \"Segoe UI\", sans-serif;\n  box-shadow: 0 8px 28px rgba(0,0,0,.45);\n}\n.panel.min .body { display: none; }\n.head {\n  display: flex; align-items: center; gap: 8px; padding: 6px 10px;\n  border-bottom: 1px solid #2a2f3a; cursor: move; user-select: none;\n}\n.title { font-weight: 600; }\n.ro { font-size: 10px; padding: 1px 6px; border-radius: 4px; background: #2b3346; color: #9fb3d9; }\n.dots { display: flex; gap: 8px; margin-left: auto; }\n.dot { display: inline-flex; align-items: center; gap: 4px; color: #8b93a3; font-size: 11px; }\n.dot::before { content: \"\"; width: 7px; height: 7px; border-radius: 50%; background: #5b6373; }\n.dot.pass::before { background: #3ecf8e; } .dot.warn::before, .dot.wait::before { background: #e8b84a; } .dot.fail::before { background: #ff5a4f; }\n.btn { background: #1d222c; color: #d7dbe3; border: 1px solid #333a48; border-radius: 4px; padding: 3px 8px; font: inherit; cursor: pointer; }\n.btn:hover { background: #262c38; }\n.btn.ord { font-size: 10px; padding: 1px 6px; color: #9fb3d9; }\n.btn.ord.on { background: #1f6b3f; border-color: #3ecf8e; color: #fff; font-weight: 700; } /* ON: green (orders can be sent) */\n.body { overflow: auto; padding: 8px 10px 10px; display: flex; flex-direction: column; gap: 10px; }\nh4 { margin: 0 0 4px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: #8b93a3; }\ntable { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }\nth, td { padding: 3px 4px; text-align: right; white-space: nowrap; }\nth { color: #8b93a3; font-weight: 500; border-bottom: 1px solid #2a2f3a; }\nth:first-child, td:first-child { text-align: left; }\ntbody tr { cursor: pointer; } tbody tr:hover { background: #1a1f28; }\ntr.sel { background: #1f2633; }\ntfoot td { border-top: 1px solid #2a2f3a; font-weight: 600; }\n.up { color: #3ecf8e; } .down { color: #ff6b61; } .muted { color: #6f7787; }\n.tot { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }\n.tot div { background: #171b23; border-radius: 6px; padding: 5px 7px; }\n.tot b { display: block; font-size: 13px; font-variant-numeric: tabular-nums; }\n.tot span { color: #8b93a3; font-size: 10px; }\n.calc { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; align-items: end; }\nlabel { display: flex; flex-direction: column; gap: 2px; color: #8b93a3; font-size: 11px; }\ninput, select { background: #0d1015; color: #e6e9ef; border: 1px solid #333a48; border-radius: 4px; padding: 4px 6px; font: inherit; width: 100%; box-sizing: border-box; }\n.out { margin-top: 6px; background: #171b23; border-radius: 6px; padding: 6px 8px; font-variant-numeric: tabular-nums; }\n.note { color: #6f7787; font-size: 11px; }\n.checks td { text-align: left; white-space: normal; }\n.lvl { font-weight: 600; } .lvl.pass { color: #3ecf8e; } .lvl.warn, .lvl.wait { color: #e8b84a; } .lvl.fail { color: #ff5a4f; }\n.log { max-height: 120px; overflow: auto; font-family: ui-monospace, Consolas, monospace; font-size: 11px; color: #9aa3b2; }\n.log .warn { color: #e8b84a; } .log .error { color: #ff6b61; }\n.row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }\n.pl { display: flex; flex-direction: column; gap: 6px; }\n.plhead { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }\n.plbig { font-size: 26px; font-weight: 800; line-height: 1.1; font-variant-numeric: tabular-nums; }\n.plsub { color: #8b93a3; font-size: 11px; } .plsub b { font-weight: 700; }\n.btn.flatall { color: #ff8a80; border-color: #a33; background: #2a1416; font-weight: 700; padding: 6px 12px; }\n.btn.flatall:hover { background: #8a2a2a; color: #fff; }\n.btn.flatall[disabled] { opacity: .5; cursor: default; }\n.placc { display: flex; flex-direction: column; }\n.pla { padding: 5px 2px; border-top: 1px solid #22272f; cursor: pointer; }\n.plr { display: flex; justify-content: space-between; gap: 8px; font-variant-numeric: tabular-nums; }\n.plr.muted { font-size: 11px; }\n.trd { display: flex; flex-direction: column; gap: 6px; }\n.trh { display: flex; align-items: baseline; gap: 8px; } .trh b { font-size: 16px; } .trh .lev { font-size: 10px; padding: 1px 5px; border: 1px solid #3a4150; border-radius: 3px; color: #aab1be; }\n.trh .trpx { margin-left: auto; font-variant-numeric: tabular-nums; }\n.bars { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }\n.bar { border: 1px solid #2a2f3a; border-radius: 6px; padding: 5px 7px; }\n.bl { display: flex; justify-content: space-between; gap: 6px; font-size: 10px; color: #8b93a3; } .bl span:last-child { color: #d7dbe3; text-align: right; }\n.track { height: 4px; background: #222733; border-radius: 2px; margin-top: 5px; overflow: hidden; }\n.track i { display: block; height: 100%; width: 0; background: #3ecf8e; } .track i.warn { background: #e8b84a; } .track i.hot { background: #ff5a4f; }\n.warn { color: #e8b84a; } .hot { color: #ff6b61; }\n.pend { display: flex; flex-direction: column; gap: 3px; }\n.pr { display: flex; align-items: center; gap: 8px; font-variant-numeric: tabular-nums; border-left: 2px solid #2f4a70; padding-left: 6px; }\n.pr .pk { font-weight: 700; min-width: 54px; }\n.pr .btn.sm { margin-left: auto; padding: 1px 6px; font-size: 10px; }\n.trs { font-size: 11px; color: #aab1be; font-variant-numeric: tabular-nums; } .trs b { font-weight: 700; }\n\n/* copier */\n.copy .cprow { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }\n.btn.seg { padding: 2px 8px; color: #aab1be; }\n.btn.seg.on { color: #fff; border-color: #7fb2ff; background: #16223f; }\n.btn.seg[disabled] { cursor: default; opacity: .7; }\n.copy .cpst { flex: 1; text-align: right; }\n.btn.cpgo { font-weight: 700; color: #3ecf8e; border-color: #2f6b52; background: #0f2a20; padding: 3px 14px; }\n.btn.cpgo.on { color: #fff; border-color: #c44; background: #8a2a2a; }\n.cpacc { width: 100%; }\n.cpacc td.eq { text-align: right; font-variant-numeric: tabular-nums; }\n.cpacc select { background: #0d1015; color: #d7dbe3; border: 1px solid #333a48; border-radius: 3px; font: inherit; }\n.cpacc input.alias { width: 110px; background: #0d1015; color: #e6e9ef; border: 1px solid #333a48; border-radius: 3px; padding: 1px 4px; font: inherit; }\n.cpacc .idt { color: #6b7385; font-size: 10px; font-family: ui-monospace, Consolas, monospace; margin-left: 4px; }\n/* chart lines: colour, dash, width per kind */\n.lstyle td { padding: 2px 4px 2px 0; }\n.lstyle td:first-child { width: 52px; font-weight: 700; }\n.lstyle input[type=\"color\"] { width: 34px; height: 20px; padding: 0 2px; cursor: pointer; }\n.lstyle select { padding: 2px 4px; }\n/* trailing/BE fields without a value clearly visible, warnings in yellow */\ninput[placeholder=\"empty\"]::placeholder { color: #5b6170; font-style: italic; }\n.note.warn { color: #ffb402; }\n\n/* account activity dot next to the name (store.activityOf) */\n.adot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 5px; vertical-align: 1px; background: #5b6373; flex: none; }\n.adot.free { background: #3ecf8e; } .adot.busy { background: #ff5a4f; } .adot.ph { background: #e8b84a; }\n/* foldable sections: title bar with a fold button and a \"?\" that opens the explanation */\n.sec { flex: none; border: 1px solid #222733; border-radius: 6px; background: #14181f; }\n.sh { display: flex; align-items: center; gap: 6px; padding: 4px 8px; }\n.fold { flex: 1; text-align: left; background: none; border: 0; padding: 2px 0; cursor: pointer; font: 600 11px/1.4 system-ui, -apple-system, \"Segoe UI\", sans-serif;\n  text-transform: uppercase; letter-spacing: .04em; color: #aab2c0; }\n.fold::before { content: \"▾\"; display: inline-block; width: 14px; color: #6f7787; }\n.sec.folded .fold::before { content: \"▸\"; }\n.fold:hover { color: #e6e9ef; }\n.sb { padding: 2px 8px 8px; overflow-x: auto; display: flex; flex-direction: column; gap: 6px; }\n.sec.folded .sb { display: none; }\n.sb > * { flex: none; }\n.group { margin-top: 4px; padding: 0 2px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: #6f7787;\n  border-bottom: 1px solid #2a2f3a; }\n.qi { flex: none; width: 17px; height: 17px; padding: 0; border-radius: 50%; border: 1px solid #3b4456; background: #1d222c; color: #9fb3d9;\n  font: 700 10px/15px system-ui, -apple-system, \"Segoe UI\", sans-serif; text-align: center; cursor: pointer; }\n.qi:hover { background: #2b3346; color: #fff; }\n.opt { display: inline-flex; align-items: center; gap: 4px; margin-right: 8px; }\nlabel.il { flex-direction: row; align-items: center; gap: 4px; flex-wrap: wrap; }\nlabel.il input[type=\"checkbox\"] { width: auto; }\n.pop { position: absolute; z-index: 5; max-height: 70%; overflow: auto; padding: 8px 10px; background: #1b2029; border: 1px solid #4a5468;\n  border-radius: 6px; box-shadow: 0 8px 24px rgba(0,0,0,.55); color: #d7dbe3; font-size: 12px; line-height: 1.45; }\n.pop .pt { font-weight: 700; margin-bottom: 4px; color: #fff; }\n.pop ul, .helptext ul { margin: 4px 0; padding-left: 18px; }\n.pop li, .helptext li { margin: 2px 0; }\n.helptext { color: #b8bfcc; font-size: 12px; line-height: 1.45; }\n\n/* ── docked: full-height column on the right (Vest's page is narrowed by dock.js) */\n/* column background: stays when the panel is folded, the cards are drawn on it (overlay above, panel above both) */\n.dockbg { display: none; position: fixed; top: 0; right: 0; bottom: 0; z-index: 2147481000; background: #1f2024; border-left: 1px solid #34363c; }\n.panel.dock { top: 0; right: 0; bottom: auto; left: auto; width: var(--dw, 420px); max-width: none; max-height: 100vh; height: auto;\n  border-radius: 0; border-width: 0 0 0 1px; box-shadow: -6px 0 18px rgba(0,0,0,.35); }\n.panel.dock .head { cursor: default; flex-wrap: wrap; row-gap: 4px; }\n.panel.dock .tot { grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); }\n.panel.dock .calc { grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); }\n.btn.on { color: #fff; border-color: #7fb2ff; background: #16223f; }\n\n/* ── Console style: larger, section titles on a bar with a coloured edge, roomy fields and buttons */\n.panel.console { background: #1f2024; border-color: #34363c; font-size: 13px; color: #e2e4e9; }\n.panel.console .head { background: #26272c; border-bottom-color: #34363c; padding: 8px 12px; }\n.panel.console .title { font-size: 15px; font-weight: 800; letter-spacing: .02em; }\n.panel.console .body { padding: 10px 10px 14px; gap: 10px; }\n.panel.console .sec { border: 1px solid #34363c; border-radius: 6px; background: #26272c; overflow: hidden; }\n.panel.console .sh { background: #303136; border-left: 4px solid #f97316; padding: 6px 10px 6px 8px; }\n.panel.console .fold { font-size: 13px; text-transform: none; letter-spacing: 0; font-weight: 700; color: #f1f2f5; }\n.panel.console .fold::before { content: \"\"; width: 0; }\n.panel.console .sh::after { content: \"▾\"; color: #8e939e; font-size: 12px; margin-left: 2px; }\n.panel.console .sec.folded .sh::after { content: \"▸\"; }\n.panel.console .sb { padding: 10px 12px 12px; gap: 10px; }\n.panel.console .group { margin-top: 8px; font-size: 11px; color: #8e939e; border-bottom-color: #34363c; }\n.panel.console input, .panel.console select { background: #17181b; border: 1px solid #45474e; border-radius: 5px; padding: 6px 8px; color: #f1f2f5; }\n.panel.console input:focus, .panel.console select:focus { outline: none; border-color: #f97316; }\n.panel.console input[type=\"checkbox\"] { width: 15px; height: 15px; accent-color: #f97316; }\n.panel.console label { color: #a4a8b1; font-size: 12px; }\n.panel.console .opt { margin: 2px 12px 2px 0; }\n.panel.console .row { gap: 8px 4px; }\n.panel.console .btn { border-radius: 5px; padding: 6px 12px; background: #34363c; border-color: #45474e; color: #f1f2f5; font-weight: 600; }\n.panel.console .btn:hover { background: #3f4148; }\n.panel.console .btn.ord { padding: 3px 9px; font-size: 11px; }\n.panel.console .btn.ord.on { background: #15803d; border-color: #22c55e; }\n.panel.console .btn.on { background: #c2410c; border-color: #f97316; color: #fff; }\n.panel.console .btn.flatall { background: #d4a514; border-color: #f0c03a; color: #17181b; font-size: 12px; padding: 6px 12px; white-space: nowrap; }\n.panel.console .btn.flatall:hover { background: #e8b923; color: #000; }\n.panel.console .btn.cpgo { background: #15803d; border-color: #22c55e; color: #fff; padding: 6px 18px; }\n.panel.console .btn.cpgo.on { background: #b91c1c; border-color: #ef4444; }\n.panel.console .btn.seg.on { background: #c2410c; border-color: #f97316; color: #fff; }\n.panel.console .tot div, .panel.console .out { background: #17181b; border: 1px solid #34363c; border-radius: 6px; }\n.panel.console .tot b { font-size: 15px; }\n.panel.console .plbig { font-size: 30px; }\n.panel.console th { color: #a4a8b1; border-bottom-color: #45474e; }\n.panel.console tbody tr:hover { background: #303136; } .panel.console tr.sel { background: #1e2a44; }\n.panel.console .bar { border-color: #45474e; background: #17181b; }\n.panel.console .track { height: 6px; background: #34363c; border-radius: 3px; }\n.panel.console .up { color: #4ade80; } .panel.console .down { color: #f87171; }\n.panel.console .qi { width: 19px; height: 19px; line-height: 17px; background: #303136; border-color: #45474e; color: #fdba74; }\n.panel.console .log { background: #17181b; border: 1px solid #34363c; border-radius: 5px; padding: 6px 8px; font-size: 11.5px; color: #c4c7ce; max-height: 160px; }\n.panel.console .pop { background: #2a2b30; border-color: #4b4e57; }\n\n/* docked: the open panel fills the column to the bottom (the column's cards are hidden meanwhile);\n   folded = header only, the cards under it */\n.panel.dock:not(.min) { height: 100vh; }\n.panel.dock.withcards.min { box-shadow: 0 6px 14px rgba(0,0,0,.35); border-width: 0 0 1px 1px; }\n/* Trailing stop and breakeven: shown in the docked column instead (Trailing & breakeven section) */\n.panel.stopscol .sec[data-sec=\"stops\"] { display: none; }\n/* result of the last command, in the header (two short lines at most: the header keeps its height) */\n.say { flex: 1 1 0; min-width: 0; align-self: center; font-size: 10.5px; line-height: 11px; max-height: 22px; overflow: hidden;\n  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; word-break: break-word; color: #8b93a3; }\n.say.ok { color: #3ecf8e; } .say.err { color: #ff6b61; }\n/* docked: title, version and messages on the first row; status dots and the buttons on the second */\n.hbr { display: none; }\n.panel.dock .hbr { display: block; flex-basis: 100%; height: 0; }\n/* header, docked: timeframe / countdown / clock / account left of the status dots; the position on its own row */\n.hinfo { display: none; }\n.panel.dock .hinfo { display: inline-flex; align-items: baseline; gap: 8px; min-width: 0; overflow: hidden; white-space: nowrap;\n  font-size: 12px; font-variant-numeric: tabular-nums; color: #e2e4e9; }\n.hinfo b { font-weight: 800; }\n.hinfo i { font-style: normal; font-weight: 600; }\n.hinfo i.cd { color: #7fb2ff; }\n.hinfo .acc { color: #c9d1e0; font-size: 11px; font-weight: 700; text-transform: uppercase; overflow: hidden; text-overflow: ellipsis; }\n.hpos { flex-basis: 100%; display: flex; align-items: baseline; gap: 10px; box-sizing: border-box; padding: 4px 8px; border-radius: 5px;\n  border-left: 3px solid #3a4150; background: #1a1b1f; font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; }\n.hpos.long { border-left-color: #3ecf8e; } .hpos.short { border-left-color: #ff6b61; }\n.hpos .sd { font-weight: 800; color: #8b93a3; }\n.hpos.long .sd, .hpos.long .q, .hpos.long .en { color: #3ecf8e; } .hpos.short .sd, .hpos.short .q, .hpos.short .en { color: #ff6b61; }\n.hpos .q { color: #ffb402; }\n.hpos .pl { font-size: 13px; }\n.hpos .mic { color: #d7dbe3; font-weight: 600; }\n.hpos .day { margin-left: auto; color: #8b93a3; font-weight: 600; }\n.hpos .up { color: #3ecf8e; } .hpos .down { color: #ff6b61; }\n/* position in the header: two rows (side / size / entry .. P&L, then points / contracts .. today) */\n.hpos { flex-direction: column; align-items: stretch; gap: 3px; }\n.hpos .r1, .hpos .r2 { display: flex; align-items: baseline; gap: 12px; min-width: 0; white-space: nowrap; overflow: hidden; }\n.hpos .r2 { font-size: 11.5px; }\n.hpos i { font-style: normal; font-weight: 600; font-size: 10.5px; color: #8b93a3; margin-right: 2px; }\n.hpos .pl { margin-left: auto; font-size: 14px; font-weight: 800; }\n.hpos .day { margin-left: auto; }\n.hpos .day b { font-weight: 700; }\n";
+module.exports = ":host { all: initial; }\n.panel {\n  position: fixed; top: 64px; right: 16px; z-index: 2147483000;\n  width: 640px; max-width: calc(100vw - 32px); max-height: calc(100vh - 80px);\n  display: flex; flex-direction: column;\n  background: #12151b; color: #d7dbe3; border: 1px solid #2a2f3a; border-radius: 8px;\n  font: 12px/1.4 system-ui, -apple-system, \"Segoe UI\", sans-serif;\n  box-shadow: 0 8px 28px rgba(0,0,0,.45);\n}\n.panel.min .body { display: none; }\n.head {\n  display: flex; align-items: center; gap: 8px; padding: 6px 10px;\n  border-bottom: 1px solid #2a2f3a; cursor: move; user-select: none;\n}\n.title { font-weight: 600; }\n.ro { font-size: 10px; padding: 1px 6px; border-radius: 4px; background: #2b3346; color: #9fb3d9; }\n.dots { display: flex; gap: 8px; margin-left: auto; }\n.dot { display: inline-flex; align-items: center; gap: 4px; color: #8b93a3; font-size: 11px; }\n.dot::before { content: \"\"; width: 7px; height: 7px; border-radius: 50%; background: #5b6373; }\n.dot.pass::before { background: #3ecf8e; } .dot.warn::before, .dot.wait::before { background: #e8b84a; } .dot.fail::before { background: #ff5a4f; }\n.btn { background: #1d222c; color: #d7dbe3; border: 1px solid #333a48; border-radius: 4px; padding: 3px 8px; font: inherit; cursor: pointer; }\n.btn:hover { background: #262c38; }\n.btn.ord { font-size: 10px; padding: 1px 6px; color: #9fb3d9; }\n.btn.ord.on { background: #1f6b3f; border-color: #3ecf8e; color: #fff; font-weight: 700; } /* ON: green (orders can be sent) */\n.body { overflow: auto; padding: 8px 10px 10px; display: flex; flex-direction: column; gap: 10px; }\nh4 { margin: 0 0 4px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: #8b93a3; }\ntable { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }\nth, td { padding: 3px 4px; text-align: right; white-space: nowrap; }\nth { color: #8b93a3; font-weight: 500; border-bottom: 1px solid #2a2f3a; }\nth:first-child, td:first-child { text-align: left; }\ntbody tr { cursor: pointer; } tbody tr:hover { background: #1a1f28; }\ntr.sel { background: #1f2633; }\ntfoot td { border-top: 1px solid #2a2f3a; font-weight: 600; }\n.up { color: #3ecf8e; } .down { color: #ff6b61; } .muted { color: #6f7787; }\n.tot { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }\n.tot div { background: #171b23; border-radius: 6px; padding: 5px 7px; }\n.tot b { display: block; font-size: 13px; font-variant-numeric: tabular-nums; }\n.tot span { color: #8b93a3; font-size: 10px; }\n.calc { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; align-items: end; }\nlabel { display: flex; flex-direction: column; gap: 2px; color: #8b93a3; font-size: 11px; }\ninput, select { background: #0d1015; color: #e6e9ef; border: 1px solid #333a48; border-radius: 4px; padding: 4px 6px; font: inherit; width: 100%; box-sizing: border-box; }\n.out { margin-top: 6px; background: #171b23; border-radius: 6px; padding: 6px 8px; font-variant-numeric: tabular-nums; }\n.note { color: #6f7787; font-size: 11px; }\n.checks td { text-align: left; white-space: normal; }\n.lvl { font-weight: 600; } .lvl.pass { color: #3ecf8e; } .lvl.warn, .lvl.wait { color: #e8b84a; } .lvl.fail { color: #ff5a4f; }\n.log { max-height: 120px; overflow: auto; font-family: ui-monospace, Consolas, monospace; font-size: 11px; color: #9aa3b2; }\n.log .warn { color: #e8b84a; } .log .error { color: #ff6b61; }\n.row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }\n.pl { display: flex; flex-direction: column; gap: 6px; }\n.plhead { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }\n.plbig { font-size: 26px; font-weight: 800; line-height: 1.1; font-variant-numeric: tabular-nums; }\n.plsub { color: #8b93a3; font-size: 11px; } .plsub b { font-weight: 700; }\n.btn.flatall { color: #ff8a80; border-color: #a33; background: #2a1416; font-weight: 700; padding: 6px 12px; }\n.btn.flatall:hover { background: #8a2a2a; color: #fff; }\n.btn.flatall[disabled] { opacity: .5; cursor: default; }\n.placc { display: flex; flex-direction: column; }\n.pla { padding: 5px 2px; border-top: 1px solid #22272f; cursor: pointer; }\n.plr { display: flex; justify-content: space-between; gap: 8px; font-variant-numeric: tabular-nums; }\n.plr.muted { font-size: 11px; }\n.trd { display: flex; flex-direction: column; gap: 6px; }\n.trh { display: flex; align-items: baseline; gap: 8px; } .trh b { font-size: 16px; } .trh .lev { font-size: 10px; padding: 1px 5px; border: 1px solid #3a4150; border-radius: 3px; color: #aab1be; }\n.trh .trpx { margin-left: auto; font-variant-numeric: tabular-nums; }\n.bars { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }\n.bar { border: 1px solid #2a2f3a; border-radius: 6px; padding: 5px 7px; }\n.bl { display: flex; justify-content: space-between; gap: 6px; font-size: 10px; color: #8b93a3; } .bl span:last-child { color: #d7dbe3; text-align: right; }\n.track { height: 4px; background: #222733; border-radius: 2px; margin-top: 5px; overflow: hidden; }\n.track i { display: block; height: 100%; width: 0; background: #3ecf8e; } .track i.warn { background: #e8b84a; } .track i.hot { background: #ff5a4f; }\n.warn { color: #e8b84a; } .hot { color: #ff6b61; }\n.pend { display: flex; flex-direction: column; gap: 3px; }\n.pr { display: flex; align-items: center; gap: 8px; font-variant-numeric: tabular-nums; border-left: 2px solid #2f4a70; padding-left: 6px; }\n.pr .pk { font-weight: 700; min-width: 54px; }\n.pr .btn.sm { margin-left: auto; padding: 1px 6px; font-size: 10px; }\n.trs { font-size: 11px; color: #aab1be; font-variant-numeric: tabular-nums; } .trs b { font-weight: 700; }\n\n/* copier */\n.copy .cprow { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }\n.btn.seg { padding: 2px 8px; color: #aab1be; }\n.btn.seg.on { color: #fff; border-color: #7fb2ff; background: #16223f; }\n.btn.seg[disabled] { cursor: default; opacity: .7; }\n.copy .cpst { flex: 1; text-align: right; }\n.btn.cpgo { font-weight: 700; color: #3ecf8e; border-color: #2f6b52; background: #0f2a20; padding: 3px 14px; }\n.btn.cpgo.on { color: #fff; border-color: #c44; background: #8a2a2a; }\n.cpacc { width: 100%; }\n.cpacc td.eq { text-align: right; font-variant-numeric: tabular-nums; }\n.cpacc select { background: #0d1015; color: #d7dbe3; border: 1px solid #333a48; border-radius: 3px; font: inherit; }\n.cpacc input.alias { width: 110px; background: #0d1015; color: #e6e9ef; border: 1px solid #333a48; border-radius: 3px; padding: 1px 4px; font: inherit; }\n.cpacc .idt { color: #6b7385; font-size: 10px; font-family: ui-monospace, Consolas, monospace; margin-left: 4px; }\n/* chart lines: colour, dash, width per kind */\n.lstyle td { padding: 2px 4px 2px 0; }\n.lstyle td:first-child { width: 52px; font-weight: 700; }\n.lstyle input[type=\"color\"] { width: 34px; height: 20px; padding: 0 2px; cursor: pointer; }\n.lstyle select { padding: 2px 4px; }\n/* trailing/BE fields without a value clearly visible, warnings in yellow */\ninput[placeholder=\"empty\"]::placeholder { color: #5b6170; font-style: italic; }\n.note.warn { color: #ffb402; }\n\n/* account activity dot next to the name (store.activityOf) */\n.adot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 5px; vertical-align: 1px; background: #5b6373; flex: none; }\n.adot.free { background: #3ecf8e; } .adot.busy { background: #ff5a4f; } .adot.ph { background: #e8b84a; }\n/* foldable sections: title bar with a fold button and a \"?\" that opens the explanation */\n.sec { flex: none; border: 1px solid #222733; border-radius: 6px; background: #14181f; }\n.sh { display: flex; align-items: center; gap: 6px; padding: 4px 8px; }\n.fold { flex: 1; text-align: left; background: none; border: 0; padding: 2px 0; cursor: pointer; font: 600 11px/1.4 system-ui, -apple-system, \"Segoe UI\", sans-serif;\n  text-transform: uppercase; letter-spacing: .04em; color: #aab2c0; }\n.fold::before { content: \"▾\"; display: inline-block; width: 14px; color: #6f7787; }\n.sec.folded .fold::before { content: \"▸\"; }\n.fold:hover { color: #e6e9ef; }\n.sb { padding: 2px 8px 8px; overflow-x: auto; display: flex; flex-direction: column; gap: 6px; }\n.sec.folded .sb { display: none; }\n.sb > * { flex: none; }\n.group { margin-top: 4px; padding: 0 2px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: #6f7787;\n  border-bottom: 1px solid #2a2f3a; }\n.qi { flex: none; width: 17px; height: 17px; padding: 0; border-radius: 50%; border: 1px solid #3b4456; background: #1d222c; color: #9fb3d9;\n  font: 700 10px/15px system-ui, -apple-system, \"Segoe UI\", sans-serif; text-align: center; cursor: pointer; }\n.qi:hover { background: #2b3346; color: #fff; }\n.opt { display: inline-flex; align-items: center; gap: 4px; margin-right: 8px; }\nlabel.il { flex-direction: row; align-items: center; gap: 4px; flex-wrap: wrap; }\nlabel.il input[type=\"checkbox\"] { width: auto; }\n.pop { position: absolute; z-index: 5; max-height: 70%; overflow: auto; padding: 8px 10px; background: #1b2029; border: 1px solid #4a5468;\n  border-radius: 6px; box-shadow: 0 8px 24px rgba(0,0,0,.55); color: #d7dbe3; font-size: 12px; line-height: 1.45; }\n.pop .pt { font-weight: 700; margin-bottom: 4px; color: #fff; }\n.pop ul, .helptext ul { margin: 4px 0; padding-left: 18px; }\n.pop li, .helptext li { margin: 2px 0; }\n.helptext { color: #b8bfcc; font-size: 12px; line-height: 1.45; }\n\n/* ── docked: full-height column on the right (Vest's page is narrowed by dock.js) */\n/* column background: stays when the panel is folded, the cards are drawn on it (overlay above, panel above both) */\n.dockbg { display: none; position: fixed; top: 0; right: 0; bottom: 0; z-index: 2147481000; background: #1f2024; border-left: 1px solid #34363c; }\n.panel.dock { top: 0; right: 0; bottom: auto; left: auto; width: var(--dw, 420px); max-width: none; max-height: 100vh; height: auto;\n  border-radius: 0; border-width: 0 0 0 1px; box-shadow: -6px 0 18px rgba(0,0,0,.35); }\n.panel.dock .head { cursor: default; flex-wrap: wrap; row-gap: 4px; }\n.panel.dock .tot { grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); }\n.panel.dock .calc { grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); }\n.btn.on { color: #fff; border-color: #7fb2ff; background: #16223f; }\n\n/* ── Console style: larger, section titles on a bar with a coloured edge, roomy fields and buttons */\n.panel.console { background: #1f2024; border-color: #34363c; font-size: 13px; color: #e2e4e9; }\n.panel.console .head { background: #26272c; border-bottom-color: #34363c; padding: 8px 12px; }\n.panel.console .title { font-size: 15px; font-weight: 800; letter-spacing: .02em; }\n.panel.console .body { padding: 10px 10px 14px; gap: 10px; }\n.panel.console .sec { border: 1px solid #34363c; border-radius: 6px; background: #26272c; overflow: hidden; }\n.panel.console .sh { background: #303136; border-left: 4px solid #f97316; padding: 6px 10px 6px 8px; }\n.panel.console .fold { font-size: 13px; text-transform: none; letter-spacing: 0; font-weight: 700; color: #f1f2f5; }\n.panel.console .fold::before { content: \"\"; width: 0; }\n.panel.console .sh::after { content: \"▾\"; color: #8e939e; font-size: 12px; margin-left: 2px; }\n.panel.console .sec.folded .sh::after { content: \"▸\"; }\n.panel.console .sb { padding: 10px 12px 12px; gap: 10px; }\n.panel.console .group { margin-top: 8px; font-size: 11px; color: #8e939e; border-bottom-color: #34363c; }\n.panel.console input, .panel.console select { background: #17181b; border: 1px solid #45474e; border-radius: 5px; padding: 6px 8px; color: #f1f2f5; }\n.panel.console input:focus, .panel.console select:focus { outline: none; border-color: #f97316; }\n.panel.console input[type=\"checkbox\"] { width: 15px; height: 15px; accent-color: #f97316; }\n.panel.console label { color: #a4a8b1; font-size: 12px; }\n.panel.console .opt { margin: 2px 12px 2px 0; }\n.panel.console .row { gap: 8px 4px; }\n.panel.console .btn { border-radius: 5px; padding: 6px 12px; background: #34363c; border-color: #45474e; color: #f1f2f5; font-weight: 600; }\n.panel.console .btn:hover { background: #3f4148; }\n.panel.console .btn.ord { padding: 3px 9px; font-size: 11px; }\n.panel.console .btn.ord.on { background: #15803d; border-color: #22c55e; }\n.panel.console .btn.on { background: #c2410c; border-color: #f97316; color: #fff; }\n.panel.console .btn.flatall { background: #d4a514; border-color: #f0c03a; color: #17181b; font-size: 12px; padding: 6px 12px; white-space: nowrap; }\n.panel.console .btn.flatall:hover { background: #e8b923; color: #000; }\n.panel.console .btn.cpgo { background: #15803d; border-color: #22c55e; color: #fff; padding: 6px 18px; }\n.panel.console .btn.cpgo.on { background: #b91c1c; border-color: #ef4444; }\n.panel.console .btn.seg.on { background: #c2410c; border-color: #f97316; color: #fff; }\n.panel.console .tot div, .panel.console .out { background: #17181b; border: 1px solid #34363c; border-radius: 6px; }\n.panel.console .tot b { font-size: 15px; }\n.panel.console .plbig { font-size: 30px; }\n.panel.console th { color: #a4a8b1; border-bottom-color: #45474e; }\n.panel.console tbody tr:hover { background: #303136; } .panel.console tr.sel { background: #1e2a44; }\n.panel.console .bar { border-color: #45474e; background: #17181b; }\n.panel.console .track { height: 6px; background: #34363c; border-radius: 3px; }\n.panel.console .up { color: #4ade80; } .panel.console .down { color: #f87171; }\n.panel.console .qi { width: 19px; height: 19px; line-height: 17px; background: #303136; border-color: #45474e; color: #fdba74; }\n.panel.console .log { background: #17181b; border: 1px solid #34363c; border-radius: 5px; padding: 6px 8px; font-size: 11.5px; color: #c4c7ce; max-height: 160px; }\n.panel.console .pop { background: #2a2b30; border-color: #4b4e57; }\n\n/* docked: the open panel fills the column to the bottom (the column's cards are hidden meanwhile);\n   folded = header only, the cards under it */\n.panel.dock:not(.min) { height: 100vh; }\n.panel.dock.withcards.min { box-shadow: 0 6px 14px rgba(0,0,0,.35); border-width: 0 0 1px 1px; }\n/* Trailing stop and breakeven: shown in the docked column instead (Trailing & breakeven section) */\n.panel.stopscol .sec[data-sec=\"stops\"] { display: none; }\n/* result of the last command, in the header (two short lines at most: the header keeps its height) */\n.say { flex: 1 1 0; min-width: 0; align-self: center; font-size: 10.5px; line-height: 11px; max-height: 22px; overflow: hidden;\n  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; word-break: break-word; color: #8b93a3; }\n.say.ok { color: #3ecf8e; } .say.err { color: #ff6b61; }\n/* docked: title, version and messages on the first row; status dots and the buttons on the second */\n.hbr { display: none; }\n.panel.dock .hbr { display: block; flex-basis: 100%; height: 0; }\n/* header, docked: timeframe / countdown / clock / account left of the status dots; the position on its own row */\n.hinfo { display: none; }\n.panel.dock .hinfo { display: inline-flex; align-items: baseline; gap: 8px; min-width: 0; overflow: hidden; white-space: nowrap;\n  font-size: 12px; font-variant-numeric: tabular-nums; color: #e2e4e9; }\n.hinfo b { font-weight: 800; }\n.hinfo i { font-style: normal; font-weight: 600; }\n.hinfo i.cd { color: #7fb2ff; }\n.hinfo .acc { color: #c9d1e0; font-size: 11px; font-weight: 700; text-transform: uppercase; overflow: hidden; text-overflow: ellipsis; }\n.hpos { flex-basis: 100%; display: flex; align-items: baseline; gap: 10px; box-sizing: border-box; padding: 4px 8px; border-radius: 5px;\n  border-left: 3px solid #3a4150; background: #1a1b1f; font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; }\n.hpos.long { border-left-color: #3ecf8e; } .hpos.short { border-left-color: #ff6b61; }\n.hpos .sd { font-weight: 800; color: #8b93a3; }\n.hpos.long .sd, .hpos.long .q, .hpos.long .en { color: #3ecf8e; } .hpos.short .sd, .hpos.short .q, .hpos.short .en { color: #ff6b61; }\n.hpos .q { color: #ffb402; }\n.hpos .pl { font-size: 13px; }\n.hpos .mic { color: #d7dbe3; font-weight: 600; }\n.hpos .day { margin-left: auto; color: #8b93a3; font-weight: 600; }\n.hpos .up { color: #3ecf8e; } .hpos .down { color: #ff6b61; }\n/* position in the header: two rows (side / size / entry .. P&L, then points / contracts .. today) */\n.hpos { flex-direction: column; align-items: stretch; gap: 3px; }\n.hpos .r1, .hpos .r2 { display: flex; align-items: baseline; gap: 12px; min-width: 0; white-space: nowrap; overflow: hidden; }\n.hpos .r2 { font-size: 11.5px; }\n.hpos i { font-style: normal; font-weight: 600; font-size: 10.5px; color: #8b93a3; margin-right: 2px; }\n.hpos .pl { margin-left: auto; font-size: 14px; font-weight: 800; }\n.hpos .day { margin-left: auto; }\n.hpos .day b { font-weight: 700; }\n.hpos .dtr { margin-left: auto; flex: none; display: inline-flex; align-items: baseline; gap: 4px; white-space: nowrap; color: #8b93a3; font-weight: 600; }\n.hpos .dtr b { display: inline; font-weight: 700; color: #d7dbe3; }\n.hpos .dtr i { margin-right: 0; }\n.hpos .r2 .day { flex: none; }\n.hpos .r2 .mic { min-width: 0; overflow: hidden; text-overflow: ellipsis; }\n.hpos .dtr b.up { color: #3ecf8e; } .hpos .dtr b.down { color: #ff6b61; }\n.hpos .dtr + .day { margin-left: 0; }\n\n/* copier: test mode and per-copy limits (v0.20.15) */\n.cpdry { display: flex; align-items: center; gap: 6px; margin: 6px 0; font-size: 12px; color: #c9ced8; cursor: pointer; }\n.cpacc .cph th { font-size: 10.5px; font-weight: 600; color: #8b93a3; text-align: left; padding: 2px 4px; }\n.cpacc .clim { width: 64px; box-sizing: border-box; height: 22px; padding: 0 4px; background: #000; color: #fff; border: 1px solid #3b4456; border-radius: 4px; font-size: 12px; }\n\n/* header ORDERS / COPY toggles (v0.20.26): right of the first header row, red OFF / green ON */\n.htg { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; align-self: center; flex: 0 0 auto; }\n.htl { font-size: 9px; font-weight: 800; letter-spacing: .3px; color: #8b93a3; }\n/* text 2 px higher than v0.20.27 (Gerry): same font as then, centred in the box with 1 px bottom padding */\n.htb { display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; font-family: inherit;\n  min-width: 32px; height: 16px; padding: 0 4px 1px; border-radius: 3px; cursor: pointer;\n  color: #fff; background: #8a2a2a; border: 1px solid #c44; margin-right: 6px; }\n.htb.on { background: #1f6a45; border-color: #3ecf8e; }\n\n/* Copier (v0.20.27): test-mode checkbox at the start of its line, Role readable, no Max positions column */\n.panel .cpdry { flex-direction: row; align-items: center; justify-content: flex-start; text-align: left; }\n.panel .cpdry input { flex: 0 0 auto; width: 16px; height: 16px; margin: 0; padding: 0; }\n.panel .cpacc select { width: 92px; min-width: 92px; padding: 3px 4px; font-size: 12px; }\n\n/* v0.20.36 reorganised panel: accounts overview, multiplier per copy */\n.ovh { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }\ntable.acct td:first-child, table.acct th:first-child { text-align: left; }\ntable.acct { font-size: 11px; }\ntable.acct td, table.acct th { padding-left: 2px; padding-right: 2px; white-space: nowrap; }\ntable.acct tfoot td { font-weight: 700; border-top: 1px solid #3a3d45; }\ntable.acct tr.legs td { padding-top: 0; font-size: 11px; }\n.rtag { font-style: normal; font-weight: 700; font-size: 10px; padding: 0 4px; border-radius: 3px; background: #3b3f4a; color: #fdba74; }\n.rtag.m { color: #fff; background: #c2410c; }\nb.act { font-size: 10px; padding: 1px 4px 0; border-radius: 3px; color: #0b1220; background: #7fb2ff; }\n.selinfo { margin-top: 6px; font-size: 12px; color: #aeb4c0; }\n.pr .pa { font-weight: 700; min-width: 56px; color: #d6dae2; }\n.cmul { display: inline-flex; align-items: center; gap: 3px; }\n.cmul .cmx { color: #fdba74; font-weight: 700; }\n.cmul .clim { width: 44px; }\n/* v0.20.36: five columns in the docked width (multiplier added) */\n.panel .cpacc { font-size: 11.5px; }\n.panel .cpacc td, .panel .cpacc th { padding-left: 2px; padding-right: 2px; }\n.panel .cpacc input.alias { width: 74px; }\n.panel .cpacc select { width: 70px; min-width: 70px; }\n.panel .cpacc .clim { width: 46px; }\n.panel .cpacc .cmul .clim { width: 38px; }\n\n/* waiting for Vest data after a reload (v0.20.41): what is missing in the header, the rest greyed out and not clickable */\n.hwait { margin-left: auto; align-self: center; font-size: 11px; font-weight: 800; letter-spacing: .04em; color: #fbbf24; animation: hwblink 1.2s ease-in-out infinite; }\n@keyframes hwblink { 50% { opacity: .45; } }\n.panel.waiting .body, .panel.waiting .hpos { pointer-events: none; }\n\n/* colour pickers: the swatch is visible (the Console style padding hid it, v0.20.44) */\n.panel input[type=\"color\"], .panel.console input[type=\"color\"] { width: 40px; height: 24px; padding: 2px; flex: none; cursor: pointer; vertical-align: middle; }\n.panel input[type=\"color\"]::-webkit-color-swatch-wrapper { padding: 0; }\n.panel input[type=\"color\"]::-webkit-color-swatch { border: 0; border-radius: 3px; }\n.panel input[type=\"color\"]::-moz-color-swatch { border: 0; border-radius: 3px; }\n/* Chart lines and labels editor */\n.csed { display: flex; flex-direction: column; gap: 8px; }\n.csed .csel { display: flex; align-items: center; gap: 8px; font-weight: 700; }\n.csed .csel select { flex: 1; }\n.csed .csh4 { font-size: 10.5px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: #8e939e; border-top: 1px solid #34363c; padding-top: 6px; }\n.csed .csrow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }\n.csed .csrow label { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }\n.csed .csrow select { width: auto; }\n.csed .csrow input[type=\"checkbox\"] { width: 15px; height: 15px; }\n.csprev { position: relative; height: 44px; border: 1px solid #34363c; border-radius: 6px; background: #0f1013; overflow: hidden; }\n.csprev .csline { position: absolute; left: 0; right: 0; top: 21px; }\n.csprev .cschip { position: absolute; right: 10px; top: 9px; display: flex; gap: 6px; align-items: center; padding: 2px 6px; border: 1px solid #2a2f3a; border-radius: 5px;\n  white-space: nowrap; font-variant-numeric: tabular-nums; color: #e2e4e9; }\n.csprev .cschip .k { font-weight: 700; border-radius: 3px; }\n.csprev .cschip .qy { color: #ffb402; font-weight: 800; }\n.csprev .cschip .up { color: #3ecf8e; }\n";
   },
   "ui/panel.js": function (module, exports, require) {
 // Panel in a closed Shadow DOM. Minimal look. Orders are sent only from the chart overlay, with the Orders switch on.
@@ -7872,41 +10911,10 @@ const { HELP } = require('./help');
 const store = require('../core/store');
 const log = require('../diag/log');
 const dock = require('./dock');
+const CS = require('./chartstyle');
 
 const UI_KEY = 'vt1:ui';
-// chart overlay lines: [kind, name, default colour] (colour, dash and width of each one can be changed)
-const LINE_KINDS = [
-  ['long', 'LONG', '#3ecf8e'],
-  ['short', 'SHORT', '#ff6b61'],
-  ['avg', 'AVG ALL', '#5ad1e6'],
-  ['avg1', 'AVG NEXT', '#5ad1e6'],
-  ['avgn', 'AVG NEW', '#5ad1e6'],
-  ['ko', 'FAIL', '#c58cff'],
-  ['dd50', '50% DRAWDOWN', '#f472b6'],
-  ['mfp', 'FAIL NEW', '#ff9f43'],
-  ['tp', 'TP', '#3ecf8e'],
-  ['sl', 'SL', '#ff6b61'],
-  ['lm', 'LIMIT', '#7fb2ff'],
-  ['st', 'STOP', '#e8b84a'],
-];
-// trailing and BE segments between candles and labels: [kind, name, colour, dash]; width 3, automatic length
-const SEG_KINDS = [
-  ['tstop', 'Trailing: stop', '#ff9f43', 'solid'],
-  ['tact', 'Trailing: start level', '#5ad1e6', 'solid'],
-  ['tnext', 'Trailing: next step', '#a3e635', 'solid'],
-  ['beplus', 'BE+', '#e879f9', 'solid'],
-  ['beauto', 'Auto BE', '#e879f9', 'dashed'],
-];
-// last swing high / low: short lines between the cards and the price axis (fixed length)
-const HL_KINDS = [
-  ['hhigh', 'Last swing high', '#3ecf8e', 'solid'],
-  ['hlow', 'Last swing low', '#ff6b61', 'solid'],
-];
-const LINE_DEFAULTS = Object.fromEntries([
-  ...LINE_KINDS.flatMap(([k, , c]) => [['lc_' + k, c], ['ls_' + k, 'dashed'], ['lw_' + k, '1']]),
-  ...SEG_KINDS.flatMap(([k, , c, s]) => [['lc_' + k, c], ['ls_' + k, s], ['lw_' + k, '3'], ['ll_' + k, '']]),
-  ...HL_KINDS.flatMap(([k, , c, s]) => [['lc_' + k, c], ['ls_' + k, s], ['lw_' + k, '2']]),
-]);
+const LINE_DEFAULTS = CS.defaults(); // lines and labels on the chart: src/ui/chartstyle.js
 // colours of the entry buttons and FLAT in Trade commands, and of the mode words: [key, name, default]
 const BTN_COLS = [
   ['lm', 'LIMIT', '#1d4ed8', '#e0ecff'],
@@ -7930,10 +10938,11 @@ let root = null,
   panel = null,
   els = {},
   handlers = {};
-let ui = { ...LINE_DEFAULTS, ...COL_DEFAULTS, qc: '#ffb402', qsz: '11', qb: true, trOn: false, trUnit: 'pt', trAct: '', trDist: '', trStep: '', beOn: false, beUnit: 'pt', beOff: '', beAuto: false, beAt: '', x: null, y: null, min: false, lines: true, overlay: true, dd50: true, hideVest: true, blockPct: 125, chipPct: 100, roomPx: 360, cdOn: true, theme: 'console', dock: true, dockW: 420, pstyle: 'console', cardsAt: 'column', hlOn: true, hlK: 2, atrOn: true, atrH: 14, atrR: 3, pp0: 1, pp1: 2, pp2: 4, pp3: 8, pp4: 5, pp5: 16, dailyGoal: '', closePct: 100, sizePct: 1, capPct: 10, mode: 'pos', slUsd: '', tpUsd: '', side: 'long', qty: '', entry: '', symbol: calc.DEFAULT_SYMBOL };
+let ui = { ...LINE_DEFAULTS, ...COL_DEFAULTS, qc: '#ffb402', qsz: '11', qb: true, trOn: false, trUnit: 'pt', trAct: '', trDist: '', trStep: '', beOn: false, beUnit: 'pt', beOff: '', beAuto: false, beAt: '', brOn: false, brSl: '', brTp: '', brDca: false, gdOn: false, gdEnOn: false, gdTpOn: true, gdSlOn: true, gdEnAvg: true, gdTpAvg: true, gdSlAvg: true, gdEnOv: '', gdEnFixPx: '', gdTpOv: '', gdSlOv: '', gdEnMan: '', gdTpMan: '', gdSlMan: '', gdEnSide: 'long', gdEnNear: '', gdEnFar: '', gdEnMid: '2', gdEnPct: '', gdEnDist: 'equal', gdEnSize: 'equal', gdEnCustom: '', gdTpNear: '', gdTpFar: '', gdTpMid: '1', gdTpPct: '100', gdTpDist: 'equal', gdTpSize: 'equal', gdTpCustom: '', gdSlNear: '', gdSlFar: '', gdSlMid: '0', gdSlDist: 'equal', gdSlSize: 'equal', gdSlCustom: '', ocoOn: false, srMode: 'off', srAct: '10', srLock: '1', srTight: '0.3', srRunPct: '33', srRunAtr: '3', srPausePct: '0', srGate: true, srClimax: false, x: null, y: null, min: false, lines: true, overlay: true, dd50: true, dd25On: true, dd75On: true, ddP1: 25, ddP2: 50, ddP3: 75, hideVest: true, blockPct: 125, chipPct: 100, roomPx: 360, cdOn: true, theme: 'console', dock: true, dockW: 420, pstyle: 'console', cardsAt: 'column', hlOn: true, hlK: 2, atrOn: true, atrH: 14, atrR: 3, pp0: 1, pp1: 2, pp2: 4, pp3: 8, pp4: 5, pp5: 16, dailyGoal: '', closePct: 100, sizePct: 1, capPct: 10, mode: 'pos', slUsd: '', tpUsd: '', side: 'long', qty: '', entry: '', symbol: calc.DEFAULT_SYMBOL };
 
 try {
   Object.assign(ui, JSON.parse(localStorage.getItem(UI_KEY) || '{}'));
+  ui.gdOn = false; // the grid starts OFF at every reload (never PLAN / ACTIVE by itself)
 } catch {
   /* default settings */
 }
@@ -7943,6 +10952,8 @@ if (ui.bc_flat_bg === '#d4a514' && ui.bc_flat_tx === '#17181b') Object.assign(ui
 // trailing and auto BE send orders on their own: off after every reload, like Orders (never re-armed automatically)
 ui.trOn = false;
 ui.beAuto = false;
+// safe runner: LIVE sends orders on its own: after a reload it comes back as VIEW (lines only), never live
+if (ui.srMode === 'live') ui.srMode = 'view';
 const saveUi = () => {
   try {
     localStorage.setItem(UI_KEY, JSON.stringify(ui));
@@ -7953,7 +10964,7 @@ const saveUi = () => {
 
 // ── layout: foldable sections, each with a "?" that opens its explanation (texts in help.js)
 // sections open by default; the others start folded. ui.fold remembers what the user opened or closed.
-const OPEN_DEFAULT = { overview: true, trade: true, copier: true, accounts: true };
+const OPEN_DEFAULT = { overview: true, copier: true };
 const isOpen = (k) => (ui.fold && k in ui.fold ? !!ui.fold[k] : !!OPEN_DEFAULT[k]);
 const info = (k) => `<button class="qi" data-info="${k}" aria-label="What is this?">?</button>`;
 const sec = (k, title, body) =>
@@ -7970,88 +10981,111 @@ const SKELETON = `
 <div class="dockbg" data-dockbg></div>
 <div class="panel">
   <div class="head" data-drag>
-    <span class="title">VestTool</span><span class="hdord" style="display:none"><button class="btn ord" data-act="orders" data-ord>Orders: OFF</button>${info('orders')}</span><span class="muted" data-ver></span><span class="say" data-say></span><span class="hbr"></span>
+    <span class="title">VestTool</span><span class="hdord" style="display:none"><button class="btn ord" data-act="orders" data-ord>Orders: OFF</button>${info('orders')}</span><span class="muted" data-ver></span><span class="say" data-say></span><span class="hwait" data-hwait style="display:none"></span><span class="htg"><span class="htl">ORDERS</span><button class="htb" data-act="orders" data-hord title="ORDERS ON: the tool's buttons send real orders to the account active on Vest">OFF</button><span class="htl" data-hcpl>COPY</span><button class="htb" data-act="copy" data-hcpy title="COPY ON: every order of the master is copied to the copy accounts">OFF</button></span><span class="hbr"></span>
     <span class="hinfo" data-hinfo></span>
     <div class="dots" data-dots></div>
     <button class="btn" data-act="min" title="Minimise (Alt+Shift+V)">–</button>
     <div class="hpos" data-hpos style="display:none"></div>
   </div>
   <div class="body">
-    ${sec('overview', 'Overview', `
-      <div class="tot" data-totals></div>
-      <div class="pl">
-        <div class="plhead"><div><div class="plbig" data-plbig></div><div class="plsub" data-plsub></div></div>
-          <span class="opt"><button class="btn flatall" data-act="flatall" data-flatall>FLATTEN ALL</button>${info('flatall')}</span></div>
-        <div class="placc" data-placc></div>
-      </div>`)}
-    ${sec('trade', '<span data-trtitle>Trade</span>', `
-      <div class="trd">
-        <div class="trh"><b data-trsym></b><span class="lev" data-trlev></span><b class="trpx" data-trpx></b></div>
-        <div class="trs" data-trsize></div>
-        <div class="bars">
-          <div class="bar"><div class="bl"><span>MARGIN</span><span data-mtxt></span></div><div class="track"><i data-mfill></i></div></div>
-          <div class="bar"><div class="bl"><span>RISK</span><span data-rtxt></span></div><div class="track"><i data-rfill></i></div></div>
-        </div>
-        <h4>Pending orders</h4>
-        <div class="pend" data-pend></div>
-      </div>`)}
-    ${sec('copier', 'Copier', `
+    <div class="group">Accounts</div>
+    ${sec('overview', 'Accounts overview', `
+      <div class="ovh"><span class="muted" data-ovsub></span>
+        <span class="opt"><button class="btn flatall" data-act="flatall" data-flatall>FLATTEN ALL</button>${info('flatall')}</span></div>
+      <table class="acct" data-accounts></table>
+      <div class="selinfo" data-selinfo></div>
+      <h4 style="margin-top:8px">Open positions</h4><div data-positions></div>
+      <h4 style="margin-top:8px">Pending orders</h4><div class="pend" data-pend></div>`)}
+    <div class="group">Copier</div>
+    ${sec('copier', 'Copier accounts', `
       <div class="copy">
-        <div class="cprow"><span class="muted">Sizing</span><button class="btn seg" data-cmode="1:1">1:1</button><button class="btn seg" data-cmode="cap">Cap-to-fit</button>
+        <div class="cprow"><span class="muted">Sizing</span><button class="btn seg" data-cmode="1:1">1:1</button><button class="btn seg" data-cmode="cap">Cap-to-fit</button><button class="btn seg" data-cmode="dd">DD left</button>
           <span class="cpst" data-cpst></span><button class="btn cpgo" data-act="copy" data-cpgo>START</button></div>
+        <label class="cpdry"><input type="checkbox" data-cpdry> Test mode: copies are only written in the log, nothing is sent to the copy accounts</label>
         <table class="cpacc" data-cpacc></table>
         <div class="note" data-cplast></div>
       </div>`)}
-    ${sec('accounts', 'Accounts and positions', `
-      <table data-accounts></table>
-      <h4 data-pos-title style="margin-top:8px">Positions</h4><div data-positions></div>`)}
-    <div class="group">Settings</div>
-    ${sec('layout', 'Panel layout', `
+    <div class="group">Settings of the column sections</div>
+    ${sec('size', 'Trade commands settings', `
+      <div class="row">
+        ${opt('capPct', `size cap ${num('capPct', 38)}%`)}
+        ${opt('presets', `presets ${['pp0', 'pp1', 'pp2', 'pp3', 'pp4', 'pp5'].map((k) => num(k, 30)).join('')}%`)}
+      </div>`)}
+    ${sec('manlim', 'Account limits settings', `
+      <div class="row">
+        ${opt('manDay', `${chk('mdOn', 'manual daily drawdown limit $')}${num('mdUsd', 56)}`)}
+      </div>
+      <div class="row">
+        ${opt('manTgt', `${chk('mtOn', 'manual account profit target $')}${num('mtUsd', 56)}`)}
+      </div>
+      <div class="row">
+        ${opt('dd50', `drawdown labels ${chk('dd25On', '')}${num('ddP1', 30)}% ${chk('dd50', '')}${num('ddP2', 30)}% ${chk('dd75On', '')}${num('ddP3', 30)}%`)}
+      </div>`)}
+    <div class="group">Layout</div>
+    ${sec('layout', 'Panel and column', `
       <div class="row">
         ${opt('dock', `column width ${num('dockW', 40)} px`)}
         ${opt('pstyle', `panel style <select data-in="pstyle" style="width:88px"><option value="console">Console</option><option value="classic">Classic</option></select>`)}
       </div>`)}
-    ${sec('size', 'Order size and daily goal', `
-      <div class="row">
-        ${opt('capPct', `size cap ${num('capPct', 38)}%`)}
-        ${opt('presets', `presets ${['pp0', 'pp1', 'pp2', 'pp3', 'pp4', 'pp5'].map((k) => num(k, 30)).join('')}%`)}
-        ${opt('dailyGoal', `daily goal $${num('dailyGoal', 56)}`)}
-      </div>`)}
-    ${sec('stops', 'Trailing stop and breakeven', `
-      <div class="row">
-        ${opt('trailing', `${chk('trOn', 'trailing')} &nbsp;unit ${unit('trUnit')} &nbsp;start after ${num('trAct', 44, 'empty')} &nbsp;pullback ${num('trDist', 44, 'empty')} &nbsp;step ${num('trStep', 44, 'empty')}`)}
-      </div>
-      <div class="row">
-        ${opt('breakeven', `${chk('beOn', 'BE+')} &nbsp;unit ${unit('beUnit')} &nbsp;profit ${num('beOff', 44, 'empty')} &nbsp;${chk('beAuto', 'auto BE after')} ${num('beAt', 44, 'empty')}`)}
-      </div>
-      <div class="note" data-trst></div>`)}
     ${sec('display', 'Chart display', `
       <div class="row">
         ${opt('overlay', chk('overlay', 'trade overlay (cards)'))}
         ${opt('lines', chk('lines', 'lines on the chart'))}
-        ${opt('dd50', chk('dd50', '50% drawdown label'))}
         ${opt('hideVest', chk('hideVest', 'hide Vest lines'))}
         ${opt('countdown', chk('cdOn', 'candle countdown'))}
-        ${opt('hilo', `${chk('hlOn', 'last swing high/low lines, swing =')} ${num('hlK', 30)} candles each side`)}
-        ${opt('atr', `${chk('atrOn', 'volatility heatmap: last')} ${num('atrR', 30)} candles vs last ${num('atrH', 34)} hours`)}
       </div>
       <div class="row">
         ${opt('theme', `card style <select data-in="theme" style="width:88px"><option value="console">Console</option><option value="classic">Classic</option><option value="sonar">Sonar</option></select>`)}
         ${opt('blockPct', `card scale ${num('blockPct', 40)}%`)}
         ${opt('chipPct', `label scale ${num('chipPct', 40)}%`)}
-        ${opt('roomPx', `label space ${num('roomPx', 40)}px`)}
       </div>
       <div class="row">
-        ${opt('qty', `quantities: colour <input type="color" data-in="qc" style="width:34px;height:20px;padding:0 2px"> size <select data-in="qsz" style="width:64px">${[9, 10, 11, 12, 13, 14, 15, 16].map((v) => `<option value="${v}">${v} px</option>`).join('')}</select> ${chk('qb', 'bold')}`)}
+      </div>
+      <div class="row">
+        ${opt('roomPx', `space between the last candle and the price axis ${num('roomPx', 44)} px`)}
+      </div>
+      <div class="row">
+        ${opt('hilo', `${chk('hlOn', 'swing range: last swing high / low lines, swing =')} ${num('hlK', 30)} candles each side`)}
+      </div>
+      <div class="note" data-swst></div>`)}
+    ${sec('colours', 'Chart lines and labels', `
+      <div class="csed">
+        <label class="csel">Element <select data-csel>${[...new Set(CS.ELEMENTS.map((e) => e[2]))].map((g) => `<optgroup label="${g}">${CS.ELEMENTS.filter((e) => e[2] === g).map(([k, n]) => `<option value="${k}">${n}</option>`).join('')}</optgroup>`).join('')}</select></label>
+        <div class="csprev" data-csprev><div class="csline"></div><div class="cschip"><span class="k">NAME</span><b>25,000.00</b><span class="qy">0.5</span><span class="up">+$12.50</span></div></div>
+        <div class="csh4">Line</div>
+        <div class="csrow">
+          <label>colour <input type="color" data-cs="lc"></label>
+          <label>style <select data-cs="ls">${CS.DASHES.map((d) => `<option value="${d}">${d === 'dashdot' ? 'dash-dot' : d}</option>`).join('')}</select></label>
+          <label>width <select data-cs="lw">${[1, 2, 3, 4, 5, 6].map((w) => `<option value="${w}">${w} px</option>`).join('')}</select></label>
+          <label data-csseg>length <input data-cs="ll" inputmode="decimal" placeholder="auto" style="width:52px"> px</label>
+        </div>
+        <div data-cslab>
+          <div class="csh4">Label</div>
+          <div class="csrow">
+            <label>background <input type="color" data-cs="cbg"></label>
+            <label>border <input type="color" data-cs="cbo"></label>
+            <label>border width <select data-cs="cbw"><option value="">default</option>${[0, 1, 2, 3, 4].map((w) => `<option value="${w}">${w} px</option>`).join('')}</select></label>
+          </div>
+          <div class="csrow">
+            <label>name colour <input type="color" data-cs="cn"></label>
+            <label><input type="checkbox" data-cs="cnbOn"> name filled <input type="color" data-cs="cnb"></label>
+          </div>
+          <div class="csrow">
+            <label>text size <select data-cs="cfs"><option value="">default</option>${[9, 10, 11, 12, 13, 14, 15, 16, 18, 20].map((v) => `<option value="${v}">${v} px</option>`).join('')}</select></label>
+            <label>weight <select data-cs="cfw"><option value="">default</option><option value="b">bold</option><option value="n">normal</option></select></label>
+          </div>
+        </div>
+        <div class="csrow"><button class="btn" data-act="csreset">Default for this element</button><button class="btn" data-act="csresetall">All lines and labels to default</button></div>
+        <div class="csh4">All labels</div>
+        <div class="csrow">
+          <label>price <input type="color" data-cc="cpx"></label>
+          <label>profit <input type="color" data-cc="cup"></label>
+          <label>loss <input type="color" data-cc="cdn"></label>
+        </div>
+        <div class="csrow">
+          ${opt('qty', `quantities <input type="color" data-in="qc"> size <select data-in="qsz" style="width:72px">${[9, 10, 11, 12, 13, 14, 15, 16].map((v) => `<option value="${v}">${v} px</option>`).join('')}</select> ${chk('qb', 'bold')}`)}
+        </div>
       </div>`)}
-    ${sec('colours', 'Line colours', `
-      <table class="lstyle">
-        ${LINE_KINDS.map(([k, name]) => `<tr><td>${name}</td><td><input type="color" data-in="lc_${k}"></td><td><select data-in="ls_${k}"><option value="dashed">dashed</option><option value="dotted">dotted</option><option value="solid">solid</option></select></td><td><select data-in="lw_${k}">${[1, 2, 3, 4].map((w) => `<option value="${w}">${w} px</option>`).join('')}</select></td><td></td></tr>`).join('')}
-        <tr><td colspan="5"><h4 style="margin-top:6px">Trailing and BE segments (length in px, empty = automatic)</h4></td></tr>
-        ${SEG_KINDS.map(([k, name]) => `<tr><td>${name}</td><td><input type="color" data-in="lc_${k}"></td><td><select data-in="ls_${k}"><option value="solid">solid</option><option value="dashed">dashed</option><option value="dotted">dotted</option></select></td><td><select data-in="lw_${k}">${[1, 2, 3, 4, 5, 6].map((w) => `<option value="${w}">${w} px</option>`).join('')}</select></td><td><input data-in="ll_${k}" inputmode="decimal" placeholder="auto" style="width:44px"> px</td></tr>`).join('')}
-        <tr><td colspan="5"><h4 style="margin-top:6px">Last swing high / low</h4></td></tr>
-        ${HL_KINDS.map(([k, name]) => `<tr><td>${name}</td><td><input type="color" data-in="lc_${k}"></td><td><select data-in="ls_${k}"><option value="solid">solid</option><option value="dashed">dashed</option><option value="dotted">dotted</option></select></td><td><select data-in="lw_${k}">${[1, 2, 3, 4].map((w) => `<option value="${w}">${w} px</option>`).join('')}</select></td><td></td></tr>`).join('')}
-      </table>`)}
     ${sec('btncol', 'Button and mode colours', `
       <table class="lstyle">
         <tr><td></td><td class="muted">background</td><td class="muted">text</td><td class="muted">size</td></tr>
@@ -8061,6 +11095,7 @@ const SKELETON = `
         ${MODE_COLS.map(([k, name]) => `<tr><td>${name}</td><td><input type="color" data-in="mc_${k}"></td><td>${modeSize(`mc_${k}_fs`, [9, 10, 11, 12, 13, 14, 15, 16, 18, 20])}</td><td>${k === 'manual' ? '' : modeSize(`mc_${k}_lfs`, [8, 9, 10, 11, 12, 13, 14, 15, 16])}</td><td><select data-in="mc_${k}_fw"><option value="">default</option><option value="b">bold</option><option value="n">normal</option></select></td></tr>`).join('')}
       </table>
       <div class="row"><button class="btn" data-act="colreset">Default colours</button></div>`)}
+    <div class="group">Other</div>
     ${sec('calc', 'SL / TP calculator', `
       <div class="calc">
         <label>Base<select data-in="mode"><option value="pos">Account position</option><option value="man">Manual</option></select></label>
@@ -8096,8 +11131,7 @@ function mount(version, h) {
   root.innerHTML = `<style>${css}</style>${SKELETON}`;
   document.documentElement.appendChild(host);
   panel = root.querySelector('.panel');
-  for (const k of ['trsize', 'trtitle', 'trsym', 'trlev', 'trpx', 'mtxt', 'mfill', 'rtxt', 'rfill', 'pend', 'dots', 'totals', 'plbig', 'plsub', 'placc', 'flatall', 'accounts', 'positions', 'calc', 'checks', 'log', 'sync', 'manual', 'ver', 'ord', 'cpst', 'cpgo', 'cpacc', 'cplast', 'trst', 'say', 'hinfo', 'hpos']) els[k] = root.querySelector(`[data-${k}]`);
-  els.posTitle = root.querySelector('[data-pos-title]');
+  for (const k of ['pend', 'dots', 'ovsub', 'selinfo', 'flatall', 'accounts', 'positions', 'calc', 'checks', 'log', 'sync', 'manual', 'ver', 'ord', 'cpst', 'cpgo', 'cpacc', 'cplast', 'trst', 'srst', 'say', 'hinfo', 'hpos', 'hord', 'hcpy', 'hcpl', 'hwait']) els[k] = root.querySelector(`[data-${k}]`);
   els.pop = root.querySelector('[data-pop]');
   els.popt = root.querySelector('[data-popt]');
   els.poph = root.querySelector('[data-poph]');
@@ -8117,7 +11151,18 @@ function mount(version, h) {
     if (inp.type === 'checkbox') inp.checked = !!ui[k];
     else inp.value = ui[k] ?? '';
     inp.addEventListener(inp.type === 'checkbox' || inp.tagName === 'SELECT' ? 'change' : 'input', () => {
+      if (k === 'srMode' && inp.value === 'live' && ui.srMode !== 'live') {
+        const ok = window.confirm(`Safe runner LIVE (experimental)?
+
+Once the profit reaches "start after", it moves the stop on Vest and closes parts of the position at market by itself (with Orders ON, while this tab is open).
+After a reload it comes back as VIEW.`);
+        if (!ok) {
+          inp.value = ui.srMode;
+          return;
+        }
+      }
       ui[k] = inp.type === 'checkbox' ? inp.checked : inp.value.trim().replace(',', '.');
+      exclusive(k, ui[k]);
       saveUi();
       if (k === 'dock' || k === 'dockW' || k === 'pstyle' || k === 'cardsAt') layout(k !== 'dockW'); // width: wait for the typing to stop
       handlers.onInput && handlers.onInput();
@@ -8132,7 +11177,7 @@ function mount(version, h) {
     if (fo) return fold(fo.dataset.fold);
     const cx = e.target.closest('[data-cancel]');
     if (cx) {
-      const it = lastPend.find((x) => String(x.id) === cx.dataset.cancel);
+      const it = lastPend.find((x) => x.key === cx.dataset.cancel);
       if (it) {
         cx.disabled = true;
         handlers.cancelPending(it).catch((err) => log.error('Cancel failed: ' + err.message));
@@ -8144,15 +11189,45 @@ function mount(version, h) {
     const b = e.target.closest('[data-act]');
     if (b) return act(b.dataset.act);
   });
+  // Chart lines and labels editor
+  root.addEventListener('change', (e) => {
+    const sel = e.target.closest('select[data-csel]');
+    if (sel) {
+      csKind = sel.value;
+      return csFill();
+    }
+    const f = e.target.closest('[data-cs]');
+    if (f && (f.type === 'checkbox' || f.tagName === 'SELECT')) return csSet(f.dataset.cs, f.type === 'checkbox' ? f.checked : f.value);
+    const cc = e.target.closest('[data-cc]');
+    if (cc) {
+      ui[cc.dataset.cc] = cc.value;
+      saveUi();
+      csFill();
+      handlers.onInput && handlers.onInput();
+    }
+  });
+  root.addEventListener('input', (e) => {
+    const f = e.target.closest('[data-cs]');
+    if (f && f.type !== 'checkbox' && f.tagName !== 'SELECT') csSet(f.dataset.cs, f.value.trim());
+  });
+  csFill();
   root.addEventListener('change', (e) => {
     const al = e.target.closest('input[data-alias]');
     if (al) return store.setAlias(al.dataset.alias, al.value);
     const r = e.target.closest('select[data-crole]');
-    if (r) copyTry(() => handlers.copy.setRole(r.dataset.crole, r.value));
+    if (r) return copyTry(() => handlers.copy.setRole(r.dataset.crole, r.value));
+    const dr = e.target.closest('input[data-cpdry]');
+    if (dr) return copyTry(() => handlers.copy.setDry(dr.checked));
+    const mo = e.target.closest('input[data-cmon]');
+    if (mo) return copyTry(() => handlers.copy.setMult(mo.dataset.cmon, { on: mo.checked }));
+    const mx = e.target.closest('input[data-cmx]');
+    if (mx) return copyTry(() => handlers.copy.setMult(mx.dataset.cmx, { x: mx.value }));
+    const lm = e.target.closest('input[data-clim]');
+    if (lm) copyTry(() => handlers.copy.setLimit(lm.dataset.clim, lm.dataset.k, lm.value));
   });
   // account selected on PRESS: rows are redrawn at every price and a click could get lost
   root.addEventListener('pointerdown', (e) => {
-    const tr = e.target.closest('tr[data-id], .pla[data-id]'); // table or P&L row: selects the account
+    const tr = e.target.closest('tr[data-id]'); // accounts table row: selects the account
     if (!tr) return;
     S.selected = tr.dataset.id;
     handlers.onInput && handlers.onInput();
@@ -8220,6 +11295,18 @@ function act(a) {
     panel.classList.toggle('min', ui.min);
     saveUi();
     layout(true);
+  } else if (a === 'csreset' || a === 'csresetall') {
+    const kinds = a === 'csreset' ? [csKind] : CS.ELEMENTS.map((e) => e[0]);
+    const d = CS.defaults();
+    for (const k of kinds) for (const f of CS.FIELDS) {
+      const key = f + '_' + k;
+      if (key in d) ui[key] = d[key];
+      else delete ui[key];
+    }
+    if (a === 'csresetall') for (const k of ['cpx', 'cup', 'cdn']) delete ui[k];
+    saveUi();
+    csFill();
+    handlers.onInput && handlers.onInput();
   } else if (a === 'colreset') {
     for (const [k, v] of Object.entries(COL_DEFAULTS)) {
       ui[k] = v;
@@ -8257,6 +11344,8 @@ function renderCopy(ids, vals) {
     b.classList.toggle('on', b.dataset.cmode === c.mode);
     b.disabled = c.armed;
   }
+  const withX = c.followers.filter((id) => c.mult && c.mult[id] && c.mult[id].on && c.mult[id].x > 0);
+  for (const b of root.querySelectorAll('[data-cmode]')) b.title = withX.length ? `Not used by ${withX.map((id) => (S.accounts[id] || {}).label || id).join(', ')}: multiplier ON` : '';
   els.cpgo.textContent = c.armed ? 'STOP' : 'START';
   els.cpgo.classList.toggle('on', c.armed);
   const name = (id) => (S.accounts[id] ? S.accounts[id].label : '?');
@@ -8264,23 +11353,42 @@ function renderCopy(ids, vals) {
     ? `<b class="up">ACTIVE</b> ${F.esc(name(c.master))} → ${c.followers.length} cop${c.followers.length === 1 ? 'y' : 'ies'}`
     : '<span class="muted">off</span>';
   // the <select> is rebuilt only when something changes: redrawing it at every price would close an open dropdown
-  const key = JSON.stringify([ids, c.roles, c.armed, ids.map((id) => S.accounts[id].label), ids.map((id) => store.activityOf(id).tip)]);
+  const dry = root.querySelector('[data-cpdry]');
+  if (dry) {
+    dry.checked = !!c.dry;
+    dry.disabled = c.armed;
+  }
+  const key = JSON.stringify([ids, c.roles, c.armed, c.lim, c.mult, c.mode, ids.map((id) => S.accounts[id].label), ids.map((id) => store.activityOf(id).tip)]);
   if (els.cpacc.dataset.key !== key) {
     els.cpacc.dataset.key = key;
-    els.cpacc.innerHTML = ids
+    const lim = (id, k, ph, tip) =>
+      c.roles[id] === 'copy'
+        ? `<input class="clim" data-clim="${F.esc(id)}" data-k="${k}" inputmode="decimal" value="${F.esc(String((c.lim[id] || {})[k] ?? ''))}" placeholder="${ph}" title="${tip}">`
+        : '';
+    // multiplier of a copy: ON + value; ON greys out 1:1 / Cap-to-fit for that account (Gerry 2026-11-23)
+    const mult = (id) => {
+      if (c.roles[id] !== 'copy') return '';
+      const M = (c.mult || {})[id] || {};
+      const x = M.x > 0 ? F.mult(M.x) : '';
+      return `<span class="cmul"><input type="checkbox" data-cmon="${F.esc(id)}"${M.on ? ' checked' : ''}${c.armed ? ' disabled' : ''} title="ON: this copy uses the multiplier instead of ${c.mode === '1:1' ? '1:1' : c.mode === 'dd' ? 'DD left' : 'Cap-to-fit'}"><span class="cmx">x</span><input class="clim" data-cmx="${F.esc(id)}" inputmode="decimal" value="${x}" placeholder="1.0"${c.armed ? ' disabled' : ''} title="Multiplier, with a dot: 0.5 = half the master size, 2.0 = double"></span>`;
+    };
+    els.cpacc.innerHTML =
+      `<tr class="cph"><th>Account</th><th>Equity</th><th>Role</th><th title="Size of this copy = master size x the multiplier (e.g. 0.5 or 2.0, with a dot). ON replaces 1:1 / Cap-to-fit for this account.">Multiplier</th><th title="Entries are not copied to this account once its P&L today is down this many $ (exits, SL / TP and cancels still are). Empty = no limit.">Max loss</th></tr>` +
+      ids
       .map((id) => {
         const r = c.roles[id] || '';
         const opt = (v, t) => `<option value="${v}"${r === v ? ' selected' : ''}>${t}</option>`;
         const a = S.accounts[id];
-        return `<tr><td>${adot(id)}<input class="alias" data-alias="${F.esc(id)}" value="${F.esc(store.aliasOf(id) || '')}" placeholder="${F.esc(a.autoLabel || a.label)}" title="Account name in this panel (Enter to save). Empty = automatic name."> <span class="muted">${F.esc(a.type)}</span>
-          <span class="idt" title="Account id: ${F.esc(id)}. Compare it with the one copied by the icon next to the account name on Vest.">…${F.esc(String(id).slice(-6))}</span></td><td class="eq" data-cpeq="${F.esc(id)}"></td>
-          <td><select data-crole="${F.esc(id)}"${c.armed ? ' disabled' : ''}>${opt('', '—')}${opt('master', 'Master')}${opt('copy', 'Copy')}</select></td></tr>`;
+        return `<tr><td>${adot(id)}<input class="alias" data-alias="${F.esc(id)}" value="${F.esc(store.aliasOf(id) || '')}" placeholder="${F.esc(a.autoLabel || a.label)}" title="Account name in this panel (Enter to save). Empty = automatic name. ${F.esc(a.type)} account, id ${F.esc(id)}."></td><td class="eq" data-cpeq="${F.esc(id)}"></td>
+          <td><select data-crole="${F.esc(id)}"${c.armed ? ' disabled' : ''}>${opt('', '—')}${opt('master', 'Master')}${opt('copy', 'Copy')}</select></td>
+          <td>${mult(id)}</td>
+          <td>${lim(id, 'loss', 'none', 'Max loss today in $: above it entries are not copied to this account')}</td></tr>`;
       })
       .join('');
   }
   for (const td of els.cpacc.querySelectorAll('[data-cpeq]')) td.textContent = F.usd((vals[td.dataset.cpeq] || {}).equity);
   const l = c.last;
-  els.cplast.textContent = l ? `Last copy: ${l.action} from ${l.src}, ${l.ok}/${l.n} copies${l.ms != null ? ` in ${l.ms} ms` : ''}, ${F.ago(l.at)}` : c.armed ? 'No copies yet' : 'After a reload the copier starts switched off.';
+  els.cplast.textContent = l ? `Last copy: ${l.action} from ${l.src}, ${l.ok}/${l.n} copies${l.ms != null ? ` in ${l.ms} ms` : ''}, ${F.ago(l.at)}` : c.armed ? 'Copier ON: no order of the master copied yet in this session' : 'After a reload the copier starts switched off.';
 }
 
 // docked (full-height column on the right, Vest's page narrowed) or floating. Docked and minimised: only the header at the top,
@@ -8372,78 +11480,70 @@ function render() {
   const on = handlers.ordersOn && handlers.ordersOn();
   els.ord.textContent = on ? 'Orders: ON' : 'Orders: OFF';
   els.ord.classList.toggle('on', !!on);
+  // waiting for Vest data after a reload: header says what is missing, panel greyed out, ORDERS / COPY hidden
+  const wait = handlers.waitingFor ? handlers.waitingFor() : [];
+  panel.classList.toggle('waiting', wait.length > 0);
+  els.hwait.style.display = wait.length ? '' : 'none';
+  if (wait.length) els.hwait.textContent = `WAITING FOR VEST DATA… (${wait.join(', ')})`;
+  // header ORDERS / COPY (Gerry 2026-11-23: moved here from Trade commands, always in sight)
+  els.hord.textContent = on ? 'ON' : 'OFF';
+  els.hord.classList.toggle('on', !!on);
+  const cs = handlers.copy && handlers.copy.state();
+  const cOk = !!(cs && cs.master && cs.followers && cs.followers.length);
+  els.hcpy.style.display = els.hcpl.style.display = cOk && !wait.length ? '' : 'none';
+  root.querySelector('.htg').style.display = wait.length ? 'none' : '';
+  els.hcpy.textContent = cs && cs.armed ? 'ON' : 'OFF';
+  els.hcpy.classList.toggle('on', !!(cs && cs.armed));
   const ts = handlers.trailStatus ? handlers.trailStatus() : null;
   // warnings for empty fields (BE+ on with an empty profit made the button do a plain BE)
   const warn = [];
   if (ui.beOn && !(+ui.beOff > 0)) warn.push(`BE+ is on but "profit" is empty: the BE button puts the stop at the entry`);
   if (ui.beAuto && !(+ui.beAt > 0)) warn.push(`Auto BE is on but the "after" threshold is empty: it never triggers`);
   if (ui.trOn && !(+ui.trDist > 0)) warn.push('Trailing is on but "pullback" is empty: it does nothing');
-  els.trst.textContent = [...warn, ts ? 'Trailing / BE: ' + ts : ''].filter(Boolean).join(' · ');
-  els.trst.classList.toggle('warn', warn.length > 0);
-  if (panel) panel.classList.toggle('stopscol', stopsInColumn()); // the section is in the column: not shown twice
+  // shown in Trailing & breakeven of the column (trailNote)
+  trailTxt = { text: [...warn, ts ? 'Trailing / BE: ' + ts : ''].filter(Boolean).join(' · '), warn: warn.length > 0 };
 
-  // totals of all accounts
+  // ── Accounts overview: one row per account + total row (no balance / session: balance = equity - open, session ~ today)
   const sum = (k) => {
-    let s = 0;
+    let t = 0;
     for (const id of ids) {
       const v = vals[id] && vals[id][k];
       if (!Number.isFinite(v)) return NaN; // one account without data makes the total unknown: never pass off a partial total as complete
-      s += v;
+      t += v;
     }
-    return ids.length ? s : NaN;
+    return ids.length ? t : NaN;
   };
-  const T = { balance: sum('balance'), equity: sum('equity'), upnl: sum('upnl'), dayPnl: sum('dayPnl'), sessionPnl: sum('sessionPnl'), totalPnl: sum('totalPnl') };
-  els.totals.innerHTML = [
-    ['Total equity', F.usd(T.equity), ''],
-    ['Total balance', F.usd(T.balance), ''],
-    ['Open P&L', F.usd(T.upnl, true), F.cls(T.upnl)],
-    ['Vest day P&L', F.usd(T.dayPnl, true), F.cls(T.dayPnl)],
-    ['Session P&L', F.usd(T.sessionPnl, true), F.cls(T.sessionPnl)],
-    ['Total P&L', F.usd(T.totalPnl, true), F.cls(T.totalPnl)],
-  ]
-    .map(([n, v, c]) => `<div><span>${n}</span><b class="${c}">${v}</b></div>`)
-    .join('');
-
-  // P&L: today in large type, open and total for all accounts; each account on two lines
-  els.plbig.textContent = F.usd(T.dayPnl, true);
-  els.plbig.className = 'plbig ' + F.cls(T.dayPnl);
-  els.plsub.innerHTML = `Today on ${ids.length} account${ids.length === 1 ? '' : 's'} · open <b class="${F.cls(T.upnl)}">${F.usd(T.upnl, true)}</b> · total <b class="${F.cls(T.totalPnl)}">${F.usd(T.totalPnl, true)}</b>`;
+  const T = { equity: sum('equity'), upnl: sum('upnl'), dayPnl: sum('dayPnl'), totalPnl: sum('totalPnl') };
   els.flatall.disabled = !!S.flattening || !ids.length;
   els.flatall.textContent = S.flattening ? 'FLATTENING…' : 'FLATTEN ALL';
-  els.placc.innerHTML = ids
-    .map((id) => {
-      const a = S.accounts[id],
-        v = vals[id];
-      return `<div class="pla" data-id="${F.esc(id)}">
-        <div class="plr"><b>${adot(id)}${F.esc(a.label)}</b><b class="${F.cls(v.dayPnl)}" title="Today's P&L (since 20:00 New York time)">${F.usd(v.dayPnl, true)}</b></div>
-        <div class="plr muted"><span>${F.esc(a.type)}</span><span><span title="Equity">${F.usd(v.equity)}</span> · open <span class="${F.cls(v.upnl)}">${F.usd(v.upnl, true)}</span> · tot <span class="${F.cls(v.totalPnl)}">${F.usd(v.totalPnl, true)}</span></span></div>
-      </div>`;
-    })
-    .join('');
-
-  renderCopy(ids, vals);
-  renderTrade();
-
-  // accounts table
+  const roleTag = (id) => {
+    if (!cs || !cs.roles[id]) return '';
+    if (cs.roles[id] === 'master') return ' <i class="rtag m" title="Copier master">M</i>';
+    const x = cs.mult && cs.mult[id] && cs.mult[id].on && cs.mult[id].x > 0 ? cs.mult[id].x : 0;
+    return ` <i class="rtag" title="Copier copy${x ? ': size = master x ' + x : ''}">C${x ? ' x' + F.mult(x) : ''}</i>`;
+  };
+  const td = (v) => `<td class="${F.cls(v)}">${F.usd(v, true)}</td>`;
   const rows = ids
     .map((id) => {
       const a = S.accounts[id],
-        v = vals[id],
-        st = S.state[id];
-      const pos = st && st.positions.length ? st.positions.map((p) => `${p.side === 'long' ? 'L' : 'S'} ${F.qty(p.qty)} ${(S.symbols[p.symbol] || {}).label || p.symbol}`).join(', ') : '<span class="muted">flat</span>';
+        v = vals[id];
       const src = v.source === 'series' ? ' <span class="muted" title="equity from the Vest performance series, about 1 minute late">*</span>' : '';
-      return `<tr data-id="${F.esc(id)}" class="${id === S.selected ? 'sel' : ''}">
-        <td>${adot(id)}${F.esc(a.label)} <span class="muted">${F.esc(a.type)}</span></td>
-        <td>${F.usd(v.balance)}</td><td>${F.usd(v.equity)}${src}</td>
-        <td class="${F.cls(v.upnl)}">${F.usd(v.upnl, true)}</td>
+      const sel = id === S.selected;
+      return `<tr data-id="${F.esc(id)}" class="${sel ? 'sel' : ''}">
+        <td title="${F.esc(a.type)} account">${adot(id)}${F.esc(a.label)}${roleTag(id)}${sel ? ' <b class="act" title="Active on Vest: the buttons of the tool trade on this account">ACTIVE</b>' : ''}</td>
+        <td>${F.usd(v.equity)}${src}</td>${td(v.upnl)}
         <td class="${F.cls(v.dayPnl)}" title="${Number.isFinite(v.dayPnl) ? 'equity minus equity at 20:00 New York time (start of the Vest day)' : 'start of the Vest day not read yet for this account'}">${F.usd(v.dayPnl, true)}</td>
-        <td class="${F.cls(v.sessionPnl)}">${F.usd(v.sessionPnl, true)}</td>
-        <td class="${F.cls(v.totalPnl)}">${F.usd(v.totalPnl, true)}</td>
-        <td>${F.usd(v.toFloor)}</td><td>${pos}</td></tr>`;
+        ${td(v.totalPnl)}<td>${F.usd(v.toFloor)}</td></tr>`;
     })
     .join('');
-  els.accounts.innerHTML = `<thead><tr><th>Account</th><th>Balance</th><th>Equity</th><th>Open</th><th title="equity minus equity at 20:00 New York time (start of the Vest day)">Today</th><th title="equity minus the first equity this panel read today">Session</th><th>Total</th><th title="$ of equity left before the drawdown limit (total or daily, whichever is closer)">Room to DD limit</th><th>Position</th></tr></thead>
-    <tbody>${rows || '<tr><td colspan="9" class="muted">Waiting for the Vest session…</td></tr>'}</tbody>`;
+  els.accounts.innerHTML = `<thead><tr><th>Account</th><th>Equity</th><th>Open</th><th title="equity minus equity at 20:00 New York time (start of the Vest day)">Today</th><th>Total</th><th title="$ of equity left before the drawdown limit (total or daily, whichever is closer)">Room</th></tr></thead>
+    <tbody>${rows || '<tr><td colspan="6" class="muted">Waiting for the Vest session…</td></tr>'}</tbody>
+    ${ids.length > 1 ? `<tfoot><tr class="sum"><td>Total (${ids.length})</td><td>${F.usd(T.equity)}</td>${td(T.upnl)}${td(T.dayPnl)}${td(T.totalPnl)}<td></td></tr></tfoot>` : ''}`;
+  els.ovsub.textContent = ids.length ? `${ids.length} account${ids.length === 1 ? '' : 's'} · click a row to see which one is active on Vest` : '';
+
+  renderCopy(ids, vals);
+  renderSelInfo();
+  renderPending();
 
   renderPositions();
   renderCalc();
@@ -8452,81 +11552,64 @@ function render() {
 }
 
 let lastPend = [];
-const heat = (f) => (f >= 1 ? 'hot' : f >= 0.8 ? 'warn' : '');
-function renderTrade() {
+let trailTxt = { text: '', warn: false };
+// one line about the account active on Vest and the chart's market (margin and size still available)
+function renderSelInfo() {
   const t = handlers.tradeInfo && handlers.tradeInfo();
   if (!t) {
-    els.trtitle.textContent = 'Trade';
-    els.trsym.textContent = '—';
-    els.trlev.textContent = els.trpx.textContent = els.mtxt.textContent = els.rtxt.textContent = '';
-    els.pend.innerHTML = '<span class="muted">no account</span>';
+    els.selinfo.innerHTML = '<span class="muted">No account active on Vest</span>';
     return;
   }
-  els.trtitle.textContent = 'Trade · ' + t.account;
-  els.trsym.textContent = t.label;
-  els.trlev.textContent = t.lev > 0 ? t.lev + 'x' : '';
-  els.trpx.textContent = F.priceG(t.mark, t.priceDec);
-  // margin
-  const mf = Number.isFinite(t.marginPct) ? t.marginPct : 0;
-  els.mfill.style.width = Math.min(100, mf * 100).toFixed(1) + '%';
-  els.mfill.className = heat(mf);
-  els.mtxt.innerHTML = Number.isFinite(t.marginPct) ? `<b>${Math.round(mf * 100)}%</b> · ${t.maxQty > 0 ? F.qty(t.maxQty) + ' ' + F.esc(t.label) + ' can still be opened' : 'no free margin'}` : '—';
-  // size of the open trade and of the pending orders on the chart's market
-  const lbl = F.esc(t.label);
-  els.trsize.innerHTML = `Trade: ${t.pos ? `<b class="${t.pos.side === 'long' ? 'up' : 'down'}">${t.pos.side === 'long' ? 'LONG' : 'SHORT'} ${F.qty(t.pos.qty)} ${lbl}</b>` : '<span class="muted">flat</span>'} · Pending: ${t.pendCount ? `<b>${F.qty(+t.pendQty.toFixed(8))} ${lbl}</b> <span class="muted">(${t.pendCount} order${t.pendCount === 1 ? '' : 's'})</span>` : '<span class="muted">none</span>'}`;
-  // RISK: drawdown used by the open trade (its open loss) and drawdown left before the limit
-  const used = t.pos && Number.isFinite(t.pos.upnl) ? Math.max(0, -t.pos.upnl) : 0;
-  const left = t.room;
-  const rf = left > 0 || used > 0 ? used / (used + Math.max(0, left)) : 0;
-  els.rfill.style.width = Math.min(100, rf * 100).toFixed(1) + '%';
-  els.rfill.className = heat(rf);
-  els.rtxt.innerHTML = Number.isFinite(left)
-    ? `used <b class="${used > 0 ? 'hot' : ''}">${F.usd(used)}</b> · left <b class="${heat(rf)}">${F.usd(left)}</b>`
-    : '—';
-  // pending orders (all the account's markets) and local stops
-  lastPend = t.pendings;
-  // rewritten only when it changes: the panel redraws at every price and a replaced button loses the click
-  const pendHtml = t.pendings.length
-    ? t.pendings
-        .map(
-          (o) => `<div class="pr"><span class="pk">${F.esc(o.kind)}</span><span class="${o.side === 'long' ? 'up' : 'down'}">${o.side === 'long' ? 'BUY' : o.side === 'short' ? 'SELL' : ''}</span><span>${F.qty(o.qty)} ${F.esc(t.labels[o.symbol] || o.symbol || '')}</span><span class="muted">@ ${F.priceG(o.price, t.priceDec)}</span><button class="btn sm" data-cancel="${F.esc(o.id)}">cancel</button></div>`,
-        )
+  const mp = Number.isFinite(t.marginPct) ? Math.round(t.marginPct * 100) + '%' : '—';
+  els.selinfo.innerHTML = `Active on Vest: <b>${F.esc(t.account)}</b> · ${F.esc(t.label)}${t.lev > 0 ? ' ' + t.lev + 'x' : ''} <b>${F.priceG(t.mark, t.priceDec)}</b> · margin used <b>${mp}</b> · ${t.maxQty > 0 ? `<b>${F.qty(t.maxQty)}</b> ${F.esc(t.label)} can still be opened` : 'no free margin'}`;
+}
+
+// pending orders of EVERY account (Vest limits and local stops); rewritten only when they change (a replaced button loses the click)
+function renderPending() {
+  const list = (handlers.pendingsAll && handlers.pendingsAll()) || [];
+  lastPend = list;
+  const html = list.length
+    ? list
+        .map((o) => {
+          const m = S.symbols[o.symbol] || { priceDec: 2, label: o.symbol || '' };
+          return `<div class="pr"><span class="pa">${F.esc(o.account)}</span><span class="pk">${F.esc(o.kind)}</span><span class="${o.side === 'long' ? 'up' : 'down'}">${o.side === 'long' ? 'BUY' : o.side === 'short' ? 'SELL' : ''}</span><span>${F.qty(o.qty)} ${F.esc(m.label)}</span><span class="muted">@ ${F.priceG(o.price, m.priceDec)}</span><button class="btn sm" data-cancel="${F.esc(o.key)}">cancel</button></div>`;
+        })
         .join('')
     : '<span class="muted">none</span>';
-  if (els.pend.dataset.html !== pendHtml) {
-    els.pend.innerHTML = pendHtml;
-    els.pend.dataset.html = pendHtml;
+  if (els.pend.dataset.html !== html) {
+    els.pend.innerHTML = html;
+    els.pend.dataset.html = html;
   }
 }
 
+// open positions of EVERY account, one table
 function renderPositions() {
-  const id = S.selected,
-    a = S.accounts[id],
-    st = S.state[id];
-  els.posTitle.textContent = a ? `Positions · ${a.label}` : 'Positions';
-  if (!st || !st.positions.length) {
-    els.positions.innerHTML = '<span class="muted">No open position</span>';
-    return;
-  }
-  const rows = st.positions
-    .map((p) => {
-      const m = S.symbols[p.symbol] || { priceDec: 2, label: p.symbol };
-      const mk = S.marks[p.symbol];
-      const pnl = mk ? (p.side === 'long' ? 1 : -1) * p.qty * (mk.px - p.openPrice) : NaN;
-      const stale = mk && Date.now() - mk.at > 5000 ? ' <span class="muted" title="stale price">!</span>' : '';
-      const legs = p.triggers
-        .slice()
-        .sort((x, y) => x.price - y.price)
-        .map((t) => `${t.kind.toUpperCase()} ${F.price(t.price, m.priceDec)} <span class="${F.cls(calc.triggerUsd(p, t))}">${F.usd(calc.triggerUsd(p, t), true)}</span>`)
-        .join(' · ');
-      const risk = p.triggers.filter((t) => t.kind === 'sl').reduce((s, t) => s + Math.min(0, calc.triggerUsd(p, t)), 0);
-      return `<tr><td>${F.esc(m.label)}</td><td class="${p.side === 'long' ? 'up' : 'down'}">${p.side.toUpperCase()}</td><td>${F.qty(p.qty)}</td>
-        <td>${F.price(p.openPrice, m.priceDec)}</td><td>${mk ? F.price(mk.px, m.priceDec) : '—'}${stale}</td>
-        <td class="${F.cls(pnl)}">${F.usd(pnl, true)}</td><td>${p.triggers.some((t) => t.kind === 'sl') ? F.usd(risk, true) : '<span class="down">no SL</span>'}</td></tr>
-        <tr><td colspan="7" class="muted" style="text-align:left">${legs || 'no stop or target'}</td></tr>`;
-    })
+  const ids = Object.keys(S.accounts).sort((a, b) => String(S.accounts[a].label).localeCompare(String(S.accounts[b].label), 'en', { numeric: true }));
+  const rows = ids
+    .flatMap((id) =>
+      ((S.state[id] || {}).positions || [])
+        .filter((p) => p.qty > 0)
+        .map((p) => {
+          const m = S.symbols[p.symbol] || { priceDec: 2, label: p.symbol };
+          const mk = S.marks[p.symbol];
+          const pnl = mk ? (p.side === 'long' ? 1 : -1) * p.qty * (mk.px - p.openPrice) : NaN;
+          const stale = mk && Date.now() - mk.at > 5000 ? ' <span class="muted" title="stale price">!</span>' : '';
+          const legs = p.triggers
+            .slice()
+            .sort((x, y) => x.price - y.price)
+            .map((t) => `${t.kind.toUpperCase()} ${F.price(t.price, m.priceDec)} <span class="${F.cls(calc.triggerUsd(p, t))}">${F.usd(calc.triggerUsd(p, t), true)}</span>`)
+            .join(' · ');
+          const risk = p.triggers.filter((t) => t.kind === 'sl').reduce((s, t) => s + Math.min(0, calc.triggerUsd(p, t)), 0);
+          return `<tr class="${id === S.selected ? 'sel' : ''}"><td>${F.esc(S.accounts[id].label)}</td><td>${F.esc(m.label)}</td><td class="${p.side === 'long' ? 'up' : 'down'}">${p.side === 'long' ? 'LONG' : 'SHORT'}</td><td>${F.qty(p.qty)}</td>
+            <td>${F.price(p.openPrice, m.priceDec)}${stale}</td>
+            <td class="${F.cls(pnl)}">${F.usd(pnl, true)}</td><td>${p.triggers.some((t) => t.kind === 'sl') ? F.usd(risk, true) : '<span class="down">no SL</span>'}</td></tr>
+            <tr class="legs"><td></td><td colspan="6" class="muted" style="text-align:left">${legs || 'no stop or target'}</td></tr>`;
+        }),
+    )
     .join('');
-  els.positions.innerHTML = `<table><thead><tr><th>Market</th><th>Side</th><th>Qty</th><th>Entry</th><th>Mark</th><th>P&L $</th><th>Risk at SL</th></tr></thead><tbody>${rows}</tbody></table>`;
+  els.positions.innerHTML = rows
+    ? `<table class="acct"><thead><tr><th>Account</th><th>Market</th><th>Side</th><th>Qty</th><th>Entry</th><th>P&L $</th><th>Risk at SL</th></tr></thead><tbody>${rows}</tbody></table>`
+    : '<span class="muted">No open position</span>';
 }
 
 function renderCalc() {
@@ -8592,7 +11675,12 @@ function headPos(d) {
   //   2) points from the entry, contracts and $ per point ............ points of the day
   // flat: one row, FLAT ............ points of the day
   const flat = d.side === 'flat';
-  const day = d.dpt ? `<span class="day"><i>today</i> <b class="${e(d.dptC)}">${e(d.dpt)}</b></span>` : '';
+  // trades closed today (one Vest position = one trade, adds and partial closes included), winners / losers, left of "today"
+  const T = d.trades;
+  const trd = T && T.n >= 0 && d.dpt
+    ? `<span class="dtr" title="Trades closed today (Vest day, from 20:00 New York): one position = one trade, adds and partial closes included. Won / lost by points, fees not counted."><b>${T.n}</b><i>trades</i><b class="up">${T.win}▲</b><b class="down">${T.loss}▼</b></span>`
+    : '';
+  const day = d.dpt ? `${trd}<span class="day"><i>today</i> <b class="${e(d.dptC)}">${e(d.dpt)}</b></span>` : '';
   els.hpos.className = 'hpos ' + d.side;
   els.hpos.innerHTML = flat
     ? `<div class="r1"><span class="sd">FLAT</span>${day}</div>`
@@ -8609,6 +11697,7 @@ function headPos(d) {
 /** A setting changed from the column (Trailing & breakeven): same effect as typing it in the panel. */
 function setUiInput(k, v) {
   ui[k] = v;
+  exclusive(k, v);
   saveUi();
   const inp = root && root.querySelector('[data-in="' + k + '"]');
   if (inp) {
@@ -8619,8 +11708,62 @@ function setUiInput(k, v) {
   render();
 }
 
+/**
+ * Functions that cannot work together (Gerry 2026-11-23): switching one ON switches the others OFF.
+ *  - Safe runner LIVE  <->  trailing stop, auto BE (they move the same stop), Risk & targets ON (the plan has its own legs)
+ *  - Bracket           <->  Risk & targets ON (two sets of SL / TP on the same entry)
+ * k = key just changed in ui (or 'risk' when Risk & targets was switched ON in the column). Returns the names switched off.
+ */
+function exclusive(k, v) {
+  const off = [];
+  const set = (key, val, name) => {
+    if (ui[key] === val) return;
+    ui[key] = val;
+    off.push(name);
+    const inp = root && root.querySelector(`[data-in="${key}"]`);
+    if (inp) {
+      if (inp.type === 'checkbox') inp.checked = !!val;
+      else inp.value = val;
+    }
+  };
+  const risk = () => {
+    if (handlers.riskOn && handlers.riskOn()) {
+      handlers.riskOff();
+      off.push('Risk & targets');
+    }
+  };
+  if ((k === 'trOn' || k === 'beAuto') && v === true && ui.srMode === 'live') set('srMode', 'off', 'Safe runner LIVE');
+  if (k === 'srMode' && v === 'live') {
+    set('trOn', false, 'Trailing stop');
+    set('beAuto', false, 'auto BE');
+    risk();
+  }
+  if (k === 'brOn' && v === true) risk();
+  if (k === 'risk') {
+    set('brOn', false, 'Bracket');
+    if (ui.srMode === 'live') set('srMode', 'off', 'Safe runner LIVE');
+  }
+  if (off.length) {
+    saveUi();
+    say(`${off.join(', ')} switched OFF: not compatible with ${{ trOn: 'Trailing stop', beAuto: 'auto BE', srMode: 'Safe runner LIVE', brOn: 'Bracket', risk: 'Risk & targets' }[k]}`, 'warn');
+  }
+  return off;
+}
+
+/** Notes of the Bracket and Safe runner sections of the column. */
+function sideNotes() {
+  const rs = handlers.runnerStatus ? handlers.runnerStatus() : null;
+  const rw = ui.srMode === 'live' && (ui.trOn || ui.beAuto) ? 'LIVE needs trailing and auto BE OFF (they move the same stop)' : '';
+  const bw = ui.brOn && !(+ui.brSl > 0);
+  return {
+    br: bw ? { text: 'Bracket is on but SL is empty: entries go without SL / TP', warn: true } : { text: ui.brOn ? `Every new entry from the tool goes with SL ${ui.brSl} pt${+ui.brTp > 0 ? ' and TP ' + ui.brTp + ' pt' : ''}.${ui.brDca ? ' With a position open, after an add (market or LIMIT filled) and when entry LIMITs are placed or cancelled, SL / TP move to the same distances from AVG ALL (position + LIMITs waiting); the SL never sits between two entries: if a LIMIT is at or past it, it goes SL pt beyond the farthest LIMIT. A SL at breakeven or in profit stays.' : ' Adds have no legs: SL / TP stay where they are.'}` : '' },
+    sr: { text: [rw, handlers.runnerTrend ? handlers.runnerTrend().text : '', rs || ''].filter(Boolean).join(' · '), warn: !!rw },
+    oco: { text: ui.ocoOn ? 'ON: when a pending entry of a market is executed (LIMIT filled or local STOP touched) the other pending entries of that market are cancelled (Orders ON, tab open). A local STOP can be armed on either side of a pending LIMIT.' : 'OFF: pending LIMITs and local STOPs live independently.', warn: false },
+  };
+}
+
 /** Trailing / BE status line of the panel (warnings for empty fields + what is running). */
-const trailNote = () => (els.trst ? { text: els.trst.textContent, warn: els.trst.classList.contains('warn') } : { text: '', warn: false });
+const trailNote = () => trailTxt;
 
 /** True when the Trailing & breakeven settings live in the docked column instead of the panel. */
 const stopsInColumn = () => !!(ui.dock && ui.cardsAt !== 'chart' && ui.overlay && dock.width());
@@ -8656,27 +11799,61 @@ function btnColors() {
   return out;
 }
 
-function lineStyles() {
-  const out = {};
-  for (const [k, , c] of LINE_KINDS) {
-    const col = /^#[0-9a-f]{6}$/i.test(ui['lc_' + k]) ? ui['lc_' + k] : c;
-    const st = ['dashed', 'dotted', 'solid'].includes(ui['ls_' + k]) ? ui['ls_' + k] : 'dashed';
-    const w = Math.min(4, Math.max(1, Math.round(+ui['lw_' + k]) || 1));
-    out[k] = { c: col, s: st, w };
+/** Lines and labels on the chart (Layout → Chart lines and labels): { kind: { c, s, w, l?, lab } }. */
+const lineStyles = () => CS.styles(ui);
+/** Colours of every label: price, profit, loss ('' = the card style's). */
+const COMMON = { cpx: '#d7dbe3', cup: '#3ecf8e', cdn: '#ff6b61' };
+const chartCommon = () => Object.fromEntries(Object.keys(COMMON).map((k) => [k, /^#[0-9a-f]{6}$/i.test(ui[k]) ? ui[k] : '']));
+
+// ── editor of Chart lines and labels: one element at a time (the select), its fields are ui[field + '_' + kind]
+let csKind = 'long';
+function csFill() {
+  if (!root) return;
+  const sel = root.querySelector('[data-csel]');
+  if (!sel) return;
+  sel.value = csKind;
+  const st = CS.styleOf(ui, csKind);
+  for (const inp of root.querySelectorAll('[data-cs]')) {
+    const v = CS.shown(ui, csKind, inp.dataset.cs);
+    if (inp.type === 'checkbox') inp.checked = !!v;
+    else if (root.activeElement !== inp) inp.value = v;
   }
-  for (const [k, , c, s0] of SEG_KINDS) {
-    const col = /^#[0-9a-f]{6}$/i.test(ui['lc_' + k]) ? ui['lc_' + k] : c;
-    const st = ['dashed', 'dotted', 'solid'].includes(ui['ls_' + k]) ? ui['ls_' + k] : s0;
-    const w = Math.min(6, Math.max(1, Math.round(+ui['lw_' + k]) || 3));
-    const l = Math.round(+ui['ll_' + k]);
-    out[k] = { c: col, s: st, w, l: l >= 4 && l <= 400 ? l : 0 }; // l = 0: automatic length
+  root.querySelector('[data-cslab]').style.display = st && st.lab ? '' : 'none';
+  root.querySelector('[data-csseg]').style.display = CS.SEGS.has(csKind) ? '' : 'none';
+  for (const inp of root.querySelectorAll('[data-cc]')) if (root.activeElement !== inp) inp.value = /^#[0-9a-f]{6}$/i.test(ui[inp.dataset.cc]) ? ui[inp.dataset.cc] : COMMON[inp.dataset.cc];
+  // preview: the line and the label as on the chart
+  const pv = root.querySelector('[data-csprev]');
+  const ln = pv.querySelector('.csline'),
+    ch = pv.querySelector('.cschip');
+  const dd = st.s === 'dashdot';
+  ln.style.borderTop = dd ? '0' : `${st.w}px ${st.s} ${st.c}`;
+  ln.style.height = dd ? st.w + 'px' : '0';
+  ln.style.background = dd ? `repeating-linear-gradient(90deg, ${st.c} 0 8px, transparent 8px 11px, ${st.c} 11px 13px, transparent 13px 16px)` : '';
+  ch.style.display = st.lab ? '' : 'none';
+  if (st.lab) {
+    const L = st.lab;
+    const el = CS.ELEMENTS.find((e) => e[0] === csKind);
+    ch.querySelector('.k').textContent = el[1].replace(/ \(.*\)$/, '').toUpperCase();
+    ch.style.background = L.bg || '#17181b';
+    ch.style.borderColor = L.bo || el[6].bo || '#2a2f3a';
+    ch.style.borderWidth = (L.bw == null ? 1 : L.bw) + 'px';
+    ch.style.fontSize = (L.fs || 12) + 'px';
+    ch.style.fontWeight = L.fw === 'n' ? '400' : L.fw === 'b' ? '700' : '';
+    const k = ch.querySelector('.k');
+    k.style.color = L.n || st.c;
+    k.style.background = L.nb || 'transparent';
+    k.style.padding = L.nb ? '0 4px' : '0';
+    ch.querySelector('b').style.color = chartCommon().cpx || '';
+    ch.querySelector('.up').style.color = chartCommon().cup || '';
   }
-  for (const [k, , c, s0] of HL_KINDS) {
-    const col = /^#[0-9a-f]{6}$/i.test(ui['lc_' + k]) ? ui['lc_' + k] : c;
-    const st = ['dashed', 'dotted', 'solid'].includes(ui['ls_' + k]) ? ui['ls_' + k] : s0;
-    out[k] = { c: col, s: st, w: Math.min(4, Math.max(1, Math.round(+ui['lw_' + k]) || 2)) };
-  }
-  return out;
+}
+function csSet(f, v) {
+  if (f === 'cnbOn') {
+    ui['cnb_' + csKind] = v ? CS.shown(ui, csKind, 'cnb') : 'none';
+  } else ui[f + '_' + csKind] = v;
+  saveUi();
+  csFill();
+  handlers.onInput && handlers.onInput();
 }
 
 /** Style of the quantities on the chart: { c, s (px), b (bold) }. */
@@ -8694,14 +11871,38 @@ function cardsColumn() {
   return { left: window.innerWidth - w, width: w, top, height: Math.max(0, window.innerHeight - top), hidden: !ui.min };
 }
 
+/** Main panel open (false) or folded to its header (true): Trade commands floating = open, docked = folded. */
+/** Swing range section: points between the last swing high and low (from the overlay). */
+let swingKey = null;
+function swingNote(text) {
+  if (!root || text === swingKey) return;
+  const el = root.querySelector('[data-swst]');
+  if (!el) return;
+  swingKey = text;
+  el.textContent = text;
+}
+
+function setMin(v) {
+  if (!panel || ui.min === !!v) return;
+  showInfo(null);
+  ui.min = !!v;
+  panel.classList.toggle('min', ui.min);
+  saveUi();
+  layout(true);
+}
+
 module.exports = {
+  exclusive,
+  setMin,
+  swingNote,
   qtyStyle,
   cardsColumn,
   setUiInput,
   say,
   headPos,
   trailNote,
-  lineStyles, btnColors, mount, render, ui: () => ui, setUi };
+  sideNotes,
+  lineStyles, chartCommon, btnColors, mount, render, ui: () => ui, setUi };
 
   },
   };
@@ -8727,5 +11928,5 @@ module.exports = {
     });
     return module.exports;
   };
-  __load("main.js").start("0.10.99");
+  __load("main.js").start("0.20.63");
 })();

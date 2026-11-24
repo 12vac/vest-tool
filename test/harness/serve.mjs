@@ -5,13 +5,13 @@ import { join, normalize, extname, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
-const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8' };
+const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8' };
 const PORT = Number(process.argv[2]) || 5179; // optional port: node test/harness/serve.mjs 5180
 
 createServer(async (req, res) => {
   const path = normalize(decodeURIComponent(new URL(req.url, 'http://x').pathname)).replace(/^([\\/])+/, '');
   const file = join(ROOT, path || 'test/harness/index.html');
-  if (!file.startsWith(ROOT) || !/^(test[\\/]harness|dist)[\\/]/.test(path || 'test/harness/')) {
+  if (!file.startsWith(ROOT) || !/^(test[\\/]harness|dist|tour)[\\/]/.test(path || 'test/harness/')) {
     res.writeHead(403).end();
     return;
   }

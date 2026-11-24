@@ -25,8 +25,9 @@ test('points of the day: only those closed from t0 on', () => {
   ];
   const m = closedPointsAt(rows);
   assert.deepStrictEqual(m.P1, { pts: 12.5, at: t });
-  assert.deepStrictEqual(sumSince(m, t - 3600e3), { pts: 12.5, n: 1 });
-  assert.deepStrictEqual(sumSince(m, 0), { pts: 8.5, n: 2 });
+  assert.deepStrictEqual(sumSince(m, t - 3600e3), { pts: 12.5, n: 1, win: 1, loss: 0 });
+  assert.deepStrictEqual(sumSince(m, 0), { pts: 8.5, n: 2, win: 1, loss: 1 });
+  assert.deepStrictEqual(sumSince({ a: { pts: 0, at: t } }, 0), { pts: 0, n: 1, win: 0, loss: 0 }); // closed at the entry: neither
 });
 
 test('dates in seconds, ms or text', () => {

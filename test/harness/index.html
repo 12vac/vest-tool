@@ -39,7 +39,7 @@
   ];
   if (/[?&]ddnear/.test(location.search)) accounts[0].max_drawdown_limit = '49940'; // ?ddnear: A's floor close (50% drawdown label on screen)
   const positions = {
-    A: [{ positionId: 'PA', symbol: SYM, side: 'long', quantity: '2', openPrice: '20000', collateral: '800', leverage: '50',
+    A: [{ positionId: 'PA', symbol: SYM, side: 'long', quantity: '2', openPrice: '20000', openDate: Date.now() - 10 * 60e3, collateral: '800', leverage: '50',
       stopLosses: [{ id: 'SLA', triggerPrice: '19950', executionType: 'market' }], takeProfits: [] }],
     B: [{ positionId: 'PB', symbol: SYM, side: 'short', quantity: '1', openPrice: '20050', collateral: '400', leverage: '50', stopLosses: [], takeProfits: [] }],
   };
@@ -103,6 +103,28 @@
     leg.triggerPrice = b.triggerPrice;
     return [200, {}];
   }
+  // candles of Vest's chart endpoint (safe runner): newest first, the first one still forming.
+  // 1m: closes set by H.k1m([...]) (oldest -> newest, the last one = the candle just closed), else a slow wave around 20000.
+  // 1h: H.htf('up' | 'down') trend (default up)
+  let k1m = null, k1h = 'up';
+  function klines(interval) {
+    const now = Date.now(), out = [];
+    if (interval === '1h') {
+      const step = 3600e3, last = now - (now % step);
+      for (let i = 0; i < 120; i++) { const t = last - i * step, c = 20000 + (k1h === 'up' ? -1 : 1) * i * 5; out.push([t, c, c + 10, c - 10, c, 1, t + step, 0, 0]); }
+      return out;
+    }
+    const step = 60e3, last = now - (now % step);
+    out.push([last, mark, mark, mark, mark, 1, last + step, 0, 0]);
+    const cl = k1m || [];
+    for (let i = 0; i < 200; i++) {
+      const t = last - (i + 1) * step;
+      const c = cl.length ? cl[Math.max(0, cl.length - 1 - i)] : 20000 + 4 * Math.sin(t / 6e5);
+      const o = cl.length ? cl[Math.max(0, cl.length - 2 - i)] : c;
+      out.push([t, o, Math.max(o, c) + 1, Math.min(o, c) - 1, c, 1, t + step, 0, 0]);
+    }
+    return out;
+  }
   window.__calls = [];
   window.fetch = async (url, init = {}) => {
     const u = new URL(url);
@@ -111,7 +133,7 @@
     window.__calls.push(method + ' ' + u.pathname);
     let body = null, status = 200;
     const p = u.pathname;
-    const pub = p === '/v3/exchangeInfo' || p === '/v3/ticker/latest';
+    const pub = p === '/v3/exchangeInfo' || p === '/v3/ticker/latest' || p === '/v2/klines';
     if (!pub && claims.gen !== gen) {
       window.__calls.push('401 ' + p);
       return new Response(JSON.stringify({ message: 'Unauthorized' }), { status: 401, headers: { 'content-type': 'application/json' } });
@@ -138,6 +160,7 @@
       const want = u.searchParams.get('symbols');
       body = { symbols: want ? all.filter((x) => want.split(',').includes(x.symbol)) : all };
     }
+    else if (p === '/v2/klines') body = { data: klines(u.searchParams.get('interval')) };
     else if (p === '/v3/ticker/latest') body = { tickers: [{ symbol: SYM, markPrice: String(mark), marginMarkPrice: String(mark) }, { symbol: 'ETH-USD-PERP', markPrice: '2420.29' }] };
     else { status = 404; body = { message: 'harness: ' + p }; }
     return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', 'x-ratelimit-remaining': '190', 'x-ratelimit-limit': '200' } });
@@ -194,6 +217,23 @@
 
   window.H = {
     tick(d) { mark += d; },
+    setMark(v) { mark = v; },
+    // change A's position PA and announce it on the feed (safe runner: rounding of the entry, adds)
+    posA(patch) {
+      const p = positions.A[0]; Object.assign(p, patch);
+      window.__ws.push({ channel: 'account_state', data: { account_id: 'A', account_seq: String(100 + legN++), positions: [{ position_id: p.positionId, status: 'opened', symbol: p.symbol, side: p.side, quantity: p.quantity, open_price: p.openPrice, collateral: p.collateral, leverage: p.leverage }], final_balance: { amount: '49200', balance_version: 10 + legN } } });
+    },
+    // a pending LIMIT of A filled (OCO test): order gone, its size added to PA, both announced on the feed
+    fillA(orderId) {
+      const i = openOrders.A.findIndex((o) => o.orderId === orderId); if (i < 0) return 'no such order';
+      const [o] = openOrders.A.splice(i, 1);
+      const p = positions.A[0]; p.quantity = String(+p.quantity + +o.quantity);
+      window.__ws.push({ channel: 'account_state', data: { account_id: 'A', account_seq: String(100 + legN++), orders: [{ order_id: o.orderId, symbol: o.symbol, side: o.side, price: o.price, quantity: o.quantity, status: 'filled', executed_quantity: o.quantity }],
+        positions: [{ position_id: p.positionId, status: 'opened', symbol: p.symbol, side: p.side, quantity: p.quantity, open_price: p.openPrice, collateral: p.collateral, leverage: p.leverage }], final_balance: { amount: '49200', balance_version: 10 + legN } } });
+      return 'filled';
+    },
+    k1m(closes) { k1m = closes; },
+    htf(dir) { k1h = dir; },
     feedClose() { window.__ws.push({ channel: 'account_state', data: { account_id: 'B', account_seq: '10', positions: [{ position_id: 'PB', status: 'closed', event_type: 'POSITION_EVENT_TYPE_CLOSED' }], final_balance: { amount: '100150', balance_version: 8 } } }); },
     recreateChart() { chart = makeChart(); installTv(); },
     // as Vest does: position line (text "PnL") and stop line (length 20%)

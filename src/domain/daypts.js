@@ -48,16 +48,24 @@ function closedPointsAt(rows) {
   return out;
 }
 
-/** Points and count of the positions closed from t0 (ms) on, from a map { id: { pts, at } }. */
+/**
+ * Points and count of the positions closed from t0 (ms) on, from a map { id: { pts, at } }.
+ * One Vest position = one trade: adds (DCA) and partial closes stay on the same position id, so they are not counted again.
+ * win / loss by the sign of the points (fees not counted: a trade closed a fraction of a point up can be a $ loss).
+ */
 function sumSince(map, t0) {
   let pts = 0,
-    n = 0;
+    n = 0,
+    win = 0,
+    loss = 0;
   for (const v of Object.values(map || {})) {
     if (!v || !(v.at >= t0)) continue;
     pts += v.pts;
     n++;
+    if (v.pts > 1e-9) win++;
+    else if (v.pts < -1e-9) loss++;
   }
-  return { pts, n };
+  return { pts, n, win, loss };
 }
 
 /** Sum of the points in a map { id: points }. */
