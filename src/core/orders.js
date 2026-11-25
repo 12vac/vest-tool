@@ -36,6 +36,26 @@ function setEnabled(v) {
   notify();
 }
 
+const SM = require('../domain/selfmatch');
+/** Self-matching check against the other accounts' pending orders (state as last read). */
+function selfMatch(accountId, order) {
+  try {
+    const accounts = {};
+    for (const id of Object.keys(S.accounts)) {
+      const st = S.state[id] || {};
+      accounts[id] = { label: S.accounts[id].label, orders: st.orders || [], positions: st.positions || [] };
+    }
+    const b = order.body || {};
+    const pos = b.positionId && accounts[accountId] ? accounts[accountId].positions.find((p) => p.id === b.positionId) : null;
+    const sym = b.symbol || (pos && pos.symbol);
+    const mk = sym && S.marks[sym];
+    return SM.check({ order, accountId, accounts, mark: mk ? mk.px : NaN, tick: (S.symbols[sym] || {}).tick });
+  } catch (e) {
+    log.warn('self-match check failed: ' + e.message);
+    return null;
+  }
+}
+
 /** Reason why trading is not possible now, or null. */
 function blocked(accountId) {
   if (!transport.ordersEnabled()) return 'Orders are off: switch ORDERS on (Trade commands)';
@@ -53,6 +73,14 @@ async function send(accountId, order, label, positionId, opts = {}) {
     log.warn(`✗ ${label}: ${why}`);
     throw new Error(why);
   }
+  // SELF-MATCHING (Vest policy, Gerry 2026-11-25): an order that could trade against a pending order of ANOTHER own account.
+  // Entries are refused; exits (reduce / close) are only warned: blocking a way out would be worse.
+  const sm = selfMatch(accountId, order);
+  if (sm && !sm.exit) {
+    log.warn(`✗ ${label}: ${sm.text}`);
+    throw new Error(sm.text);
+  }
+  if (sm) log.warn(`${label}: ${sm.text} (exit: sent anyway)`);
   if (positionId && busy.has(positionId)) throw new Error(`wait: "${busy.get(positionId)}" is still in progress`);
   if (positionId) busy.set(positionId, label);
   notify();

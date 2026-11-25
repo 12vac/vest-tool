@@ -21,6 +21,10 @@ others, a candle countdown and the last swing high / low.
 - **Orders switch**: off after every page reload. While it is off the script can only *close and cancel* (FLAT, FLATTEN ALL,
   the CANCEL menu); it can never open or modify a position. Switching it on asks for confirmation.
 - **Copier**: off after every page reload, never re-armed automatically. Starting it requires Orders ON and a confirmation.
+- **Self-matching guard** (v0.20.66): before every order, including the copier's, the tool compares it with the pending orders
+  of your OTHER accounts on the same market. An entry that could trade against one of them (a LIMIT that crosses it, or a market
+  order with an opposite pending order within 4 ticks of the mark) is refused; an exit is sent anyway, with a warning in the log.
+  Vest allows opposite positions on different accounts but not self-matching. This guard is not tried on a real account yet.
 - Only the order endpoints the tool needs are allowed; everything else (withdrawals, account settings...) is blocked in code.
 
 ## Installation
