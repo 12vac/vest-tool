@@ -1312,6 +1312,10 @@ Works even with Orders OFF. It cannot be undone.`,
     });
     // SELF-MATCHING: block / warning of the last order, and resting orders that already cross (checked at most twice a second)
     selfmatch.subscribe((v) => panel.smShow(v));
+    selfmatch.setRoles(() => {
+      const c = copier.state();
+      return c.armed && c.master ? { master: c.master, followers: c.followers } : null;
+    });
     let smAt = 0;
     store.subscribe(() => {
       if (Date.now() - smAt < 500) return;

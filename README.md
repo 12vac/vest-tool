@@ -31,7 +31,10 @@ others, a candle countdown and the last swing high / low.
   - automatic exits (Account limits FLAT, Safe runner, copies following the master) cancel the orders in the way, say so,
     then close; if a cancel fails, the exit is not sent;
   - if another account's orders are not read yet or older than 90 s, entries are refused and exits go out with a warning;
-  - a violet strip shows pending orders of two accounts that already cross (for example placed by hand on Vest).
+  - a violet strip shows pending orders of two accounts that already cross (for example placed by hand on Vest);
+  - with the copier ON the master commands: the master's exits cancel the copies' pending orders in the way, and the master's
+    orders are never touched. A copy whose exit could hit a master's pending order is NOT closed: a red strip names it, and
+    you close it by hand once that order is gone.
   Orders placed with Vest's own ticket are not checked.
 - Only the order endpoints the tool needs are allowed; everything else (withdrawals, account settings...) is blocked in code.
 

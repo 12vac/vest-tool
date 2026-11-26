@@ -113,4 +113,26 @@ function crossings(accounts, tickOf) {
   return out;
 }
 
-module.exports = { check, sideOf, crosses, crossings, textOf };
+/**
+ * What to do with the resting orders in the way of an EXIT (hits from check()). Gerry 2026-11-26: "the master commands".
+ * roles: { master, followers: [ids] } while the copier is ON, else null. auto: automatic exit (nobody can click).
+ * - a COPY's exit that could hit a MASTER's order: blocked (the master's orders are never touched, the copy stays open);
+ * - the MASTER's exit: the copies' orders in the way are cancelled by themselves;
+ * - an automatic exit: every other order in the way is cancelled by itself;
+ * - what is left (manual exit vs an account outside the copier): the button.
+ * -> { block: [hits] } | { cancel: [hits], ask: [hits] }
+ */
+function exitPlan({ hits, accountId, roles, auto }) {
+  const master = roles && roles.master;
+  const followers = new Set((roles && roles.followers) || []);
+  if (master && followers.has(accountId) && accountId !== master) {
+    const m = hits.filter((h) => h.accountId === master);
+    if (m.length) return { block: m };
+  }
+  const cancel = [],
+    ask = [];
+  for (const h of hits) (auto || (accountId === master && followers.has(h.accountId)) ? cancel : ask).push(h);
+  return { cancel, ask };
+}
+
+module.exports = { check, sideOf, crosses, crossings, textOf, exitPlan };

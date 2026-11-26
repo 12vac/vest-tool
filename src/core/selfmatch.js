@@ -12,6 +12,7 @@ const STALE_MS = 90000; // REST re-read every 60 s with the feed up, 20 s with i
 const listeners = new Set();
 let shown = null; // { text, kind: 'err' | 'warn', button, run } of the last block / warning, or null
 let busy = false;
+let rolesOf = null; // () => { master, followers } while the copier is ON, else null (set by main)
 
 /** Snapshot for the domain: { id: { label, known, orders, positions } }. */
 function accounts(now = Date.now()) {
@@ -32,8 +33,12 @@ function accounts(now = Date.now()) {
 function notify() {
   for (const fn of listeners) fn(shown);
 }
+let warnTimer = null;
 function show(v) {
   shown = v;
+  clearTimeout(warnTimer);
+  // a yellow warning (something was done for you) stays 20 s, then goes; the log keeps it
+  if (v && v.kind === 'warn') warnTimer = setTimeout(() => shown === v && show(null), 20000);
   notify();
 }
 
@@ -49,6 +54,8 @@ function dismiss() {
  * position: { id, symbol, side } of an exit read fresh from REST (FLAT), when the state may not hold it yet.
  * auto: automatic exit (Account limits, Safe runner, copier): nobody is there to press the button, so the orders in the
  *   way are cancelled here (said in the header and the log) and the exit goes out (Gerry 2026-11-26).
+ * Copier ON, "the master commands" (Gerry 2026-11-26): the master's exit cancels the copies' orders in the way by itself;
+ * a copy's exit that could hit a master's order is blocked (domain exitPlan).
  */
 async function guard(accountId, order, { retry, skip, position, auto } = {}) {
   const b = order.body || {};
@@ -58,25 +65,36 @@ async function guard(accountId, order, { retry, skip, position, auto } = {}) {
   const r = SM.check({ order, accountId, accounts: accounts(), tick: sym ? (S.symbols[sym] || {}).tick : NaN, skip, position });
   if (!r) return; // cancel, leg removal...: nothing that can trade
   if (!r.hits.length && !r.unknown.length) {
-    if (shown && !busy) show(null); // an order passed the check: the old block / warning is no longer current
+    if (shown && shown.kind === 'err' && !busy) show(null); // an order passed the check: the old block is no longer current
     return;
   }
-  if (r.hits.length && !r.leg && r.exit && auto) {
-    const flatten = require('./flatten'); // lazy: flatten -> orders -> selfmatch
-    for (const h of r.hits) {
-      try {
-        await flatten.cancelOne(h.accountId, h.orderId);
-      } catch (e) {
-        const text = `SELF-MATCH BLOCKED: automatic exit ${r.what} not sent: cancelling ${h.text} failed (${e.message})`;
-        log.error(text);
-        show({ text, kind: 'err', button: '', run: null });
-        throw new Error(text);
-      }
+  if (r.hits.length && !r.leg && r.exit) {
+    const name = (S.accounts[accountId] || {}).label || accountId;
+    const pl = SM.exitPlan({ hits: r.hits, accountId, roles: rolesOf ? rolesOf() : null, auto });
+    if (pl.block) {
+      const text = `SELF-MATCH BLOCKED: copy ${name} NOT closed (${r.what}): it could trade against the master's resting order ${pl.block.map((h) => h.text).join('; ')}. The master's orders are never touched: close this copy by hand when that order is gone`;
+      log.error(text);
+      show({ text, kind: 'err', button: '', run: null });
+      throw new Error(text);
     }
-    const text = `SELF-MATCH: automatic exit ${r.what}: cancelled first ${r.hits.map((h) => h.text).join('; ')}`;
-    log.warn(text);
-    show({ text, kind: 'warn', button: '', run: null });
-    return;
+    if (pl.cancel.length) {
+      const flatten = require('./flatten'); // lazy: flatten -> orders -> selfmatch
+      for (const h of pl.cancel) {
+        try {
+          await flatten.cancelOne(h.accountId, h.orderId);
+        } catch (e) {
+          const text = `SELF-MATCH BLOCKED: exit ${r.what} of ${name} not sent: cancelling ${h.text} failed (${e.message})`;
+          log.error(text);
+          show({ text, kind: 'err', button: '', run: null });
+          throw new Error(text);
+        }
+      }
+      const text = `SELF-MATCH: exit ${r.what} of ${name}: cancelled first ${pl.cancel.map((h) => h.text).join('; ')}`;
+      log.warn(text);
+      show({ text, kind: 'warn', button: '', run: null });
+      if (!pl.ask.length) return;
+    }
+    r.hits = pl.ask; // manual exit vs an account outside the copier: the button
   }
   if (r.hits.length && !r.leg) {
     const text = SM.textOf(r, true);
@@ -143,4 +161,5 @@ module.exports = {
   current: () => shown,
   subscribe: (fn) => (listeners.add(fn), () => listeners.delete(fn)),
   STALE_MS,
+  setRoles: (fn) => (rolesOf = fn),
 };

@@ -191,6 +191,9 @@ const HELP = {
       <li><b>Automatic exits</b> (Account limits FLAT, Safe runner, the copies following the master): nobody is there to click, so the tool
       cancels the orders in the way by itself, says which in a <b>yellow</b> strip and in the log, then sends the exit. If a cancel fails,
       the exit is not sent (red strip).</li>
+      <li><b>Copier ON: the master commands.</b> An exit of the master cancels the copies' orders in the way by itself (yellow strip),
+      also when you send it by hand. The master's orders are never touched: if a copy following the master could trade against
+      a resting order of the master, that copy is NOT closed (red strip and log name it): close it by hand when that order is gone.</li>
       <li>If the orders of an account are not read yet or are older than 90 s, entries are blocked (wait, or <i>Reload all data</i>);
       exits go out with a <b>yellow</b> warning.</li>
       <li>SL / TP: the tool sends them as market orders when triggered, so they never rest on the book. Placing one while an opposite

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         VestTool
 // @namespace    vest-tool
-// @version      0.20.68
+// @version      0.20.69
 // @description  Account status and P&L in dollars, trade overlay on the chart (BE, draggable SL/TP, FLAT) for Vest Markets. Unofficial: not made, endorsed or supported by Vest Markets.
 // @match        https://next.vestmarkets.com/*
 // @run-at       document-start
@@ -5618,6 +5618,7 @@ const STALE_MS = 90000; // REST re-read every 60 s with the feed up, 20 s with i
 const listeners = new Set();
 let shown = null; // { text, kind: 'err' | 'warn', button, run } of the last block / warning, or null
 let busy = false;
+let rolesOf = null; // () => { master, followers } while the copier is ON, else null (set by main)
 
 /** Snapshot for the domain: { id: { label, known, orders, positions } }. */
 function accounts(now = Date.now()) {
@@ -5638,8 +5639,12 @@ function accounts(now = Date.now()) {
 function notify() {
   for (const fn of listeners) fn(shown);
 }
+let warnTimer = null;
 function show(v) {
   shown = v;
+  clearTimeout(warnTimer);
+  // a yellow warning (something was done for you) stays 20 s, then goes; the log keeps it
+  if (v && v.kind === 'warn') warnTimer = setTimeout(() => shown === v && show(null), 20000);
   notify();
 }
 
@@ -5655,6 +5660,8 @@ function dismiss() {
  * position: { id, symbol, side } of an exit read fresh from REST (FLAT), when the state may not hold it yet.
  * auto: automatic exit (Account limits, Safe runner, copier): nobody is there to press the button, so the orders in the
  *   way are cancelled here (said in the header and the log) and the exit goes out (Gerry 2026-11-26).
+ * Copier ON, "the master commands" (Gerry 2026-11-26): the master's exit cancels the copies' orders in the way by itself;
+ * a copy's exit that could hit a master's order is blocked (domain exitPlan).
  */
 async function guard(accountId, order, { retry, skip, position, auto } = {}) {
   const b = order.body || {};
@@ -5664,25 +5671,36 @@ async function guard(accountId, order, { retry, skip, position, auto } = {}) {
   const r = SM.check({ order, accountId, accounts: accounts(), tick: sym ? (S.symbols[sym] || {}).tick : NaN, skip, position });
   if (!r) return; // cancel, leg removal...: nothing that can trade
   if (!r.hits.length && !r.unknown.length) {
-    if (shown && !busy) show(null); // an order passed the check: the old block / warning is no longer current
+    if (shown && shown.kind === 'err' && !busy) show(null); // an order passed the check: the old block is no longer current
     return;
   }
-  if (r.hits.length && !r.leg && r.exit && auto) {
-    const flatten = require('./flatten'); // lazy: flatten -> orders -> selfmatch
-    for (const h of r.hits) {
-      try {
-        await flatten.cancelOne(h.accountId, h.orderId);
-      } catch (e) {
-        const text = `SELF-MATCH BLOCKED: automatic exit ${r.what} not sent: cancelling ${h.text} failed (${e.message})`;
-        log.error(text);
-        show({ text, kind: 'err', button: '', run: null });
-        throw new Error(text);
-      }
+  if (r.hits.length && !r.leg && r.exit) {
+    const name = (S.accounts[accountId] || {}).label || accountId;
+    const pl = SM.exitPlan({ hits: r.hits, accountId, roles: rolesOf ? rolesOf() : null, auto });
+    if (pl.block) {
+      const text = `SELF-MATCH BLOCKED: copy ${name} NOT closed (${r.what}): it could trade against the master's resting order ${pl.block.map((h) => h.text).join('; ')}. The master's orders are never touched: close this copy by hand when that order is gone`;
+      log.error(text);
+      show({ text, kind: 'err', button: '', run: null });
+      throw new Error(text);
     }
-    const text = `SELF-MATCH: automatic exit ${r.what}: cancelled first ${r.hits.map((h) => h.text).join('; ')}`;
-    log.warn(text);
-    show({ text, kind: 'warn', button: '', run: null });
-    return;
+    if (pl.cancel.length) {
+      const flatten = require('./flatten'); // lazy: flatten -> orders -> selfmatch
+      for (const h of pl.cancel) {
+        try {
+          await flatten.cancelOne(h.accountId, h.orderId);
+        } catch (e) {
+          const text = `SELF-MATCH BLOCKED: exit ${r.what} of ${name} not sent: cancelling ${h.text} failed (${e.message})`;
+          log.error(text);
+          show({ text, kind: 'err', button: '', run: null });
+          throw new Error(text);
+        }
+      }
+      const text = `SELF-MATCH: exit ${r.what} of ${name}: cancelled first ${pl.cancel.map((h) => h.text).join('; ')}`;
+      log.warn(text);
+      show({ text, kind: 'warn', button: '', run: null });
+      if (!pl.ask.length) return;
+    }
+    r.hits = pl.ask; // manual exit vs an account outside the copier: the button
   }
   if (r.hits.length && !r.leg) {
     const text = SM.textOf(r, true);
@@ -5749,6 +5767,7 @@ module.exports = {
   current: () => shown,
   subscribe: (fn) => (listeners.add(fn), () => listeners.delete(fn)),
   STALE_MS,
+  setRoles: (fn) => (rolesOf = fn),
 };
 
   },
@@ -8839,7 +8858,29 @@ function crossings(accounts, tickOf) {
   return out;
 }
 
-module.exports = { check, sideOf, crosses, crossings, textOf };
+/**
+ * What to do with the resting orders in the way of an EXIT (hits from check()). Gerry 2026-11-26: "the master commands".
+ * roles: { master, followers: [ids] } while the copier is ON, else null. auto: automatic exit (nobody can click).
+ * - a COPY's exit that could hit a MASTER's order: blocked (the master's orders are never touched, the copy stays open);
+ * - the MASTER's exit: the copies' orders in the way are cancelled by themselves;
+ * - an automatic exit: every other order in the way is cancelled by itself;
+ * - what is left (manual exit vs an account outside the copier): the button.
+ * -> { block: [hits] } | { cancel: [hits], ask: [hits] }
+ */
+function exitPlan({ hits, accountId, roles, auto }) {
+  const master = roles && roles.master;
+  const followers = new Set((roles && roles.followers) || []);
+  if (master && followers.has(accountId) && accountId !== master) {
+    const m = hits.filter((h) => h.accountId === master);
+    if (m.length) return { block: m };
+  }
+  const cancel = [],
+    ask = [];
+  for (const h of hits) (auto || (accountId === master && followers.has(h.accountId)) ? cancel : ask).push(h);
+  return { cancel, ask };
+}
+
+module.exports = { check, sideOf, crosses, crossings, textOf, exitPlan };
 
   },
   "domain/shapes.js": function (module, exports, require) {
@@ -10555,6 +10596,10 @@ Works even with Orders OFF. It cannot be undone.`,
     });
     // SELF-MATCHING: block / warning of the last order, and resting orders that already cross (checked at most twice a second)
     selfmatch.subscribe((v) => panel.smShow(v));
+    selfmatch.setRoles(() => {
+      const c = copier.state();
+      return c.armed && c.master ? { master: c.master, followers: c.followers } : null;
+    });
     let smAt = 0;
     store.subscribe(() => {
       if (Date.now() - smAt < 500) return;
@@ -11078,6 +11123,9 @@ const HELP = {
       <li><b>Automatic exits</b> (Account limits FLAT, Safe runner, the copies following the master): nobody is there to click, so the tool
       cancels the orders in the way by itself, says which in a <b>yellow</b> strip and in the log, then sends the exit. If a cancel fails,
       the exit is not sent (red strip).</li>
+      <li><b>Copier ON: the master commands.</b> An exit of the master cancels the copies' orders in the way by itself (yellow strip),
+      also when you send it by hand. The master's orders are never touched: if a copy following the master could trade against
+      a resting order of the master, that copy is NOT closed (red strip and log name it): close it by hand when that order is gone.</li>
       <li>If the orders of an account are not read yet or are older than 90 s, entries are blocked (wait, or <i>Reload all data</i>);
       exits go out with a <b>yellow</b> warning.</li>
       <li>SL / TP: the tool sends them as market orders when triggered, so they never rest on the book. Placing one while an opposite
@@ -12303,5 +12351,5 @@ module.exports = {
     });
     return module.exports;
   };
-  __load("main.js").start("0.20.68");
+  __load("main.js").start("0.20.69");
 })();

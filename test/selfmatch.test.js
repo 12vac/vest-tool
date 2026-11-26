@@ -93,3 +93,22 @@ test('crossings: resting orders that already cross across accounts', () => {
   assert.equal(crossings({ A: acc('19', [rest('OA', 'long', 25000)]), B: acc('20', [rest('OB', 'short', 26000)]) }).length, 0);
   assert.equal(crossings({ A: acc('19', [rest('OA', 'long', 26000), rest('OA2', 'short', 25900)]) }).length, 0, 'same account: not reported');
 });
+
+test('exitPlan: the master commands (copier ON)', () => {
+  const { exitPlan } = require('../src/domain/selfmatch');
+  const roles = { master: 'M', followers: ['C1', 'C2'] };
+  const h = (accountId) => ({ accountId, orderId: 'o' + accountId, text: accountId });
+  // master's manual exit: copies' orders cancelled by themselves; an account outside the copier gets the button
+  let p = exitPlan({ hits: [h('C1'), h('X')], accountId: 'M', roles, auto: false });
+  assert.deepEqual(p.cancel.map((x) => x.accountId), ['C1']);
+  assert.deepEqual(p.ask.map((x) => x.accountId), ['X']);
+  // a copy's exit that could hit the master's order: blocked, nothing cancelled
+  p = exitPlan({ hits: [h('M'), h('C2')], accountId: 'C1', roles, auto: true });
+  assert.deepEqual(p.block.map((x) => x.accountId), ['M']);
+  // a copy's automatic exit vs another copy: cancelled by itself
+  p = exitPlan({ hits: [h('C2')], accountId: 'C1', roles, auto: true });
+  assert.deepEqual(p.cancel.map((x) => x.accountId), ['C2']);
+  // copier OFF: manual = button, automatic = cancel
+  assert.deepEqual(exitPlan({ hits: [h('C1')], accountId: 'M', roles: null, auto: false }).ask.length, 1);
+  assert.deepEqual(exitPlan({ hits: [h('C1')], accountId: 'M', roles: null, auto: true }).cancel.length, 1);
+});
