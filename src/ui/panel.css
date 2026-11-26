@@ -289,3 +289,13 @@ b.act { font-size: 10px; padding: 1px 4px 0; border-radius: 3px; color: #0b1220;
 .csprev .cschip .k { font-weight: 700; border-radius: 3px; }
 .csprev .cschip .qy { color: #ffb402; font-weight: 800; }
 .csprev .cschip .up { color: #3ecf8e; }
+
+/* SELF-MATCHING (v0.20.67): block / warning of the last order and resting orders that already cross, full width in the header */
+.smw, .smc { flex-basis: 100%; box-sizing: border-box; padding: 5px 8px; border-radius: 5px; font-size: 11.5px; line-height: 14px;
+  font-weight: 700; white-space: normal; cursor: default; }
+.smw { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; background: #3a0d0d; border: 1px solid #ff6b61; color: #ffd2cf; }
+.smw.warn { background: #3a2a06; border-color: #ffb402; color: #ffe7ad; }
+.smw .smt { flex: 1 1 200px; min-width: 0; }
+.smw .smgo { background: #b91c1c; border-color: #fff; color: #fff; font-weight: 800; }
+.smw .smx { padding: 1px 6px; }
+.smc { background: #2b0a2e; border: 1px solid #e879f9; color: #f5d0fe; }

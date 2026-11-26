@@ -232,6 +232,13 @@
         positions: [{ position_id: p.positionId, status: 'opened', symbol: p.symbol, side: p.side, quantity: p.quantity, open_price: p.openPrice, collateral: p.collateral, leverage: p.leverage }], final_balance: { amount: '49200', balance_version: 10 + legN } } });
       return 'filled';
     },
+    // a resting LIMIT added on an account and announced on the feed (self-matching test). -> order id
+    addOrder(acc, side, price, qty = '1') {
+      const id = 'HO' + acc + legN++; // own prefix: the fixed orders are OA1, OB1, OB2
+      openOrders[acc].push({ orderId: id, symbol: SYM, orderType: 'limit', side, price: String(price), quantity: String(qty), collateral: '0' });
+      window.__ws.push({ channel: 'account_state', data: { account_id: acc, account_seq: String(100 + legN++), orders: [{ order_id: id, symbol: SYM, side, price: String(price), quantity: String(qty), status: 'pending', order_type: 'limit' }] } });
+      return id;
+    },
     k1m(closes) { k1m = closes; },
     htf(dir) { k1h = dir; },
     feedClose() { window.__ws.push({ channel: 'account_state', data: { account_id: 'B', account_seq: '10', positions: [{ position_id: 'PB', status: 'closed', event_type: 'POSITION_EVENT_TYPE_CLOSED' }], final_balance: { amount: '100150', balance_version: 8 } } }); },

@@ -103,7 +103,7 @@ function update(pos, s, c) {
 
 function fire(pos, order, label, s, now) {
   s.next = now + MIN_GAP_MS;
-  return orders.send(S.selected, order, label, pos.id).catch((e) => {
+  return orders.send(S.selected, order, label, pos.id, { auto: true }).catch((e) => {
     s.next = Date.now() + FAIL_WAIT_MS;
     log.error(`${label}: ${e.message}`);
   });

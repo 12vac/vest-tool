@@ -21,10 +21,18 @@ others, a candle countdown and the last swing high / low.
 - **Orders switch**: off after every page reload. While it is off the script can only *close and cancel* (FLAT, FLATTEN ALL,
   the CANCEL menu); it can never open or modify a position. Switching it on asks for confirmation.
 - **Copier**: off after every page reload, never re-armed automatically. Starting it requires Orders ON and a confirmation.
-- **Self-matching guard** (v0.20.66): before every order, including the copier's, the tool compares it with the pending orders
-  of your OTHER accounts on the same market. An entry that could trade against one of them (a LIMIT that crosses it, or a market
-  order with an opposite pending order within 4 ticks of the mark) is refused; an exit is sent anyway, with a warning in the log.
-  Vest allows opposite positions on different accounts but not self-matching. This guard is not tried on a real account yet.
+- **Self-matching guard**: Vest allows opposite positions on different accounts but bans self-matching (your own orders
+  filling against each other). Before every order (Trade commands, plans, Bracket, Grid, OCO, Safe runner, copier, FLAT,
+  FLATTEN ALL, Account limits) the tool compares it with the pending orders of your OTHER accounts on the same market (Vest
+  already refuses the opposite side on the same account). A LIMIT that would cross one of them, or a market order with any
+  opposite pending order there, is a risk:
+  - entries are refused, with a red strip in the header naming the order in the way;
+  - manual exits are refused too, with a *CANCEL THAT ORDER, THEN CLOSE* button;
+  - automatic exits (Account limits FLAT, Safe runner, copies following the master) cancel the orders in the way, say so,
+    then close; if a cancel fails, the exit is not sent;
+  - if another account's orders are not read yet or older than 90 s, entries are refused and exits go out with a warning;
+  - a violet strip shows pending orders of two accounts that already cross (for example placed by hand on Vest).
+  Orders placed with Vest's own ticket are not checked.
 - Only the order endpoints the tool needs are allowed; everything else (withdrawals, account settings...) is blocked in code.
 
 ## Installation

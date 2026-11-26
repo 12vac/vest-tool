@@ -81,6 +81,8 @@ const SKELETON = `
     <div class="dots" data-dots></div>
     <button class="btn" data-act="min" title="Minimise (Alt+Shift+V)">–</button>
     <div class="hpos" data-hpos style="display:none"></div>
+    <div class="smw" data-smw style="display:none"><span class="smt" data-smt></span><button class="btn smgo" data-smgo style="display:none"></button><button class="btn smx" data-smx aria-label="Hide">✕</button>${info('selfmatch')}</div>
+    <div class="smc" data-smc style="display:none"></div>
   </div>
   <div class="body">
     <div class="group">Accounts</div>
@@ -225,7 +227,7 @@ function mount(version, h) {
   root.innerHTML = `<style>${css}</style>${SKELETON}`;
   document.documentElement.appendChild(host);
   panel = root.querySelector('.panel');
-  for (const k of ['pend', 'dots', 'ovsub', 'selinfo', 'flatall', 'accounts', 'positions', 'calc', 'checks', 'log', 'sync', 'manual', 'ver', 'ord', 'cpst', 'cpgo', 'cpacc', 'cplast', 'trst', 'srst', 'say', 'hinfo', 'hpos', 'hord', 'hcpy', 'hcpl', 'hwait']) els[k] = root.querySelector(`[data-${k}]`);
+  for (const k of ['pend', 'dots', 'ovsub', 'selinfo', 'flatall', 'accounts', 'positions', 'calc', 'checks', 'log', 'sync', 'manual', 'ver', 'ord', 'cpst', 'cpgo', 'cpacc', 'cplast', 'trst', 'srst', 'say', 'hinfo', 'hpos', 'hord', 'hcpy', 'hcpl', 'hwait', 'smw', 'smt', 'smgo', 'smx', 'smc']) els[k] = root.querySelector(`[data-${k}]`);
   els.pop = root.querySelector('[data-pop]');
   els.popt = root.querySelector('[data-popt]');
   els.poph = root.querySelector('[data-poph]');
@@ -278,6 +280,8 @@ After a reload it comes back as VIEW.`);
       }
       return;
     }
+    if (e.target.closest('[data-smgo]')) return handlers.selfMatch && handlers.selfMatch.run();
+    if (e.target.closest('[data-smx]')) return handlers.selfMatch && handlers.selfMatch.dismiss();
     const cm = e.target.closest('[data-cmode]');
     if (cm) return copyTry(() => handlers.copy.setMode(cm.dataset.cmode));
     const b = e.target.closest('[data-act]');
@@ -747,6 +751,25 @@ function say(text, kind) {
   }, kind === 'err' ? 9000 : 4000);
 }
 
+/** Self-matching block / warning in the header: { text, kind, button } or null. Stays until ✕ or the next check. */
+function smShow(v) {
+  if (!els.smw) return;
+  els.smw.style.display = v ? '' : 'none';
+  if (!v) return;
+  els.smw.className = 'smw ' + (v.kind || 'err');
+  els.smt.textContent = v.text;
+  els.smgo.style.display = v.button ? '' : 'none';
+  els.smgo.textContent = v.button || '';
+}
+/** Read-only indicator: your resting orders that already cross each other ('' = hidden). */
+let smcText = '';
+function smCross(text) {
+  if (!els.smc || text === smcText) return;
+  smcText = text;
+  els.smc.style.display = text ? '' : 'none';
+  els.smc.textContent = text;
+}
+
 /** Position data of the chart card, shown in the header (docked column). null = hidden. Rewritten only when they change. */
 let headKey = '';
 function headPos(d) {
@@ -993,6 +1016,8 @@ module.exports = {
   cardsColumn,
   setUiInput,
   say,
+  smShow,
+  smCross,
   headPos,
   trailNote,
   sideNotes,

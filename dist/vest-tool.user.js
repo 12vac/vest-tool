@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         VestTool
 // @namespace    vest-tool
-// @version      0.20.66
+// @version      0.20.68
 // @description  Account status and P&L in dollars, trade overlay on the chart (BE, draggable SL/TP, FLAT) for Vest Markets. Unofficial: not made, endorsed or supported by Vest Markets.
 // @match        https://next.vestmarkets.com/*
 // @run-at       document-start
@@ -3663,7 +3663,7 @@ function fflat(f, symbol) {
     log.info(`TEST (not sent) COPY ${label(f)}: FLAT ${symbol}`);
     return Promise.resolve({ cancelled: 0, closed: 0 });
   }
-  return flatten.flattenMarket(f, symbol);
+  return flatten.flattenMarket(f, symbol, { auto: true }); // copies follow the master: nobody clicks for them
 }
 
 /** Per-copy limits for an entry (open / add): reason to skip it, or null. Exits, SL / TP and cancels are always copied. */
@@ -4099,7 +4099,7 @@ async function flatIdleCopies(accountId, symbol) {
     log.warn(`FLAT copies: copier off, ${ids.length} copies left open on ${symbol} (refused)`);
     return 0;
   }
-  const res = await Promise.allSettled(ids.map((f) => flatten.flattenMarket(f, symbol)));
+  const res = await Promise.allSettled(ids.map((f) => flatten.flattenMarket(f, symbol, { auto: true })));
   const done = res.filter((r) => r.status === 'fulfilled').length;
   log[done === ids.length ? 'info' : 'warn'](`FLAT copies (copier off): ${done}/${ids.length} copies flat on ${symbol}`);
   store.changed();
@@ -4696,31 +4696,73 @@ async function emergency(accountId, order) {
   }
 }
 
-/** One account: re-reads, cancels the orders, closes the positions. Returns how many things it found open. */
-async function flattenAccount(id) {
-  const label = (S.accounts[id] || {}).label || id;
+const selfmatch = require('./selfmatch');
+const sideOf = (p) => {
+  const s = String(p.side || '').toLowerCase();
+  return s === 'long' || s === 'buy' || p.isLong === true ? 'long' : s === 'short' || s === 'sell' || p.isLong === false ? 'short' : null;
+};
+
+/** Orders just cancelled leave the local state at once (the re-read confirms): the self-matching guard must not see them. */
+function dropOrders(accountId, ids) {
+  const st = S.state[accountId];
+  if (!st || !Array.isArray(st.orders) || !ids.length) return;
+  const gone = new Set(ids);
+  st.orders = st.orders.filter((o) => !gone.has(o.id));
+}
+
+/** One pending order cancelled (emergency path: works with Orders OFF). */
+async function cancelOne(accountId, orderId) {
+  await emergency(accountId, { method: 'POST', path: '/v3/positions/cancel-order', body: { orderId } });
+  dropOrders(accountId, [orderId]);
+  sync.refreshAccount(accountId);
+}
+
+/** Self-matching check of the close of a position; throws (header shows why) when it must not go out. auto: see selfmatch.guard. */
+function guardClose(accountId, p, retry, auto) {
+  const side = p.side || ((((S.state[accountId] || {}).positions || []).find((x) => x.id === p.id) || {}).side);
+  return selfmatch.guard(accountId, O.closeOrder(p), { retry, position: side ? { id: p.id, symbol: p.symbol, side } : null, auto });
+}
+
+/** One account, phase 1: re-reads and cancels every pending order. Returns { id, positions, orders, failed }. */
+async function cancelAccount(id) {
   const [posR, ordR] = await Promise.all([
     session.accountGet(id, '/v3/positions/opened'),
     session.accountGet(id, '/v3/positions/opened-orders'),
   ]);
-  const positions = ((posR && posR.positions) || []).filter((p) => (p.positionId || p.position_id) && p.symbol && parseFloat(p.quantity) > 0);
+  const positions = ((posR && posR.positions) || [])
+    .filter((p) => (p.positionId || p.position_id) && p.symbol && parseFloat(p.quantity) > 0)
+    .map((p) => ({ id: p.positionId || p.position_id, symbol: p.symbol, side: sideOf(p), leverage: parseFloat(p.leverage) || null }));
   const orders = ((ordR && ordR.orders) || []).map((o) => o.orderId || o.order_id || o.id).filter(Boolean);
   const cancels = await Promise.allSettled(
     orders.map((orderId) => emergency(id, { method: 'POST', path: '/v3/positions/cancel-order', body: { orderId } })),
   );
+  dropOrders(id, orders.filter((_, i) => cancels[i].status === 'fulfilled'));
+  return { id, positions, orders, failed: cancels.filter((r) => r.status === 'rejected') };
+}
+
+/** One account, phase 2 (after EVERY account cancelled its orders): closes the positions. Returns how many things it found open. */
+async function closeAccount(c, retry, auto) {
+  const label = (S.accounts[c.id] || {}).label || c.id;
+  let blocked = 0;
   const closes = await Promise.allSettled(
-    positions.map((p) =>
-      emergency(id, O.closeOrder({ id: p.positionId || p.position_id, symbol: p.symbol, leverage: parseFloat(p.leverage) || null })),
-    ),
+    c.positions.map(async (p) => {
+      try {
+        await guardClose(c.id, p, retry, auto); // SELF-MATCHING: a resting order of an account NOT being flattened
+      } catch (e) {
+        blocked++;
+        throw e;
+      }
+      return emergency(c.id, O.closeOrder(p));
+    }),
   );
-  const failed = [...cancels, ...closes].filter((r) => r.status === 'rejected');
-  if (orders.length || positions.length)
-    log.warn(`FLATTEN ${label}: ${orders.length} orders cancelled, ${positions.length} positions closed${failed.length ? `, ${failed.length} rejected (${failed[0].reason.message})` : ''}`);
-  return orders.length + positions.length;
+  const failed = [...c.failed, ...closes.filter((r) => r.status === 'rejected')];
+  if (c.orders.length || c.positions.length)
+    log.warn(`FLATTEN ${label}: ${c.orders.length} orders cancelled, ${c.positions.length - blocked} positions closed${blocked ? `, ${blocked} NOT closed (self-matching)` : ''}${failed.length ? `, ${failed.length} rejected (${failed[0].reason.message})` : ''}`);
+  return c.orders.length + c.positions.length;
 }
 
 /** All active accounts. Returns { found, left } (left > 0 = something was still open at the second round). */
-async function flattenAll(only, why) {
+async function flattenAll(only, why, opts = {}) {
   if (running) return null;
   const ids = only && only.length ? only.filter((id) => S.accounts[id]) : Object.keys(S.accounts); // only: some accounts (Account limits guard)
   if (!ids.length) {
@@ -4733,15 +4775,20 @@ async function flattenAll(only, why) {
   const t0 = performance.now();
   log.warn(`FLATTEN ALL${why ? ' (' + why + ')' : ''}: closing every position and cancelling every order on ${ids.length} account${ids.length === 1 ? '' : 's'}`);
   try {
-    const sweep = () =>
-      Promise.all(
+    // orders of EVERY account first, then the positions: a close must not fill against another account's order
+    // that is still being cancelled (self-matching)
+    const retry = () => flattenAll(only, why, opts);
+    const sweep = async () => {
+      const cs = await Promise.all(
         ids.map((id) =>
-          flattenAccount(id).catch((e) => {
+          cancelAccount(id).catch((e) => {
             log.error(`FLATTEN ${(S.accounts[id] || {}).label || id}: not readable (${e.message})`);
-            return 1;
+            return null;
           }),
         ),
       );
+      return Promise.all(cs.map((c) => (c ? closeAccount(c, retry, !!opts.auto) : 1)));
+    };
     const found = (await sweep()).reduce((a, b) => a + b, 0);
     await sleep(RECHECK_MS);
     const left = (await sweep()).reduce((a, b) => a + b, 0);
@@ -4763,7 +4810,7 @@ async function flattenAll(only, why) {
  * FLAT_ROUNDS rounds; if something is left it says so and throws.
  * Returns { cancelled, closed } (totals of all rounds).
  */
-async function flattenMarket(accountId, symbol) {
+async function flattenMarket(accountId, symbol, opts = {}) {
   const label = (S.accounts[accountId] || {}).label || accountId;
   // what is open now: fresh REST PLUS what the feed knows (a late REST must not miss anything)
   const read = async () => {
@@ -4773,14 +4820,14 @@ async function flattenMarket(accountId, symbol) {
     ]);
     const positions = ((posR && posR.positions) || [])
       .filter((p) => p.symbol === symbol && (p.positionId || p.position_id) && parseFloat(p.quantity) > 0)
-      .map((p) => ({ id: p.positionId || p.position_id, symbol, leverage: parseFloat(p.leverage) || null }));
+      .map((p) => ({ id: p.positionId || p.position_id, symbol, side: sideOf(p), leverage: parseFloat(p.leverage) || null }));
     const orders = ((ordR && ordR.orders) || []).filter((o) => o.symbol === symbol).map((o) => o.orderId || o.order_id || o.id).filter(Boolean);
     return { positions, orders };
   };
   const fromFeed = (cur) => {
     const st = S.state[accountId] || {};
     for (const p of st.positions || [])
-      if (p.symbol === symbol && p.qty > 0 && p.id && !cur.positions.some((x) => x.id === p.id)) cur.positions.push({ id: p.id, symbol, leverage: p.leverage || null });
+      if (p.symbol === symbol && p.qty > 0 && p.id && !cur.positions.some((x) => x.id === p.id)) cur.positions.push({ id: p.id, symbol, side: p.side, leverage: p.leverage || null });
     for (const o of st.orders || []) if (o.symbol === symbol && o.id && !cur.orders.includes(o.id)) cur.orders.push(o.id);
     return cur;
   };
@@ -4794,6 +4841,9 @@ async function flattenMarket(accountId, symbol) {
       if (round > 1) log.warn(`FLAT ${label} ${symbol}: still open after round ${round - 1} (${cur.positions.length} positions, ${cur.orders.length} orders), closing again`);
       // orders first: one could fill after the close and reopen
       const cancels = await Promise.allSettled(cur.orders.map((orderId) => emergency(accountId, { method: 'POST', path: '/v3/positions/cancel-order', body: { orderId } })));
+      dropOrders(accountId, cur.orders.filter((_, i) => cancels[i].status === 'fulfilled'));
+      // SELF-MATCHING: no close while a resting order (of this or another account) could take the other side
+      for (const p of cur.positions) await guardClose(accountId, p, () => flattenMarket(accountId, symbol, opts), !!opts.auto);
       const closes = await Promise.allSettled(cur.positions.map((p) => emergency(accountId, O.closeOrder(p))));
       cancelled += cancels.filter((r) => r.status === 'fulfilled').length;
       closed += closes.filter((r) => r.status === 'fulfilled').length;
@@ -4823,6 +4873,7 @@ async function cancelOrdersOn(accountId, symbol) {
   const ids = ((ordR && ordR.orders) || []).filter((o) => o.symbol === symbol).map((o) => o.orderId || o.order_id || o.id).filter(Boolean);
   try {
     const res = await Promise.allSettled(ids.map((orderId) => emergency(accountId, { method: 'POST', path: '/v3/positions/cancel-order', body: { orderId } })));
+    dropOrders(accountId, ids.filter((_, i) => res[i].status === 'fulfilled'));
     const failed = res.filter((r) => r.status === 'rejected');
     if (ids.length) (failed.length ? log.error : log.info)(`Cancelled ${ids.length - failed.length} of ${ids.length} orders on ${symbol}${failed.length ? ' (' + failed[0].reason.message + ')' : ''}`);
     if (failed.length) throw new Error(failed[0].reason.message);
@@ -4832,7 +4883,7 @@ async function cancelOrdersOn(accountId, symbol) {
   }
 }
 
-module.exports = { flattenAll, flattenMarket, cancelOrdersOn, running: () => running };
+module.exports = { flattenAll, flattenMarket, cancelOrdersOn, cancelOne, running: () => running };
 
   },
   "core/hooks.js": function (module, exports, require) {
@@ -5115,25 +5166,7 @@ function setEnabled(v) {
   notify();
 }
 
-const SM = require('../domain/selfmatch');
-/** Self-matching check against the other accounts' pending orders (state as last read). */
-function selfMatch(accountId, order) {
-  try {
-    const accounts = {};
-    for (const id of Object.keys(S.accounts)) {
-      const st = S.state[id] || {};
-      accounts[id] = { label: S.accounts[id].label, orders: st.orders || [], positions: st.positions || [] };
-    }
-    const b = order.body || {};
-    const pos = b.positionId && accounts[accountId] ? accounts[accountId].positions.find((p) => p.id === b.positionId) : null;
-    const sym = b.symbol || (pos && pos.symbol);
-    const mk = sym && S.marks[sym];
-    return SM.check({ order, accountId, accounts, mark: mk ? mk.px : NaN, tick: (S.symbols[sym] || {}).tick });
-  } catch (e) {
-    log.warn('self-match check failed: ' + e.message);
-    return null;
-  }
-}
+const selfmatch = require('./selfmatch');
 
 /** Reason why trading is not possible now, or null. */
 function blocked(accountId) {
@@ -5152,14 +5185,11 @@ async function send(accountId, order, label, positionId, opts = {}) {
     log.warn(`✗ ${label}: ${why}`);
     throw new Error(why);
   }
-  // SELF-MATCHING (Vest policy, Gerry 2026-11-25): an order that could trade against a pending order of ANOTHER own account.
-  // Entries are refused; exits (reduce / close) are only warned: blocking a way out would be worse.
-  const sm = selfMatch(accountId, order);
-  if (sm && !sm.exit) {
-    log.warn(`✗ ${label}: ${sm.text}`);
-    throw new Error(sm.text);
-  }
-  if (sm) log.warn(`${label}: ${sm.text} (exit: sent anyway)`);
+  // SELF-MATCHING (Vest Prop ToS sec. 5, permanent ban): an order that could trade against a resting order of ANOTHER own
+  // account is refused; a manual exit gets a button in the header that cancels those orders and sends it again; an
+  // automatic one (opts.auto, copier) cancels them itself and goes out.
+  const label0 = label; // label is prefixed with the account below
+  await selfmatch.guard(accountId, order, { retry: () => send(accountId, order, label0, positionId, opts), auto: !!(opts.auto || opts.copy) });
   if (positionId && busy.has(positionId)) throw new Error(`wait: "${busy.get(positionId)}" is still in progress`);
   if (positionId) busy.set(positionId, label);
   notify();
@@ -5364,7 +5394,7 @@ function update(pos, s, c) {
 
 function fire(pos, order, label, s, now) {
   s.next = now + MIN_GAP_MS;
-  return orders.send(S.selected, order, label, pos.id).catch((e) => {
+  return orders.send(S.selected, order, label, pos.id, { auto: true }).catch((e) => {
     s.next = Date.now() + FAIL_WAIT_MS;
     log.error(`${label}: ${e.message}`);
   });
@@ -5570,6 +5600,155 @@ module.exports = {
   engineCfg,
   setConfig: (fn) => (cfgOf = fn),
   wants: () => mode() !== 'off' && positions().length > 0,
+};
+
+  },
+  "core/selfmatch.js": function (module, exports, require) {
+// SELF-MATCHING guard, live part: the accounts as last read, the block / warning shown in the panel header, and the
+// button that cancels the orders in the way and then repeats the exit. Rules in domain/selfmatch.js.
+// "No silent fallback" (Gerry 2026-11-26): orders of an account never read, or not refreshed for STALE_MS, are UNKNOWN:
+// entries are blocked, exits go out with a warning (blocking a way out on missing data would be worse).
+
+const store = require('./store');
+const SM = require('../domain/selfmatch');
+const log = require('../diag/log');
+
+const { S } = store;
+const STALE_MS = 90000; // REST re-read every 60 s with the feed up, 20 s with it down: older than this = not trusted
+const listeners = new Set();
+let shown = null; // { text, kind: 'err' | 'warn', button, run } of the last block / warning, or null
+let busy = false;
+
+/** Snapshot for the domain: { id: { label, known, orders, positions } }. */
+function accounts(now = Date.now()) {
+  const out = {};
+  for (const id of Object.keys(S.accounts)) {
+    const st = S.state[id];
+    const at = st ? Math.max(st.restAt || 0, st.feedAt || 0) : 0;
+    out[id] = {
+      label: S.accounts[id].label || id,
+      known: !!st && Array.isArray(st.orders) && now - at < STALE_MS,
+      orders: (st && st.orders) || [],
+      positions: (st && st.positions) || [],
+    };
+  }
+  return out;
+}
+
+function notify() {
+  for (const fn of listeners) fn(shown);
+}
+function show(v) {
+  shown = v;
+  notify();
+}
+
+/** The block / warning from the header goes away (✕ button, or after the exit went through). */
+function dismiss() {
+  show(null);
+}
+
+/**
+ * Check before an order is sent. Throws (and shows the reason in the header) when it must not go out.
+ * retry: function that sends the same exit again, offered on the button after the orders in the way are cancelled.
+ * skip: Set of order ids that are being cancelled together with this order (FLAT of several accounts).
+ * position: { id, symbol, side } of an exit read fresh from REST (FLAT), when the state may not hold it yet.
+ * auto: automatic exit (Account limits, Safe runner, copier): nobody is there to press the button, so the orders in the
+ *   way are cancelled here (said in the header and the log) and the exit goes out (Gerry 2026-11-26).
+ */
+async function guard(accountId, order, { retry, skip, position, auto } = {}) {
+  const b = order.body || {};
+  // market of the order: reduce / close bodies carry only the position id
+  const pos = position || (b.positionId ? ((S.state[accountId] || {}).positions || []).find((p) => p.id === b.positionId) : null);
+  const sym = b.symbol || (pos && pos.symbol);
+  const r = SM.check({ order, accountId, accounts: accounts(), tick: sym ? (S.symbols[sym] || {}).tick : NaN, skip, position });
+  if (!r) return; // cancel, leg removal...: nothing that can trade
+  if (!r.hits.length && !r.unknown.length) {
+    if (shown && !busy) show(null); // an order passed the check: the old block / warning is no longer current
+    return;
+  }
+  if (r.hits.length && !r.leg && r.exit && auto) {
+    const flatten = require('./flatten'); // lazy: flatten -> orders -> selfmatch
+    for (const h of r.hits) {
+      try {
+        await flatten.cancelOne(h.accountId, h.orderId);
+      } catch (e) {
+        const text = `SELF-MATCH BLOCKED: automatic exit ${r.what} not sent: cancelling ${h.text} failed (${e.message})`;
+        log.error(text);
+        show({ text, kind: 'err', button: '', run: null });
+        throw new Error(text);
+      }
+    }
+    const text = `SELF-MATCH: automatic exit ${r.what}: cancelled first ${r.hits.map((h) => h.text).join('; ')}`;
+    log.warn(text);
+    show({ text, kind: 'warn', button: '', run: null });
+    return;
+  }
+  if (r.hits.length && !r.leg) {
+    const text = SM.textOf(r, true);
+    log.warn(`✗ ${(S.accounts[accountId] || {}).label || accountId}: ${text}`);
+    const list = r.hits.map((h) => ({ accountId: h.accountId, orderId: h.orderId, text: h.text }));
+    const fix = r.exit && retry;
+    show({
+      text: fix ? text : text + ': cancel that order first',
+      kind: 'err',
+      button: fix ? `CANCEL ${list.length === 1 ? 'THAT ORDER' : 'THOSE ' + list.length + ' ORDERS'}, THEN CLOSE` : '',
+      run: fix ? () => cancelThenRetry(list, retry) : null,
+    });
+    throw new Error(text);
+  }
+  if (r.unknown.length && !r.exit) {
+    const text = SM.textOf(r, true);
+    log.warn(`✗ ${(S.accounts[accountId] || {}).label || accountId}: ${text}`);
+    show({ text: text + ': wait a moment or press "Reload all data"', kind: 'err', button: '', run: null });
+    throw new Error(text);
+  }
+  // SL / TP leg against a resting order, or an exit while some account is unknown: sent, with a warning
+  const text = SM.textOf(r, false) + (r.leg ? ': when it triggers, Vest sends it at market. Cancel that order if it is yours' : ': exit sent anyway');
+  log.warn(text);
+  show({ text, kind: 'warn', button: '', run: null });
+}
+
+/** Button: cancels the orders in the way (emergency path: works with Orders OFF), drops them from the state, repeats the exit. */
+async function cancelThenRetry(list, retry) {
+  if (busy) return;
+  busy = true;
+  const flatten = require('./flatten'); // lazy: flatten -> orders -> selfmatch
+  try {
+    for (const h of list) {
+      await flatten.cancelOne(h.accountId, h.orderId);
+      log.info(`SELF-MATCH: cancelled ${h.text} (button)`);
+    }
+    show(null);
+    await retry();
+    log.info('SELF-MATCH: exit sent after cancelling the orders in the way');
+  } catch (e) {
+    log.error('SELF-MATCH: ' + e.message);
+    if (!shown) show({ text: 'SELF-MATCH: ' + e.message, kind: 'err', button: '', run: null });
+  } finally {
+    busy = false;
+  }
+}
+
+/** Read-only indicator: resting orders of your accounts that already cross each other. '' = none. */
+function crossingText() {
+  const c = SM.crossings(accounts(), (sym) => (S.symbols[sym] || {}).tick);
+  if (!c.length) return '';
+  return `SELF-MATCH RISK: resting orders already cross on ${[...new Set(c.map((x) => x.symbol))].join(', ')}: ${c
+    .slice(0, 3)
+    .map((x) => `${x.buy} / ${x.sell}`)
+    .join('; ')}${c.length > 3 ? ` (+${c.length - 3})` : ''}. Cancel one of them on Vest`;
+}
+
+module.exports = {
+  guard,
+  accounts,
+  dismiss,
+  crossingText,
+  run: () => shown && shown.run && shown.run(),
+  current: () => shown,
+  subscribe: (fn) => (listeners.add(fn), () => listeners.delete(fn)),
+  STALE_MS,
 };
 
   },
@@ -8545,66 +8724,122 @@ module.exports = { evaluate, split, DEFAULTS, KEYS };
 
   },
   "domain/selfmatch.js": function (module, exports, require) {
-// SELF-MATCHING guard (PURE). Vest policy shared by Gerry 2026-11-25: positions on opposite sides across accounts are
-// allowed, but an order of one account must never trade against an order of ANOTHER account of the same user.
-// Before an order is sent, its side / price are compared with the pending orders of the user's other accounts on the
-// same market: if it could execute against one of them, it is reported.
-// Known limits: only orders sent by the tool are checked (Vest's ticket is not); the other accounts' orders are as last
-// read (feed / REST, about 1 s old); SL / TP turn into market orders on Vest's side and cannot be checked here.
+// SELF-MATCHING guard (PURE).
+// Vest Prop Terms of Service (updated 2026-11-23), section 5: opposite positions across your own accounts are allowed;
+// Self-Matching is not: your own opposite buy and sell orders executing against each other (also when you "know or
+// reasonably should know" it will happen). Penalty: permanent ban. Vest matches orders against the resting order book
+// (price-time priority), so a resting LIMIT on one account CAN be filled by an opposite order of another account.
+//
+// Rules (Gerry 2026-11-26):
+// - an order is a risk when it is on the opposite side of a RESTING order on the same market and could cross it:
+//   a buy at or above a resting sell, a sell at or below a resting buy; a MARKET order crosses at any price;
+// - only OTHER accounts count: on the same account and market Vest itself refuses an order opposite to a pending LIMIT
+//   or a position (seen by Gerry on Vest, 2026-11-26, from VestTool and from Vest's own ticket);
+// - entries are blocked; a manual exit is blocked with a button that cancels the orders in the way and then closes;
+//   an automatic exit (Account limits, Safe runner, copier) cancels them itself, says so, then goes out;
+// - unknown or stale orders of another account: entries are blocked, exits are warned (see core/selfmatch.js).
+// SL / TP legs: the tool sends them as executionType 'market', so they never rest on the book; when they trigger it is
+// Vest that sends the market order, which this guard cannot see. Placing or moving a leg is only warned.
 
-const NEAR_TICKS = 4; // a market order is treated as able to hit a resting order up to this many ticks from the mark
-
-/** Side ('buy' | 'sell'), market, type and price of an order that can execute, or null (cancel, SL / TP, ...). */
+/** What an order does: { kind, exit, leg, side 'buy'|'sell', symbol, type 'limit'|'market', price } or null (cancel...). */
 function sideOf(order, posOf) {
   const path = String((order && order.path) || '');
   const b = (order && order.body) || {};
-  const m = path.match(/\/v3\/positions\/(open|append|reduce|close)$/);
+  const m = path.match(/\/v3\/positions\/(open|append|reduce|close|stop-loss|take-profit)$/);
   if (!m) return null;
   const kind = m[1];
-  const type = b.orderType === 'limit' ? 'limit' : 'market';
+  if (String((order && order.method) || 'POST').toUpperCase() === 'DELETE') return null; // removing a leg
+  const type = String(b.orderType || '').toLowerCase() === 'limit' ? 'limit' : 'market';
   const price = type === 'limit' ? +b.price : NaN;
   if (kind === 'open') {
     const s = String(b.side || '').toLowerCase();
     const buy = s === 'long' || s === 'buy' || b.isBuy === true;
-    return { kind, exit: false, side: buy ? 'buy' : 'sell', symbol: b.symbol, type, price };
+    return { kind, exit: false, leg: false, side: buy ? 'buy' : 'sell', symbol: b.symbol, type, price };
   }
-  if (kind === 'append') return { kind, exit: false, side: b.isBuy ? 'buy' : 'sell', symbol: b.symbol, type, price };
-  // reduce / close: the side opposite to the position
-  const pos = posOf(b.positionId);
+  const pos = b.positionId ? posOf(b.positionId) : null;
+  if (kind === 'append') {
+    const buy = b.isBuy != null ? b.isBuy === true : pos ? pos.side === 'long' : null;
+    if (buy == null) return null;
+    return { kind, exit: false, leg: false, side: buy ? 'buy' : 'sell', symbol: b.symbol || (pos && pos.symbol), type, price };
+  }
+  // reduce / close / SL / TP: the side opposite to the position
   if (!pos) return null;
-  return { kind, exit: true, side: pos.side === 'long' ? 'sell' : 'buy', symbol: pos.symbol || b.symbol, type, price };
+  const leg = kind === 'stop-loss' || kind === 'take-profit';
+  return { kind, exit: true, leg, side: pos.side === 'long' ? 'sell' : 'buy', symbol: pos.symbol || b.symbol, type: leg ? 'market' : type, price: leg ? NaN : price };
+}
+
+/** A resting order that can trade: price > 0, size not 0, side known. */
+const resting = (r) => !!r && r.price > 0 && !(r.qty <= 0) && (r.side === 'long' || r.side === 'short');
+
+/** Would an order { side, type, price } trade against the resting order r? Prices within half a tick count as equal. */
+function crosses(o, r, tick) {
+  if (!resting(r) || (r.side === 'long') === (o.side === 'buy')) return false; // same side never trades
+  if (o.type !== 'limit' || !(o.price > 0)) return true; // market: at any price
+  const t = tick > 0 ? tick / 2 : 0;
+  return o.side === 'buy' ? o.price >= r.price - t : o.price <= r.price + t;
+}
+
+const fmt = (label, r) => `${label} ${r.side === 'long' ? 'BUY' : 'SELL'} ${r.qty} @ ${r.price}`;
+
+/**
+ * order { method, path, body }, accountId,
+ * accounts: { id: { label, known (orders read and fresh), orders: [{ id, symbol, side 'long'|'short', price, qty }],
+ *   positions: [{ id, symbol, side }] } }, tick, skip (Set of order ids already being cancelled),
+ * position: { id, symbol, side } of an exit when the state does not hold it yet (fresh REST read of a FLAT).
+ * -> null (nothing that can trade) or { exit, leg, symbol, what, hits: [{ accountId, label, orderId, text }], unknown: [label] }.
+ */
+function check({ order, accountId, accounts, tick, skip, position }) {
+  const own = accounts[accountId] || {};
+  const o = sideOf(order, (id) => (position && position.id === id ? position : (own.positions || []).find((p) => p.id === id)));
+  if (!o || !o.symbol) return null;
+  const hits = [],
+    unknown = [];
+  for (const [id, a] of Object.entries(accounts)) {
+    if (id === accountId) continue; // same account: Vest refuses it by itself
+    const label = a.label || id;
+    if (!a.known) {
+      unknown.push(label);
+      continue;
+    }
+    for (const r of a.orders || []) {
+      if (r.symbol !== o.symbol || (skip && skip.has(r.id))) continue;
+      if (crosses(o, r, tick)) hits.push({ accountId: id, label, orderId: r.id, text: fmt(label, r) });
+    }
+  }
+  const leg = o.kind === 'stop-loss' ? 'SL' : 'TP';
+  const what = `${o.side.toUpperCase()} ${o.leg ? leg + ' (market when triggered)' : o.type + (o.type === 'limit' ? ' @ ' + o.price : '')} on ${o.symbol}`;
+  return { exit: o.exit, leg: o.leg, symbol: o.symbol, what, hits, unknown };
+}
+
+/** Header text of a result ('' when nothing is wrong). blocked = the order was refused. */
+function textOf(r, blocked) {
+  if (!r) return '';
+  const head = `SELF-MATCH ${blocked ? 'BLOCKED' : 'WARNING'}: ${r.what}`;
+  if (r.hits.length) return `${head} could trade against your own resting order: ${r.hits.map((h) => h.text).join('; ')}`;
+  if (r.unknown.length) return `${head}: the orders of ${r.unknown.join(', ')} are not read yet or out of date`;
+  return '';
 }
 
 /**
- * order { path, body }, accountId, accounts: { id: { label, orders: [{ id, symbol, side 'long'|'short', price, qty }],
- * positions: [{ id, symbol, side }] } }, mark (price), tick.
- * -> null, or { exit, text } (text names the other account and its order).
+ * Resting orders that ALREADY cross each other on the same market (read-only indicator).
+ * accounts as in check(), tickOf(symbol). -> [{ symbol, buy: text, sell: text }]
  */
-function check({ order, accountId, accounts, mark, tick }) {
-  const own = accounts[accountId] || {};
-  const o = sideOf(order, (id) => (own.positions || []).find((p) => p.id === id));
-  if (!o || !o.symbol) return null;
-  const t = tick > 0 ? tick : 0;
-  const hits = [];
-  for (const [id, a] of Object.entries(accounts)) {
-    if (id === accountId) continue;
-    for (const r of a.orders || []) {
-      if (r.symbol !== o.symbol || !(r.price > 0)) continue;
-      const rBuy = r.side === 'long';
-      if (rBuy === (o.side === 'buy')) continue; // same side: cannot trade against each other
-      let cross;
-      if (o.type === 'limit') cross = o.side === 'sell' ? o.price <= r.price + t / 2 : o.price >= r.price - t / 2;
-      else if (Number.isFinite(mark)) cross = o.side === 'sell' ? r.price >= mark - NEAR_TICKS * t : r.price <= mark + NEAR_TICKS * t;
-      else cross = true; // no price: better to report than to miss it
-      if (cross) hits.push(`${a.label || id} has a pending ${rBuy ? 'BUY' : 'SELL'} ${r.qty} @ ${r.price}`);
+function crossings(accounts, tickOf) {
+  const all = [];
+  for (const [id, a] of Object.entries(accounts)) if (a.known) for (const r of a.orders || []) if (resting(r)) all.push({ r, id, label: a.label || id });
+  const out = [];
+  for (const b of all) {
+    if (b.r.side !== 'long') continue;
+    for (const s of all) {
+      if (s.r.side !== 'short' || s.r.symbol !== b.r.symbol || s.id === b.id) continue; // same account: Vest refuses it
+      const t = (tickOf && tickOf(b.r.symbol)) || 0;
+      if (b.r.price >= s.r.price - t / 2) out.push({ symbol: b.r.symbol, buy: fmt(b.label, b.r), sell: fmt(s.label, s.r) });
     }
   }
-  if (!hits.length) return null;
-  const what = `${o.side.toUpperCase()} ${o.type}${o.type === 'limit' ? ' @ ' + o.price : ''} on ${o.symbol}`;
-  return { exit: o.exit, text: `SELF-MATCH risk: ${what} could trade against your own order (${hits.join('; ')}): cancel that order first` };
+  return out;
 }
 
-module.exports = { check, sideOf, NEAR_TICKS };
+module.exports = { check, sideOf, crosses, crossings, textOf };
 
   },
   "domain/shapes.js": function (module, exports, require) {
@@ -9068,6 +9303,7 @@ function start(version) {
   const overlay = require('./chart/overlay');
   const orders = require('./core/orders');
   const flatten = require('./core/flatten');
+  const selfmatch = require('./core/selfmatch');
   const entry = require('./core/entry');
   const stops = require('./core/stops');
   const trail = require('./core/trail');
@@ -9223,7 +9459,7 @@ on that market are closed. Real money on every account. It switches off at every
     panel.say(`ACCOUNT LIMITS: ${f.map((x) => GD.ROWS[x.k].name).join(', ')} reached -> FLAT`, 'warn');
     guardBusy = true;
     for (const x of stops.list()) if (ids.includes(x.accountId)) stops.cancel(x.id, 'ACCOUNT LIMITS'); // local entries first: they must not open anything
-    Promise.resolve(flatten.flattenAll(ids, 'ACCOUNT LIMITS'))
+    Promise.resolve(flatten.flattenAll(ids, 'ACCOUNT LIMITS', { auto: true }))
       .catch((e) => log.error(`ACCOUNT LIMITS FLAT: ${e.message}`))
       .finally(() => (guardBusy = false));
   }
@@ -9863,9 +10099,14 @@ ${u.brOn && en && !pos ? 'Bracket ON: its SL / TP go on the first LIMIT, then th
         if (!symbol || !S.selected) throw new Error('chart market not recognised');
         const st = stops.cancelWhere(S.selected, symbol, 'FLAT');
         const acc = S.selected;
+        // SELF-MATCHING: with the copier ON the master's close must not fill against a copy's order still being
+        // cancelled by its own FLAT: the orders of master and copies on this market are cancelled first
+        const cs = copier.state();
+        const grp = cs.armed && !cs.dry && cs.master === acc ? [acc, ...cs.followers.filter((id) => id !== acc)] : [];
+        const pre = grp.length > 1 ? (await Promise.allSettled(grp.map((id) => flatten.cancelOrdersOn(id, symbol)))).reduce((a, x) => a + (x.status === 'fulfilled' ? x.value : 0), 0) : 0;
         const [r] = await Promise.all([flatten.flattenMarket(acc, symbol), copier.mirrorFlat(acc, symbol)]); // master: FLAT on the copies too
         const cp = await copier.flatIdleCopies(acc, symbol); // copier OFF: copies still open on this market -> asked (after the master)
-        if (!r.cancelled && !r.closed && !st && !cp) throw new Error('nothing to close or cancel on this market');
+        if (!r.cancelled && !r.closed && !st && !cp && !pre) throw new Error('nothing to close or cancel on this market');
       }),
     closePct: () => Promise.resolve().then(() => entry.closePct({ accountId: S.selected, symbol: chartMarket(), pct: +panel.ui().closePct || 0 })),
     setClosePct: (v) => panel.setUi('closePct', v),
@@ -10270,6 +10511,7 @@ ${u.brOn && en && !pos ? 'Bracket ON: its SL / TP go on the first LIMIT, then th
 
   function boot() {
     panel.mount(version, {
+      selfMatch: { run: () => selfmatch.run(), dismiss: () => selfmatch.dismiss() },
       riskOn: () => overlay.riskOn(),
       riskOff: () => overlay.riskOff(),
       trailStatus: () => trail.status(),
@@ -10310,6 +10552,14 @@ Works even with Orders OFF. It cannot be undone.`,
         stop: () => copier.stop('from the panel'),
         start: copyStart,
       },
+    });
+    // SELF-MATCHING: block / warning of the last order, and resting orders that already cross (checked at most twice a second)
+    selfmatch.subscribe((v) => panel.smShow(v));
+    let smAt = 0;
+    store.subscribe(() => {
+      if (Date.now() - smAt < 500) return;
+      smAt = Date.now();
+      panel.smCross(selfmatch.crossingText());
     });
     overlay.mount({ getModel: tradeModel, actions: tradeActions });
     // start: the panel (right column, header says what is missing) is there at once; the sections and the chart lines are
@@ -10784,6 +11034,7 @@ const HELP = {
       <b>DAILY PROFIT TARGET</b>: today's P&L against the goal typed on its row. <b>DAILY LOSS LIMIT</b>: today's loss against the level you set. <b>MAX OPEN PROFIT</b> / <b>MAX OPEN LOSS</b>: profit / loss of the open trade (loss out of what you can lose before Vest's daily limit).
       <b>DAILY DRAWDOWN BUFFER</b> / <b>MAX DRAWDOWN BUFFER</b>: dollars left before the daily / total limit (the limit in brackets), as on Vest's page.
       <b>ACCOUNT PROFIT TARGET</b>: total P&L against the evaluation target. A row switched ON draws its level on the chart as a <b>USER</b> line (the price where it closes everything). Bars: green in profit, yellow up to 50% used, orange up to 75%, red beyond.</li>
+      <li><b>Self-matching guard</b> (red / yellow strip in the header): see the <b>?</b> on the strip.</li>
       <li>Click a section title to fold it.</li>
       <li><b>Labels on the chart</b> (no tooltips there: what each one means is here): drag SL, TP, LIMIT and STOP labels (or their line)
       to move them; ✕ cancels. Position label: side and average entry, points from the entry, P&L of the selected account,
@@ -10811,6 +11062,30 @@ const HELP = {
     </ul>`,
   ],
   // ── single settings
+  selfmatch: [
+    'Self-matching guard',
+    `Vest's Prop Terms of Service (section 5) allow opposite positions on your own accounts, but NOT <b>self-matching</b>: a buy and a sell
+    of your own accounts executing against each other. The penalty is a permanent ban. Vest matches orders against the resting order
+    book, so a LIMIT waiting on one account can be filled by an opposite order from another one. On the SAME account Vest itself
+    refuses an order opposite to a pending LIMIT or a position, so only your OTHER accounts are checked.
+    <ul>
+      <li>Before every order the tool sends (Trade commands, LIMIT / STOP, Risk &amp; targets, Bracket, Grid, OCO, Safe runner, copier, FLAT,
+      FLATTEN ALL, Account limits) it compares the order with the <b>resting orders of your other accounts</b> on the same market.
+      A LIMIT is a risk when it would cross one of them (buy at or above a resting sell, sell at or below a resting buy);
+      a <b>market</b> order is a risk with ANY opposite resting order, at any price.</li>
+      <li><b>Red strip = blocked</b>, nothing was sent. An entry: cancel the order named in the strip, then send again. An exit (FLAT, CLOSE,
+      PARTIAL CLOSE...): the button <i>CANCEL THAT ORDER, THEN CLOSE</i> cancels those orders and repeats the exit.</li>
+      <li><b>Automatic exits</b> (Account limits FLAT, Safe runner, the copies following the master): nobody is there to click, so the tool
+      cancels the orders in the way by itself, says which in a <b>yellow</b> strip and in the log, then sends the exit. If a cancel fails,
+      the exit is not sent (red strip).</li>
+      <li>If the orders of an account are not read yet or are older than 90 s, entries are blocked (wait, or <i>Reload all data</i>);
+      exits go out with a <b>yellow</b> warning.</li>
+      <li>SL / TP: the tool sends them as market orders when triggered, so they never rest on the book. Placing one while an opposite
+      resting order exists gives a yellow warning: when it triggers, Vest sends the market order and this guard cannot stop it.</li>
+      <li><b>Violet strip</b>: resting orders of two of your accounts already cross each other (e.g. placed by hand on Vest). Cancel one of them.</li>
+      <li>Orders placed by hand on Vest's own ticket are not checked, and the tool sees them only at its next read (up to about 60 s).</li>
+    </ul>`,
+  ],
   orders: [
     'Orders switch',
     `While it is <b>off</b> the tool cannot open or change a position: only FLAT, FLATTEN ALL and the cancel buttons work.
@@ -10976,7 +11251,7 @@ module.exports = { HELP };
 
   },
   "ui/panel.css": function (module, exports, require) {
-module.exports = ":host { all: initial; }\n.panel {\n  position: fixed; top: 64px; right: 16px; z-index: 2147483000;\n  width: 640px; max-width: calc(100vw - 32px); max-height: calc(100vh - 80px);\n  display: flex; flex-direction: column;\n  background: #12151b; color: #d7dbe3; border: 1px solid #2a2f3a; border-radius: 8px;\n  font: 12px/1.4 system-ui, -apple-system, \"Segoe UI\", sans-serif;\n  box-shadow: 0 8px 28px rgba(0,0,0,.45);\n}\n.panel.min .body { display: none; }\n.head {\n  display: flex; align-items: center; gap: 8px; padding: 6px 10px;\n  border-bottom: 1px solid #2a2f3a; cursor: move; user-select: none;\n}\n.title { font-weight: 600; }\n.ro { font-size: 10px; padding: 1px 6px; border-radius: 4px; background: #2b3346; color: #9fb3d9; }\n.dots { display: flex; gap: 8px; margin-left: auto; }\n.dot { display: inline-flex; align-items: center; gap: 4px; color: #8b93a3; font-size: 11px; }\n.dot::before { content: \"\"; width: 7px; height: 7px; border-radius: 50%; background: #5b6373; }\n.dot.pass::before { background: #3ecf8e; } .dot.warn::before, .dot.wait::before { background: #e8b84a; } .dot.fail::before { background: #ff5a4f; }\n.btn { background: #1d222c; color: #d7dbe3; border: 1px solid #333a48; border-radius: 4px; padding: 3px 8px; font: inherit; cursor: pointer; }\n.btn:hover { background: #262c38; }\n.btn.ord { font-size: 10px; padding: 1px 6px; color: #9fb3d9; }\n.btn.ord.on { background: #1f6b3f; border-color: #3ecf8e; color: #fff; font-weight: 700; } /* ON: green (orders can be sent) */\n.body { overflow: auto; padding: 8px 10px 10px; display: flex; flex-direction: column; gap: 10px; }\nh4 { margin: 0 0 4px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: #8b93a3; }\ntable { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }\nth, td { padding: 3px 4px; text-align: right; white-space: nowrap; }\nth { color: #8b93a3; font-weight: 500; border-bottom: 1px solid #2a2f3a; }\nth:first-child, td:first-child { text-align: left; }\ntbody tr { cursor: pointer; } tbody tr:hover { background: #1a1f28; }\ntr.sel { background: #1f2633; }\ntfoot td { border-top: 1px solid #2a2f3a; font-weight: 600; }\n.up { color: #3ecf8e; } .down { color: #ff6b61; } .muted { color: #6f7787; }\n.tot { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }\n.tot div { background: #171b23; border-radius: 6px; padding: 5px 7px; }\n.tot b { display: block; font-size: 13px; font-variant-numeric: tabular-nums; }\n.tot span { color: #8b93a3; font-size: 10px; }\n.calc { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; align-items: end; }\nlabel { display: flex; flex-direction: column; gap: 2px; color: #8b93a3; font-size: 11px; }\ninput, select { background: #0d1015; color: #e6e9ef; border: 1px solid #333a48; border-radius: 4px; padding: 4px 6px; font: inherit; width: 100%; box-sizing: border-box; }\n.out { margin-top: 6px; background: #171b23; border-radius: 6px; padding: 6px 8px; font-variant-numeric: tabular-nums; }\n.note { color: #6f7787; font-size: 11px; }\n.checks td { text-align: left; white-space: normal; }\n.lvl { font-weight: 600; } .lvl.pass { color: #3ecf8e; } .lvl.warn, .lvl.wait { color: #e8b84a; } .lvl.fail { color: #ff5a4f; }\n.log { max-height: 120px; overflow: auto; font-family: ui-monospace, Consolas, monospace; font-size: 11px; color: #9aa3b2; }\n.log .warn { color: #e8b84a; } .log .error { color: #ff6b61; }\n.row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }\n.pl { display: flex; flex-direction: column; gap: 6px; }\n.plhead { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }\n.plbig { font-size: 26px; font-weight: 800; line-height: 1.1; font-variant-numeric: tabular-nums; }\n.plsub { color: #8b93a3; font-size: 11px; } .plsub b { font-weight: 700; }\n.btn.flatall { color: #ff8a80; border-color: #a33; background: #2a1416; font-weight: 700; padding: 6px 12px; }\n.btn.flatall:hover { background: #8a2a2a; color: #fff; }\n.btn.flatall[disabled] { opacity: .5; cursor: default; }\n.placc { display: flex; flex-direction: column; }\n.pla { padding: 5px 2px; border-top: 1px solid #22272f; cursor: pointer; }\n.plr { display: flex; justify-content: space-between; gap: 8px; font-variant-numeric: tabular-nums; }\n.plr.muted { font-size: 11px; }\n.trd { display: flex; flex-direction: column; gap: 6px; }\n.trh { display: flex; align-items: baseline; gap: 8px; } .trh b { font-size: 16px; } .trh .lev { font-size: 10px; padding: 1px 5px; border: 1px solid #3a4150; border-radius: 3px; color: #aab1be; }\n.trh .trpx { margin-left: auto; font-variant-numeric: tabular-nums; }\n.bars { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }\n.bar { border: 1px solid #2a2f3a; border-radius: 6px; padding: 5px 7px; }\n.bl { display: flex; justify-content: space-between; gap: 6px; font-size: 10px; color: #8b93a3; } .bl span:last-child { color: #d7dbe3; text-align: right; }\n.track { height: 4px; background: #222733; border-radius: 2px; margin-top: 5px; overflow: hidden; }\n.track i { display: block; height: 100%; width: 0; background: #3ecf8e; } .track i.warn { background: #e8b84a; } .track i.hot { background: #ff5a4f; }\n.warn { color: #e8b84a; } .hot { color: #ff6b61; }\n.pend { display: flex; flex-direction: column; gap: 3px; }\n.pr { display: flex; align-items: center; gap: 8px; font-variant-numeric: tabular-nums; border-left: 2px solid #2f4a70; padding-left: 6px; }\n.pr .pk { font-weight: 700; min-width: 54px; }\n.pr .btn.sm { margin-left: auto; padding: 1px 6px; font-size: 10px; }\n.trs { font-size: 11px; color: #aab1be; font-variant-numeric: tabular-nums; } .trs b { font-weight: 700; }\n\n/* copier */\n.copy .cprow { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }\n.btn.seg { padding: 2px 8px; color: #aab1be; }\n.btn.seg.on { color: #fff; border-color: #7fb2ff; background: #16223f; }\n.btn.seg[disabled] { cursor: default; opacity: .7; }\n.copy .cpst { flex: 1; text-align: right; }\n.btn.cpgo { font-weight: 700; color: #3ecf8e; border-color: #2f6b52; background: #0f2a20; padding: 3px 14px; }\n.btn.cpgo.on { color: #fff; border-color: #c44; background: #8a2a2a; }\n.cpacc { width: 100%; }\n.cpacc td.eq { text-align: right; font-variant-numeric: tabular-nums; }\n.cpacc select { background: #0d1015; color: #d7dbe3; border: 1px solid #333a48; border-radius: 3px; font: inherit; }\n.cpacc input.alias { width: 110px; background: #0d1015; color: #e6e9ef; border: 1px solid #333a48; border-radius: 3px; padding: 1px 4px; font: inherit; }\n.cpacc .idt { color: #6b7385; font-size: 10px; font-family: ui-monospace, Consolas, monospace; margin-left: 4px; }\n/* chart lines: colour, dash, width per kind */\n.lstyle td { padding: 2px 4px 2px 0; }\n.lstyle td:first-child { width: 52px; font-weight: 700; }\n.lstyle input[type=\"color\"] { width: 34px; height: 20px; padding: 0 2px; cursor: pointer; }\n.lstyle select { padding: 2px 4px; }\n/* trailing/BE fields without a value clearly visible, warnings in yellow */\ninput[placeholder=\"empty\"]::placeholder { color: #5b6170; font-style: italic; }\n.note.warn { color: #ffb402; }\n\n/* account activity dot next to the name (store.activityOf) */\n.adot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 5px; vertical-align: 1px; background: #5b6373; flex: none; }\n.adot.free { background: #3ecf8e; } .adot.busy { background: #ff5a4f; } .adot.ph { background: #e8b84a; }\n/* foldable sections: title bar with a fold button and a \"?\" that opens the explanation */\n.sec { flex: none; border: 1px solid #222733; border-radius: 6px; background: #14181f; }\n.sh { display: flex; align-items: center; gap: 6px; padding: 4px 8px; }\n.fold { flex: 1; text-align: left; background: none; border: 0; padding: 2px 0; cursor: pointer; font: 600 11px/1.4 system-ui, -apple-system, \"Segoe UI\", sans-serif;\n  text-transform: uppercase; letter-spacing: .04em; color: #aab2c0; }\n.fold::before { content: \"▾\"; display: inline-block; width: 14px; color: #6f7787; }\n.sec.folded .fold::before { content: \"▸\"; }\n.fold:hover { color: #e6e9ef; }\n.sb { padding: 2px 8px 8px; overflow-x: auto; display: flex; flex-direction: column; gap: 6px; }\n.sec.folded .sb { display: none; }\n.sb > * { flex: none; }\n.group { margin-top: 4px; padding: 0 2px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: #6f7787;\n  border-bottom: 1px solid #2a2f3a; }\n.qi { flex: none; width: 17px; height: 17px; padding: 0; border-radius: 50%; border: 1px solid #3b4456; background: #1d222c; color: #9fb3d9;\n  font: 700 10px/15px system-ui, -apple-system, \"Segoe UI\", sans-serif; text-align: center; cursor: pointer; }\n.qi:hover { background: #2b3346; color: #fff; }\n.opt { display: inline-flex; align-items: center; gap: 4px; margin-right: 8px; }\nlabel.il { flex-direction: row; align-items: center; gap: 4px; flex-wrap: wrap; }\nlabel.il input[type=\"checkbox\"] { width: auto; }\n.pop { position: absolute; z-index: 5; max-height: 70%; overflow: auto; padding: 8px 10px; background: #1b2029; border: 1px solid #4a5468;\n  border-radius: 6px; box-shadow: 0 8px 24px rgba(0,0,0,.55); color: #d7dbe3; font-size: 12px; line-height: 1.45; }\n.pop .pt { font-weight: 700; margin-bottom: 4px; color: #fff; }\n.pop ul, .helptext ul { margin: 4px 0; padding-left: 18px; }\n.pop li, .helptext li { margin: 2px 0; }\n.helptext { color: #b8bfcc; font-size: 12px; line-height: 1.45; }\n\n/* ── docked: full-height column on the right (Vest's page is narrowed by dock.js) */\n/* column background: stays when the panel is folded, the cards are drawn on it (overlay above, panel above both) */\n.dockbg { display: none; position: fixed; top: 0; right: 0; bottom: 0; z-index: 2147481000; background: #1f2024; border-left: 1px solid #34363c; }\n.panel.dock { top: 0; right: 0; bottom: auto; left: auto; width: var(--dw, 420px); max-width: none; max-height: 100vh; height: auto;\n  border-radius: 0; border-width: 0 0 0 1px; box-shadow: -6px 0 18px rgba(0,0,0,.35); }\n.panel.dock .head { cursor: default; flex-wrap: wrap; row-gap: 4px; }\n.panel.dock .tot { grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); }\n.panel.dock .calc { grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); }\n.btn.on { color: #fff; border-color: #7fb2ff; background: #16223f; }\n\n/* ── Console style: larger, section titles on a bar with a coloured edge, roomy fields and buttons */\n.panel.console { background: #1f2024; border-color: #34363c; font-size: 13px; color: #e2e4e9; }\n.panel.console .head { background: #26272c; border-bottom-color: #34363c; padding: 8px 12px; }\n.panel.console .title { font-size: 15px; font-weight: 800; letter-spacing: .02em; }\n.panel.console .body { padding: 10px 10px 14px; gap: 10px; }\n.panel.console .sec { border: 1px solid #34363c; border-radius: 6px; background: #26272c; overflow: hidden; }\n.panel.console .sh { background: #303136; border-left: 4px solid #f97316; padding: 6px 10px 6px 8px; }\n.panel.console .fold { font-size: 13px; text-transform: none; letter-spacing: 0; font-weight: 700; color: #f1f2f5; }\n.panel.console .fold::before { content: \"\"; width: 0; }\n.panel.console .sh::after { content: \"▾\"; color: #8e939e; font-size: 12px; margin-left: 2px; }\n.panel.console .sec.folded .sh::after { content: \"▸\"; }\n.panel.console .sb { padding: 10px 12px 12px; gap: 10px; }\n.panel.console .group { margin-top: 8px; font-size: 11px; color: #8e939e; border-bottom-color: #34363c; }\n.panel.console input, .panel.console select { background: #17181b; border: 1px solid #45474e; border-radius: 5px; padding: 6px 8px; color: #f1f2f5; }\n.panel.console input:focus, .panel.console select:focus { outline: none; border-color: #f97316; }\n.panel.console input[type=\"checkbox\"] { width: 15px; height: 15px; accent-color: #f97316; }\n.panel.console label { color: #a4a8b1; font-size: 12px; }\n.panel.console .opt { margin: 2px 12px 2px 0; }\n.panel.console .row { gap: 8px 4px; }\n.panel.console .btn { border-radius: 5px; padding: 6px 12px; background: #34363c; border-color: #45474e; color: #f1f2f5; font-weight: 600; }\n.panel.console .btn:hover { background: #3f4148; }\n.panel.console .btn.ord { padding: 3px 9px; font-size: 11px; }\n.panel.console .btn.ord.on { background: #15803d; border-color: #22c55e; }\n.panel.console .btn.on { background: #c2410c; border-color: #f97316; color: #fff; }\n.panel.console .btn.flatall { background: #d4a514; border-color: #f0c03a; color: #17181b; font-size: 12px; padding: 6px 12px; white-space: nowrap; }\n.panel.console .btn.flatall:hover { background: #e8b923; color: #000; }\n.panel.console .btn.cpgo { background: #15803d; border-color: #22c55e; color: #fff; padding: 6px 18px; }\n.panel.console .btn.cpgo.on { background: #b91c1c; border-color: #ef4444; }\n.panel.console .btn.seg.on { background: #c2410c; border-color: #f97316; color: #fff; }\n.panel.console .tot div, .panel.console .out { background: #17181b; border: 1px solid #34363c; border-radius: 6px; }\n.panel.console .tot b { font-size: 15px; }\n.panel.console .plbig { font-size: 30px; }\n.panel.console th { color: #a4a8b1; border-bottom-color: #45474e; }\n.panel.console tbody tr:hover { background: #303136; } .panel.console tr.sel { background: #1e2a44; }\n.panel.console .bar { border-color: #45474e; background: #17181b; }\n.panel.console .track { height: 6px; background: #34363c; border-radius: 3px; }\n.panel.console .up { color: #4ade80; } .panel.console .down { color: #f87171; }\n.panel.console .qi { width: 19px; height: 19px; line-height: 17px; background: #303136; border-color: #45474e; color: #fdba74; }\n.panel.console .log { background: #17181b; border: 1px solid #34363c; border-radius: 5px; padding: 6px 8px; font-size: 11.5px; color: #c4c7ce; max-height: 160px; }\n.panel.console .pop { background: #2a2b30; border-color: #4b4e57; }\n\n/* docked: the open panel fills the column to the bottom (the column's cards are hidden meanwhile);\n   folded = header only, the cards under it */\n.panel.dock:not(.min) { height: 100vh; }\n.panel.dock.withcards.min { box-shadow: 0 6px 14px rgba(0,0,0,.35); border-width: 0 0 1px 1px; }\n/* Trailing stop and breakeven: shown in the docked column instead (Trailing & breakeven section) */\n.panel.stopscol .sec[data-sec=\"stops\"] { display: none; }\n/* result of the last command, in the header (two short lines at most: the header keeps its height) */\n.say { flex: 1 1 0; min-width: 0; align-self: center; font-size: 10.5px; line-height: 11px; max-height: 22px; overflow: hidden;\n  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; word-break: break-word; color: #8b93a3; }\n.say.ok { color: #3ecf8e; } .say.err { color: #ff6b61; }\n/* docked: title, version and messages on the first row; status dots and the buttons on the second */\n.hbr { display: none; }\n.panel.dock .hbr { display: block; flex-basis: 100%; height: 0; }\n/* header, docked: timeframe / countdown / clock / account left of the status dots; the position on its own row */\n.hinfo { display: none; }\n.panel.dock .hinfo { display: inline-flex; align-items: baseline; gap: 8px; min-width: 0; overflow: hidden; white-space: nowrap;\n  font-size: 12px; font-variant-numeric: tabular-nums; color: #e2e4e9; }\n.hinfo b { font-weight: 800; }\n.hinfo i { font-style: normal; font-weight: 600; }\n.hinfo i.cd { color: #7fb2ff; }\n.hinfo .acc { color: #c9d1e0; font-size: 11px; font-weight: 700; text-transform: uppercase; overflow: hidden; text-overflow: ellipsis; }\n.hpos { flex-basis: 100%; display: flex; align-items: baseline; gap: 10px; box-sizing: border-box; padding: 4px 8px; border-radius: 5px;\n  border-left: 3px solid #3a4150; background: #1a1b1f; font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; }\n.hpos.long { border-left-color: #3ecf8e; } .hpos.short { border-left-color: #ff6b61; }\n.hpos .sd { font-weight: 800; color: #8b93a3; }\n.hpos.long .sd, .hpos.long .q, .hpos.long .en { color: #3ecf8e; } .hpos.short .sd, .hpos.short .q, .hpos.short .en { color: #ff6b61; }\n.hpos .q { color: #ffb402; }\n.hpos .pl { font-size: 13px; }\n.hpos .mic { color: #d7dbe3; font-weight: 600; }\n.hpos .day { margin-left: auto; color: #8b93a3; font-weight: 600; }\n.hpos .up { color: #3ecf8e; } .hpos .down { color: #ff6b61; }\n/* position in the header: two rows (side / size / entry .. P&L, then points / contracts .. today) */\n.hpos { flex-direction: column; align-items: stretch; gap: 3px; }\n.hpos .r1, .hpos .r2 { display: flex; align-items: baseline; gap: 12px; min-width: 0; white-space: nowrap; overflow: hidden; }\n.hpos .r2 { font-size: 11.5px; }\n.hpos i { font-style: normal; font-weight: 600; font-size: 10.5px; color: #8b93a3; margin-right: 2px; }\n.hpos .pl { margin-left: auto; font-size: 14px; font-weight: 800; }\n.hpos .day { margin-left: auto; }\n.hpos .day b { font-weight: 700; }\n.hpos .dtr { margin-left: auto; flex: none; display: inline-flex; align-items: baseline; gap: 4px; white-space: nowrap; color: #8b93a3; font-weight: 600; }\n.hpos .dtr b { display: inline; font-weight: 700; color: #d7dbe3; }\n.hpos .dtr i { margin-right: 0; }\n.hpos .r2 .day { flex: none; }\n.hpos .r2 .mic { min-width: 0; overflow: hidden; text-overflow: ellipsis; }\n.hpos .dtr b.up { color: #3ecf8e; } .hpos .dtr b.down { color: #ff6b61; }\n.hpos .dtr + .day { margin-left: 0; }\n\n/* copier: test mode and per-copy limits (v0.20.15) */\n.cpdry { display: flex; align-items: center; gap: 6px; margin: 6px 0; font-size: 12px; color: #c9ced8; cursor: pointer; }\n.cpacc .cph th { font-size: 10.5px; font-weight: 600; color: #8b93a3; text-align: left; padding: 2px 4px; }\n.cpacc .clim { width: 64px; box-sizing: border-box; height: 22px; padding: 0 4px; background: #000; color: #fff; border: 1px solid #3b4456; border-radius: 4px; font-size: 12px; }\n\n/* header ORDERS / COPY toggles (v0.20.26): right of the first header row, red OFF / green ON */\n.htg { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; align-self: center; flex: 0 0 auto; }\n.htl { font-size: 9px; font-weight: 800; letter-spacing: .3px; color: #8b93a3; }\n/* text 2 px higher than v0.20.27 (Gerry): same font as then, centred in the box with 1 px bottom padding */\n.htb { display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; font-family: inherit;\n  min-width: 32px; height: 16px; padding: 0 4px 1px; border-radius: 3px; cursor: pointer;\n  color: #fff; background: #8a2a2a; border: 1px solid #c44; margin-right: 6px; }\n.htb.on { background: #1f6a45; border-color: #3ecf8e; }\n\n/* Copier (v0.20.27): test-mode checkbox at the start of its line, Role readable, no Max positions column */\n.panel .cpdry { flex-direction: row; align-items: center; justify-content: flex-start; text-align: left; }\n.panel .cpdry input { flex: 0 0 auto; width: 16px; height: 16px; margin: 0; padding: 0; }\n.panel .cpacc select { width: 92px; min-width: 92px; padding: 3px 4px; font-size: 12px; }\n\n/* v0.20.36 reorganised panel: accounts overview, multiplier per copy */\n.ovh { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }\ntable.acct td:first-child, table.acct th:first-child { text-align: left; }\ntable.acct { font-size: 11px; }\ntable.acct td, table.acct th { padding-left: 2px; padding-right: 2px; white-space: nowrap; }\ntable.acct tfoot td { font-weight: 700; border-top: 1px solid #3a3d45; }\ntable.acct tr.legs td { padding-top: 0; font-size: 11px; }\n.rtag { font-style: normal; font-weight: 700; font-size: 10px; padding: 0 4px; border-radius: 3px; background: #3b3f4a; color: #fdba74; }\n.rtag.m { color: #fff; background: #c2410c; }\nb.act { font-size: 10px; padding: 1px 4px 0; border-radius: 3px; color: #0b1220; background: #7fb2ff; }\n.selinfo { margin-top: 6px; font-size: 12px; color: #aeb4c0; }\n.pr .pa { font-weight: 700; min-width: 56px; color: #d6dae2; }\n.cmul { display: inline-flex; align-items: center; gap: 3px; }\n.cmul .cmx { color: #fdba74; font-weight: 700; }\n.cmul .clim { width: 44px; }\n/* v0.20.36: five columns in the docked width (multiplier added) */\n.panel .cpacc { font-size: 11.5px; }\n.panel .cpacc td, .panel .cpacc th { padding-left: 2px; padding-right: 2px; }\n.panel .cpacc input.alias { width: 74px; }\n.panel .cpacc select { width: 70px; min-width: 70px; }\n.panel .cpacc .clim { width: 46px; }\n.panel .cpacc .cmul .clim { width: 38px; }\n\n/* waiting for Vest data after a reload (v0.20.41): what is missing in the header, the rest greyed out and not clickable */\n.hwait { margin-left: auto; align-self: center; font-size: 11px; font-weight: 800; letter-spacing: .04em; color: #fbbf24; animation: hwblink 1.2s ease-in-out infinite; }\n@keyframes hwblink { 50% { opacity: .45; } }\n.panel.waiting .body, .panel.waiting .hpos { pointer-events: none; }\n\n/* colour pickers: the swatch is visible (the Console style padding hid it, v0.20.44) */\n.panel input[type=\"color\"], .panel.console input[type=\"color\"] { width: 40px; height: 24px; padding: 2px; flex: none; cursor: pointer; vertical-align: middle; }\n.panel input[type=\"color\"]::-webkit-color-swatch-wrapper { padding: 0; }\n.panel input[type=\"color\"]::-webkit-color-swatch { border: 0; border-radius: 3px; }\n.panel input[type=\"color\"]::-moz-color-swatch { border: 0; border-radius: 3px; }\n/* Chart lines and labels editor */\n.csed { display: flex; flex-direction: column; gap: 8px; }\n.csed .csel { display: flex; align-items: center; gap: 8px; font-weight: 700; }\n.csed .csel select { flex: 1; }\n.csed .csh4 { font-size: 10.5px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: #8e939e; border-top: 1px solid #34363c; padding-top: 6px; }\n.csed .csrow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }\n.csed .csrow label { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }\n.csed .csrow select { width: auto; }\n.csed .csrow input[type=\"checkbox\"] { width: 15px; height: 15px; }\n.csprev { position: relative; height: 44px; border: 1px solid #34363c; border-radius: 6px; background: #0f1013; overflow: hidden; }\n.csprev .csline { position: absolute; left: 0; right: 0; top: 21px; }\n.csprev .cschip { position: absolute; right: 10px; top: 9px; display: flex; gap: 6px; align-items: center; padding: 2px 6px; border: 1px solid #2a2f3a; border-radius: 5px;\n  white-space: nowrap; font-variant-numeric: tabular-nums; color: #e2e4e9; }\n.csprev .cschip .k { font-weight: 700; border-radius: 3px; }\n.csprev .cschip .qy { color: #ffb402; font-weight: 800; }\n.csprev .cschip .up { color: #3ecf8e; }\n";
+module.exports = ":host { all: initial; }\n.panel {\n  position: fixed; top: 64px; right: 16px; z-index: 2147483000;\n  width: 640px; max-width: calc(100vw - 32px); max-height: calc(100vh - 80px);\n  display: flex; flex-direction: column;\n  background: #12151b; color: #d7dbe3; border: 1px solid #2a2f3a; border-radius: 8px;\n  font: 12px/1.4 system-ui, -apple-system, \"Segoe UI\", sans-serif;\n  box-shadow: 0 8px 28px rgba(0,0,0,.45);\n}\n.panel.min .body { display: none; }\n.head {\n  display: flex; align-items: center; gap: 8px; padding: 6px 10px;\n  border-bottom: 1px solid #2a2f3a; cursor: move; user-select: none;\n}\n.title { font-weight: 600; }\n.ro { font-size: 10px; padding: 1px 6px; border-radius: 4px; background: #2b3346; color: #9fb3d9; }\n.dots { display: flex; gap: 8px; margin-left: auto; }\n.dot { display: inline-flex; align-items: center; gap: 4px; color: #8b93a3; font-size: 11px; }\n.dot::before { content: \"\"; width: 7px; height: 7px; border-radius: 50%; background: #5b6373; }\n.dot.pass::before { background: #3ecf8e; } .dot.warn::before, .dot.wait::before { background: #e8b84a; } .dot.fail::before { background: #ff5a4f; }\n.btn { background: #1d222c; color: #d7dbe3; border: 1px solid #333a48; border-radius: 4px; padding: 3px 8px; font: inherit; cursor: pointer; }\n.btn:hover { background: #262c38; }\n.btn.ord { font-size: 10px; padding: 1px 6px; color: #9fb3d9; }\n.btn.ord.on { background: #1f6b3f; border-color: #3ecf8e; color: #fff; font-weight: 700; } /* ON: green (orders can be sent) */\n.body { overflow: auto; padding: 8px 10px 10px; display: flex; flex-direction: column; gap: 10px; }\nh4 { margin: 0 0 4px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: #8b93a3; }\ntable { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }\nth, td { padding: 3px 4px; text-align: right; white-space: nowrap; }\nth { color: #8b93a3; font-weight: 500; border-bottom: 1px solid #2a2f3a; }\nth:first-child, td:first-child { text-align: left; }\ntbody tr { cursor: pointer; } tbody tr:hover { background: #1a1f28; }\ntr.sel { background: #1f2633; }\ntfoot td { border-top: 1px solid #2a2f3a; font-weight: 600; }\n.up { color: #3ecf8e; } .down { color: #ff6b61; } .muted { color: #6f7787; }\n.tot { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }\n.tot div { background: #171b23; border-radius: 6px; padding: 5px 7px; }\n.tot b { display: block; font-size: 13px; font-variant-numeric: tabular-nums; }\n.tot span { color: #8b93a3; font-size: 10px; }\n.calc { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; align-items: end; }\nlabel { display: flex; flex-direction: column; gap: 2px; color: #8b93a3; font-size: 11px; }\ninput, select { background: #0d1015; color: #e6e9ef; border: 1px solid #333a48; border-radius: 4px; padding: 4px 6px; font: inherit; width: 100%; box-sizing: border-box; }\n.out { margin-top: 6px; background: #171b23; border-radius: 6px; padding: 6px 8px; font-variant-numeric: tabular-nums; }\n.note { color: #6f7787; font-size: 11px; }\n.checks td { text-align: left; white-space: normal; }\n.lvl { font-weight: 600; } .lvl.pass { color: #3ecf8e; } .lvl.warn, .lvl.wait { color: #e8b84a; } .lvl.fail { color: #ff5a4f; }\n.log { max-height: 120px; overflow: auto; font-family: ui-monospace, Consolas, monospace; font-size: 11px; color: #9aa3b2; }\n.log .warn { color: #e8b84a; } .log .error { color: #ff6b61; }\n.row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }\n.pl { display: flex; flex-direction: column; gap: 6px; }\n.plhead { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }\n.plbig { font-size: 26px; font-weight: 800; line-height: 1.1; font-variant-numeric: tabular-nums; }\n.plsub { color: #8b93a3; font-size: 11px; } .plsub b { font-weight: 700; }\n.btn.flatall { color: #ff8a80; border-color: #a33; background: #2a1416; font-weight: 700; padding: 6px 12px; }\n.btn.flatall:hover { background: #8a2a2a; color: #fff; }\n.btn.flatall[disabled] { opacity: .5; cursor: default; }\n.placc { display: flex; flex-direction: column; }\n.pla { padding: 5px 2px; border-top: 1px solid #22272f; cursor: pointer; }\n.plr { display: flex; justify-content: space-between; gap: 8px; font-variant-numeric: tabular-nums; }\n.plr.muted { font-size: 11px; }\n.trd { display: flex; flex-direction: column; gap: 6px; }\n.trh { display: flex; align-items: baseline; gap: 8px; } .trh b { font-size: 16px; } .trh .lev { font-size: 10px; padding: 1px 5px; border: 1px solid #3a4150; border-radius: 3px; color: #aab1be; }\n.trh .trpx { margin-left: auto; font-variant-numeric: tabular-nums; }\n.bars { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }\n.bar { border: 1px solid #2a2f3a; border-radius: 6px; padding: 5px 7px; }\n.bl { display: flex; justify-content: space-between; gap: 6px; font-size: 10px; color: #8b93a3; } .bl span:last-child { color: #d7dbe3; text-align: right; }\n.track { height: 4px; background: #222733; border-radius: 2px; margin-top: 5px; overflow: hidden; }\n.track i { display: block; height: 100%; width: 0; background: #3ecf8e; } .track i.warn { background: #e8b84a; } .track i.hot { background: #ff5a4f; }\n.warn { color: #e8b84a; } .hot { color: #ff6b61; }\n.pend { display: flex; flex-direction: column; gap: 3px; }\n.pr { display: flex; align-items: center; gap: 8px; font-variant-numeric: tabular-nums; border-left: 2px solid #2f4a70; padding-left: 6px; }\n.pr .pk { font-weight: 700; min-width: 54px; }\n.pr .btn.sm { margin-left: auto; padding: 1px 6px; font-size: 10px; }\n.trs { font-size: 11px; color: #aab1be; font-variant-numeric: tabular-nums; } .trs b { font-weight: 700; }\n\n/* copier */\n.copy .cprow { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }\n.btn.seg { padding: 2px 8px; color: #aab1be; }\n.btn.seg.on { color: #fff; border-color: #7fb2ff; background: #16223f; }\n.btn.seg[disabled] { cursor: default; opacity: .7; }\n.copy .cpst { flex: 1; text-align: right; }\n.btn.cpgo { font-weight: 700; color: #3ecf8e; border-color: #2f6b52; background: #0f2a20; padding: 3px 14px; }\n.btn.cpgo.on { color: #fff; border-color: #c44; background: #8a2a2a; }\n.cpacc { width: 100%; }\n.cpacc td.eq { text-align: right; font-variant-numeric: tabular-nums; }\n.cpacc select { background: #0d1015; color: #d7dbe3; border: 1px solid #333a48; border-radius: 3px; font: inherit; }\n.cpacc input.alias { width: 110px; background: #0d1015; color: #e6e9ef; border: 1px solid #333a48; border-radius: 3px; padding: 1px 4px; font: inherit; }\n.cpacc .idt { color: #6b7385; font-size: 10px; font-family: ui-monospace, Consolas, monospace; margin-left: 4px; }\n/* chart lines: colour, dash, width per kind */\n.lstyle td { padding: 2px 4px 2px 0; }\n.lstyle td:first-child { width: 52px; font-weight: 700; }\n.lstyle input[type=\"color\"] { width: 34px; height: 20px; padding: 0 2px; cursor: pointer; }\n.lstyle select { padding: 2px 4px; }\n/* trailing/BE fields without a value clearly visible, warnings in yellow */\ninput[placeholder=\"empty\"]::placeholder { color: #5b6170; font-style: italic; }\n.note.warn { color: #ffb402; }\n\n/* account activity dot next to the name (store.activityOf) */\n.adot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 5px; vertical-align: 1px; background: #5b6373; flex: none; }\n.adot.free { background: #3ecf8e; } .adot.busy { background: #ff5a4f; } .adot.ph { background: #e8b84a; }\n/* foldable sections: title bar with a fold button and a \"?\" that opens the explanation */\n.sec { flex: none; border: 1px solid #222733; border-radius: 6px; background: #14181f; }\n.sh { display: flex; align-items: center; gap: 6px; padding: 4px 8px; }\n.fold { flex: 1; text-align: left; background: none; border: 0; padding: 2px 0; cursor: pointer; font: 600 11px/1.4 system-ui, -apple-system, \"Segoe UI\", sans-serif;\n  text-transform: uppercase; letter-spacing: .04em; color: #aab2c0; }\n.fold::before { content: \"▾\"; display: inline-block; width: 14px; color: #6f7787; }\n.sec.folded .fold::before { content: \"▸\"; }\n.fold:hover { color: #e6e9ef; }\n.sb { padding: 2px 8px 8px; overflow-x: auto; display: flex; flex-direction: column; gap: 6px; }\n.sec.folded .sb { display: none; }\n.sb > * { flex: none; }\n.group { margin-top: 4px; padding: 0 2px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: #6f7787;\n  border-bottom: 1px solid #2a2f3a; }\n.qi { flex: none; width: 17px; height: 17px; padding: 0; border-radius: 50%; border: 1px solid #3b4456; background: #1d222c; color: #9fb3d9;\n  font: 700 10px/15px system-ui, -apple-system, \"Segoe UI\", sans-serif; text-align: center; cursor: pointer; }\n.qi:hover { background: #2b3346; color: #fff; }\n.opt { display: inline-flex; align-items: center; gap: 4px; margin-right: 8px; }\nlabel.il { flex-direction: row; align-items: center; gap: 4px; flex-wrap: wrap; }\nlabel.il input[type=\"checkbox\"] { width: auto; }\n.pop { position: absolute; z-index: 5; max-height: 70%; overflow: auto; padding: 8px 10px; background: #1b2029; border: 1px solid #4a5468;\n  border-radius: 6px; box-shadow: 0 8px 24px rgba(0,0,0,.55); color: #d7dbe3; font-size: 12px; line-height: 1.45; }\n.pop .pt { font-weight: 700; margin-bottom: 4px; color: #fff; }\n.pop ul, .helptext ul { margin: 4px 0; padding-left: 18px; }\n.pop li, .helptext li { margin: 2px 0; }\n.helptext { color: #b8bfcc; font-size: 12px; line-height: 1.45; }\n\n/* ── docked: full-height column on the right (Vest's page is narrowed by dock.js) */\n/* column background: stays when the panel is folded, the cards are drawn on it (overlay above, panel above both) */\n.dockbg { display: none; position: fixed; top: 0; right: 0; bottom: 0; z-index: 2147481000; background: #1f2024; border-left: 1px solid #34363c; }\n.panel.dock { top: 0; right: 0; bottom: auto; left: auto; width: var(--dw, 420px); max-width: none; max-height: 100vh; height: auto;\n  border-radius: 0; border-width: 0 0 0 1px; box-shadow: -6px 0 18px rgba(0,0,0,.35); }\n.panel.dock .head { cursor: default; flex-wrap: wrap; row-gap: 4px; }\n.panel.dock .tot { grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); }\n.panel.dock .calc { grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); }\n.btn.on { color: #fff; border-color: #7fb2ff; background: #16223f; }\n\n/* ── Console style: larger, section titles on a bar with a coloured edge, roomy fields and buttons */\n.panel.console { background: #1f2024; border-color: #34363c; font-size: 13px; color: #e2e4e9; }\n.panel.console .head { background: #26272c; border-bottom-color: #34363c; padding: 8px 12px; }\n.panel.console .title { font-size: 15px; font-weight: 800; letter-spacing: .02em; }\n.panel.console .body { padding: 10px 10px 14px; gap: 10px; }\n.panel.console .sec { border: 1px solid #34363c; border-radius: 6px; background: #26272c; overflow: hidden; }\n.panel.console .sh { background: #303136; border-left: 4px solid #f97316; padding: 6px 10px 6px 8px; }\n.panel.console .fold { font-size: 13px; text-transform: none; letter-spacing: 0; font-weight: 700; color: #f1f2f5; }\n.panel.console .fold::before { content: \"\"; width: 0; }\n.panel.console .sh::after { content: \"▾\"; color: #8e939e; font-size: 12px; margin-left: 2px; }\n.panel.console .sec.folded .sh::after { content: \"▸\"; }\n.panel.console .sb { padding: 10px 12px 12px; gap: 10px; }\n.panel.console .group { margin-top: 8px; font-size: 11px; color: #8e939e; border-bottom-color: #34363c; }\n.panel.console input, .panel.console select { background: #17181b; border: 1px solid #45474e; border-radius: 5px; padding: 6px 8px; color: #f1f2f5; }\n.panel.console input:focus, .panel.console select:focus { outline: none; border-color: #f97316; }\n.panel.console input[type=\"checkbox\"] { width: 15px; height: 15px; accent-color: #f97316; }\n.panel.console label { color: #a4a8b1; font-size: 12px; }\n.panel.console .opt { margin: 2px 12px 2px 0; }\n.panel.console .row { gap: 8px 4px; }\n.panel.console .btn { border-radius: 5px; padding: 6px 12px; background: #34363c; border-color: #45474e; color: #f1f2f5; font-weight: 600; }\n.panel.console .btn:hover { background: #3f4148; }\n.panel.console .btn.ord { padding: 3px 9px; font-size: 11px; }\n.panel.console .btn.ord.on { background: #15803d; border-color: #22c55e; }\n.panel.console .btn.on { background: #c2410c; border-color: #f97316; color: #fff; }\n.panel.console .btn.flatall { background: #d4a514; border-color: #f0c03a; color: #17181b; font-size: 12px; padding: 6px 12px; white-space: nowrap; }\n.panel.console .btn.flatall:hover { background: #e8b923; color: #000; }\n.panel.console .btn.cpgo { background: #15803d; border-color: #22c55e; color: #fff; padding: 6px 18px; }\n.panel.console .btn.cpgo.on { background: #b91c1c; border-color: #ef4444; }\n.panel.console .btn.seg.on { background: #c2410c; border-color: #f97316; color: #fff; }\n.panel.console .tot div, .panel.console .out { background: #17181b; border: 1px solid #34363c; border-radius: 6px; }\n.panel.console .tot b { font-size: 15px; }\n.panel.console .plbig { font-size: 30px; }\n.panel.console th { color: #a4a8b1; border-bottom-color: #45474e; }\n.panel.console tbody tr:hover { background: #303136; } .panel.console tr.sel { background: #1e2a44; }\n.panel.console .bar { border-color: #45474e; background: #17181b; }\n.panel.console .track { height: 6px; background: #34363c; border-radius: 3px; }\n.panel.console .up { color: #4ade80; } .panel.console .down { color: #f87171; }\n.panel.console .qi { width: 19px; height: 19px; line-height: 17px; background: #303136; border-color: #45474e; color: #fdba74; }\n.panel.console .log { background: #17181b; border: 1px solid #34363c; border-radius: 5px; padding: 6px 8px; font-size: 11.5px; color: #c4c7ce; max-height: 160px; }\n.panel.console .pop { background: #2a2b30; border-color: #4b4e57; }\n\n/* docked: the open panel fills the column to the bottom (the column's cards are hidden meanwhile);\n   folded = header only, the cards under it */\n.panel.dock:not(.min) { height: 100vh; }\n.panel.dock.withcards.min { box-shadow: 0 6px 14px rgba(0,0,0,.35); border-width: 0 0 1px 1px; }\n/* Trailing stop and breakeven: shown in the docked column instead (Trailing & breakeven section) */\n.panel.stopscol .sec[data-sec=\"stops\"] { display: none; }\n/* result of the last command, in the header (two short lines at most: the header keeps its height) */\n.say { flex: 1 1 0; min-width: 0; align-self: center; font-size: 10.5px; line-height: 11px; max-height: 22px; overflow: hidden;\n  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; word-break: break-word; color: #8b93a3; }\n.say.ok { color: #3ecf8e; } .say.err { color: #ff6b61; }\n/* docked: title, version and messages on the first row; status dots and the buttons on the second */\n.hbr { display: none; }\n.panel.dock .hbr { display: block; flex-basis: 100%; height: 0; }\n/* header, docked: timeframe / countdown / clock / account left of the status dots; the position on its own row */\n.hinfo { display: none; }\n.panel.dock .hinfo { display: inline-flex; align-items: baseline; gap: 8px; min-width: 0; overflow: hidden; white-space: nowrap;\n  font-size: 12px; font-variant-numeric: tabular-nums; color: #e2e4e9; }\n.hinfo b { font-weight: 800; }\n.hinfo i { font-style: normal; font-weight: 600; }\n.hinfo i.cd { color: #7fb2ff; }\n.hinfo .acc { color: #c9d1e0; font-size: 11px; font-weight: 700; text-transform: uppercase; overflow: hidden; text-overflow: ellipsis; }\n.hpos { flex-basis: 100%; display: flex; align-items: baseline; gap: 10px; box-sizing: border-box; padding: 4px 8px; border-radius: 5px;\n  border-left: 3px solid #3a4150; background: #1a1b1f; font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; }\n.hpos.long { border-left-color: #3ecf8e; } .hpos.short { border-left-color: #ff6b61; }\n.hpos .sd { font-weight: 800; color: #8b93a3; }\n.hpos.long .sd, .hpos.long .q, .hpos.long .en { color: #3ecf8e; } .hpos.short .sd, .hpos.short .q, .hpos.short .en { color: #ff6b61; }\n.hpos .q { color: #ffb402; }\n.hpos .pl { font-size: 13px; }\n.hpos .mic { color: #d7dbe3; font-weight: 600; }\n.hpos .day { margin-left: auto; color: #8b93a3; font-weight: 600; }\n.hpos .up { color: #3ecf8e; } .hpos .down { color: #ff6b61; }\n/* position in the header: two rows (side / size / entry .. P&L, then points / contracts .. today) */\n.hpos { flex-direction: column; align-items: stretch; gap: 3px; }\n.hpos .r1, .hpos .r2 { display: flex; align-items: baseline; gap: 12px; min-width: 0; white-space: nowrap; overflow: hidden; }\n.hpos .r2 { font-size: 11.5px; }\n.hpos i { font-style: normal; font-weight: 600; font-size: 10.5px; color: #8b93a3; margin-right: 2px; }\n.hpos .pl { margin-left: auto; font-size: 14px; font-weight: 800; }\n.hpos .day { margin-left: auto; }\n.hpos .day b { font-weight: 700; }\n.hpos .dtr { margin-left: auto; flex: none; display: inline-flex; align-items: baseline; gap: 4px; white-space: nowrap; color: #8b93a3; font-weight: 600; }\n.hpos .dtr b { display: inline; font-weight: 700; color: #d7dbe3; }\n.hpos .dtr i { margin-right: 0; }\n.hpos .r2 .day { flex: none; }\n.hpos .r2 .mic { min-width: 0; overflow: hidden; text-overflow: ellipsis; }\n.hpos .dtr b.up { color: #3ecf8e; } .hpos .dtr b.down { color: #ff6b61; }\n.hpos .dtr + .day { margin-left: 0; }\n\n/* copier: test mode and per-copy limits (v0.20.15) */\n.cpdry { display: flex; align-items: center; gap: 6px; margin: 6px 0; font-size: 12px; color: #c9ced8; cursor: pointer; }\n.cpacc .cph th { font-size: 10.5px; font-weight: 600; color: #8b93a3; text-align: left; padding: 2px 4px; }\n.cpacc .clim { width: 64px; box-sizing: border-box; height: 22px; padding: 0 4px; background: #000; color: #fff; border: 1px solid #3b4456; border-radius: 4px; font-size: 12px; }\n\n/* header ORDERS / COPY toggles (v0.20.26): right of the first header row, red OFF / green ON */\n.htg { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; align-self: center; flex: 0 0 auto; }\n.htl { font-size: 9px; font-weight: 800; letter-spacing: .3px; color: #8b93a3; }\n/* text 2 px higher than v0.20.27 (Gerry): same font as then, centred in the box with 1 px bottom padding */\n.htb { display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; font-family: inherit;\n  min-width: 32px; height: 16px; padding: 0 4px 1px; border-radius: 3px; cursor: pointer;\n  color: #fff; background: #8a2a2a; border: 1px solid #c44; margin-right: 6px; }\n.htb.on { background: #1f6a45; border-color: #3ecf8e; }\n\n/* Copier (v0.20.27): test-mode checkbox at the start of its line, Role readable, no Max positions column */\n.panel .cpdry { flex-direction: row; align-items: center; justify-content: flex-start; text-align: left; }\n.panel .cpdry input { flex: 0 0 auto; width: 16px; height: 16px; margin: 0; padding: 0; }\n.panel .cpacc select { width: 92px; min-width: 92px; padding: 3px 4px; font-size: 12px; }\n\n/* v0.20.36 reorganised panel: accounts overview, multiplier per copy */\n.ovh { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }\ntable.acct td:first-child, table.acct th:first-child { text-align: left; }\ntable.acct { font-size: 11px; }\ntable.acct td, table.acct th { padding-left: 2px; padding-right: 2px; white-space: nowrap; }\ntable.acct tfoot td { font-weight: 700; border-top: 1px solid #3a3d45; }\ntable.acct tr.legs td { padding-top: 0; font-size: 11px; }\n.rtag { font-style: normal; font-weight: 700; font-size: 10px; padding: 0 4px; border-radius: 3px; background: #3b3f4a; color: #fdba74; }\n.rtag.m { color: #fff; background: #c2410c; }\nb.act { font-size: 10px; padding: 1px 4px 0; border-radius: 3px; color: #0b1220; background: #7fb2ff; }\n.selinfo { margin-top: 6px; font-size: 12px; color: #aeb4c0; }\n.pr .pa { font-weight: 700; min-width: 56px; color: #d6dae2; }\n.cmul { display: inline-flex; align-items: center; gap: 3px; }\n.cmul .cmx { color: #fdba74; font-weight: 700; }\n.cmul .clim { width: 44px; }\n/* v0.20.36: five columns in the docked width (multiplier added) */\n.panel .cpacc { font-size: 11.5px; }\n.panel .cpacc td, .panel .cpacc th { padding-left: 2px; padding-right: 2px; }\n.panel .cpacc input.alias { width: 74px; }\n.panel .cpacc select { width: 70px; min-width: 70px; }\n.panel .cpacc .clim { width: 46px; }\n.panel .cpacc .cmul .clim { width: 38px; }\n\n/* waiting for Vest data after a reload (v0.20.41): what is missing in the header, the rest greyed out and not clickable */\n.hwait { margin-left: auto; align-self: center; font-size: 11px; font-weight: 800; letter-spacing: .04em; color: #fbbf24; animation: hwblink 1.2s ease-in-out infinite; }\n@keyframes hwblink { 50% { opacity: .45; } }\n.panel.waiting .body, .panel.waiting .hpos { pointer-events: none; }\n\n/* colour pickers: the swatch is visible (the Console style padding hid it, v0.20.44) */\n.panel input[type=\"color\"], .panel.console input[type=\"color\"] { width: 40px; height: 24px; padding: 2px; flex: none; cursor: pointer; vertical-align: middle; }\n.panel input[type=\"color\"]::-webkit-color-swatch-wrapper { padding: 0; }\n.panel input[type=\"color\"]::-webkit-color-swatch { border: 0; border-radius: 3px; }\n.panel input[type=\"color\"]::-moz-color-swatch { border: 0; border-radius: 3px; }\n/* Chart lines and labels editor */\n.csed { display: flex; flex-direction: column; gap: 8px; }\n.csed .csel { display: flex; align-items: center; gap: 8px; font-weight: 700; }\n.csed .csel select { flex: 1; }\n.csed .csh4 { font-size: 10.5px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: #8e939e; border-top: 1px solid #34363c; padding-top: 6px; }\n.csed .csrow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }\n.csed .csrow label { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }\n.csed .csrow select { width: auto; }\n.csed .csrow input[type=\"checkbox\"] { width: 15px; height: 15px; }\n.csprev { position: relative; height: 44px; border: 1px solid #34363c; border-radius: 6px; background: #0f1013; overflow: hidden; }\n.csprev .csline { position: absolute; left: 0; right: 0; top: 21px; }\n.csprev .cschip { position: absolute; right: 10px; top: 9px; display: flex; gap: 6px; align-items: center; padding: 2px 6px; border: 1px solid #2a2f3a; border-radius: 5px;\n  white-space: nowrap; font-variant-numeric: tabular-nums; color: #e2e4e9; }\n.csprev .cschip .k { font-weight: 700; border-radius: 3px; }\n.csprev .cschip .qy { color: #ffb402; font-weight: 800; }\n.csprev .cschip .up { color: #3ecf8e; }\n\n/* SELF-MATCHING (v0.20.67): block / warning of the last order and resting orders that already cross, full width in the header */\n.smw, .smc { flex-basis: 100%; box-sizing: border-box; padding: 5px 8px; border-radius: 5px; font-size: 11.5px; line-height: 14px;\n  font-weight: 700; white-space: normal; cursor: default; }\n.smw { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; background: #3a0d0d; border: 1px solid #ff6b61; color: #ffd2cf; }\n.smw.warn { background: #3a2a06; border-color: #ffb402; color: #ffe7ad; }\n.smw .smt { flex: 1 1 200px; min-width: 0; }\n.smw .smgo { background: #b91c1c; border-color: #fff; color: #fff; font-weight: 800; }\n.smw .smx { padding: 1px 6px; }\n.smc { background: #2b0a2e; border: 1px solid #e879f9; color: #f5d0fe; }\n";
   },
   "ui/panel.js": function (module, exports, require) {
 // Panel in a closed Shadow DOM. Minimal look. Orders are sent only from the chart overlay, with the Orders switch on.
@@ -11062,6 +11337,8 @@ const SKELETON = `
     <div class="dots" data-dots></div>
     <button class="btn" data-act="min" title="Minimise (Alt+Shift+V)">–</button>
     <div class="hpos" data-hpos style="display:none"></div>
+    <div class="smw" data-smw style="display:none"><span class="smt" data-smt></span><button class="btn smgo" data-smgo style="display:none"></button><button class="btn smx" data-smx aria-label="Hide">✕</button>${info('selfmatch')}</div>
+    <div class="smc" data-smc style="display:none"></div>
   </div>
   <div class="body">
     <div class="group">Accounts</div>
@@ -11206,7 +11483,7 @@ function mount(version, h) {
   root.innerHTML = `<style>${css}</style>${SKELETON}`;
   document.documentElement.appendChild(host);
   panel = root.querySelector('.panel');
-  for (const k of ['pend', 'dots', 'ovsub', 'selinfo', 'flatall', 'accounts', 'positions', 'calc', 'checks', 'log', 'sync', 'manual', 'ver', 'ord', 'cpst', 'cpgo', 'cpacc', 'cplast', 'trst', 'srst', 'say', 'hinfo', 'hpos', 'hord', 'hcpy', 'hcpl', 'hwait']) els[k] = root.querySelector(`[data-${k}]`);
+  for (const k of ['pend', 'dots', 'ovsub', 'selinfo', 'flatall', 'accounts', 'positions', 'calc', 'checks', 'log', 'sync', 'manual', 'ver', 'ord', 'cpst', 'cpgo', 'cpacc', 'cplast', 'trst', 'srst', 'say', 'hinfo', 'hpos', 'hord', 'hcpy', 'hcpl', 'hwait', 'smw', 'smt', 'smgo', 'smx', 'smc']) els[k] = root.querySelector(`[data-${k}]`);
   els.pop = root.querySelector('[data-pop]');
   els.popt = root.querySelector('[data-popt]');
   els.poph = root.querySelector('[data-poph]');
@@ -11259,6 +11536,8 @@ After a reload it comes back as VIEW.`);
       }
       return;
     }
+    if (e.target.closest('[data-smgo]')) return handlers.selfMatch && handlers.selfMatch.run();
+    if (e.target.closest('[data-smx]')) return handlers.selfMatch && handlers.selfMatch.dismiss();
     const cm = e.target.closest('[data-cmode]');
     if (cm) return copyTry(() => handlers.copy.setMode(cm.dataset.cmode));
     const b = e.target.closest('[data-act]');
@@ -11728,6 +12007,25 @@ function say(text, kind) {
   }, kind === 'err' ? 9000 : 4000);
 }
 
+/** Self-matching block / warning in the header: { text, kind, button } or null. Stays until ✕ or the next check. */
+function smShow(v) {
+  if (!els.smw) return;
+  els.smw.style.display = v ? '' : 'none';
+  if (!v) return;
+  els.smw.className = 'smw ' + (v.kind || 'err');
+  els.smt.textContent = v.text;
+  els.smgo.style.display = v.button ? '' : 'none';
+  els.smgo.textContent = v.button || '';
+}
+/** Read-only indicator: your resting orders that already cross each other ('' = hidden). */
+let smcText = '';
+function smCross(text) {
+  if (!els.smc || text === smcText) return;
+  smcText = text;
+  els.smc.style.display = text ? '' : 'none';
+  els.smc.textContent = text;
+}
+
 /** Position data of the chart card, shown in the header (docked column). null = hidden. Rewritten only when they change. */
 let headKey = '';
 function headPos(d) {
@@ -11974,6 +12272,8 @@ module.exports = {
   cardsColumn,
   setUiInput,
   say,
+  smShow,
+  smCross,
   headPos,
   trailNote,
   sideNotes,
@@ -12003,5 +12303,5 @@ module.exports = {
     });
     return module.exports;
   };
-  __load("main.js").start("0.20.66");
+  __load("main.js").start("0.20.68");
 })();

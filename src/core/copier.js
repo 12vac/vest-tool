@@ -62,7 +62,7 @@ function fflat(f, symbol) {
     log.info(`TEST (not sent) COPY ${label(f)}: FLAT ${symbol}`);
     return Promise.resolve({ cancelled: 0, closed: 0 });
   }
-  return flatten.flattenMarket(f, symbol);
+  return flatten.flattenMarket(f, symbol, { auto: true }); // copies follow the master: nobody clicks for them
 }
 
 /** Per-copy limits for an entry (open / add): reason to skip it, or null. Exits, SL / TP and cancels are always copied. */
@@ -498,7 +498,7 @@ async function flatIdleCopies(accountId, symbol) {
     log.warn(`FLAT copies: copier off, ${ids.length} copies left open on ${symbol} (refused)`);
     return 0;
   }
-  const res = await Promise.allSettled(ids.map((f) => flatten.flattenMarket(f, symbol)));
+  const res = await Promise.allSettled(ids.map((f) => flatten.flattenMarket(f, symbol, { auto: true })));
   const done = res.filter((r) => r.status === 'fulfilled').length;
   log[done === ids.length ? 'info' : 'warn'](`FLAT copies (copier off): ${done}/${ids.length} copies flat on ${symbol}`);
   store.changed();

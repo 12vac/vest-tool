@@ -147,6 +147,7 @@ const HELP = {
       <b>DAILY PROFIT TARGET</b>: today's P&L against the goal typed on its row. <b>DAILY LOSS LIMIT</b>: today's loss against the level you set. <b>MAX OPEN PROFIT</b> / <b>MAX OPEN LOSS</b>: profit / loss of the open trade (loss out of what you can lose before Vest's daily limit).
       <b>DAILY DRAWDOWN BUFFER</b> / <b>MAX DRAWDOWN BUFFER</b>: dollars left before the daily / total limit (the limit in brackets), as on Vest's page.
       <b>ACCOUNT PROFIT TARGET</b>: total P&L against the evaluation target. A row switched ON draws its level on the chart as a <b>USER</b> line (the price where it closes everything). Bars: green in profit, yellow up to 50% used, orange up to 75%, red beyond.</li>
+      <li><b>Self-matching guard</b> (red / yellow strip in the header): see the <b>?</b> on the strip.</li>
       <li>Click a section title to fold it.</li>
       <li><b>Labels on the chart</b> (no tooltips there: what each one means is here): drag SL, TP, LIMIT and STOP labels (or their line)
       to move them; ✕ cancels. Position label: side and average entry, points from the entry, P&L of the selected account,
@@ -174,6 +175,30 @@ const HELP = {
     </ul>`,
   ],
   // ── single settings
+  selfmatch: [
+    'Self-matching guard',
+    `Vest's Prop Terms of Service (section 5) allow opposite positions on your own accounts, but NOT <b>self-matching</b>: a buy and a sell
+    of your own accounts executing against each other. The penalty is a permanent ban. Vest matches orders against the resting order
+    book, so a LIMIT waiting on one account can be filled by an opposite order from another one. On the SAME account Vest itself
+    refuses an order opposite to a pending LIMIT or a position, so only your OTHER accounts are checked.
+    <ul>
+      <li>Before every order the tool sends (Trade commands, LIMIT / STOP, Risk &amp; targets, Bracket, Grid, OCO, Safe runner, copier, FLAT,
+      FLATTEN ALL, Account limits) it compares the order with the <b>resting orders of your other accounts</b> on the same market.
+      A LIMIT is a risk when it would cross one of them (buy at or above a resting sell, sell at or below a resting buy);
+      a <b>market</b> order is a risk with ANY opposite resting order, at any price.</li>
+      <li><b>Red strip = blocked</b>, nothing was sent. An entry: cancel the order named in the strip, then send again. An exit (FLAT, CLOSE,
+      PARTIAL CLOSE...): the button <i>CANCEL THAT ORDER, THEN CLOSE</i> cancels those orders and repeats the exit.</li>
+      <li><b>Automatic exits</b> (Account limits FLAT, Safe runner, the copies following the master): nobody is there to click, so the tool
+      cancels the orders in the way by itself, says which in a <b>yellow</b> strip and in the log, then sends the exit. If a cancel fails,
+      the exit is not sent (red strip).</li>
+      <li>If the orders of an account are not read yet or are older than 90 s, entries are blocked (wait, or <i>Reload all data</i>);
+      exits go out with a <b>yellow</b> warning.</li>
+      <li>SL / TP: the tool sends them as market orders when triggered, so they never rest on the book. Placing one while an opposite
+      resting order exists gives a yellow warning: when it triggers, Vest sends the market order and this guard cannot stop it.</li>
+      <li><b>Violet strip</b>: resting orders of two of your accounts already cross each other (e.g. placed by hand on Vest). Cancel one of them.</li>
+      <li>Orders placed by hand on Vest's own ticket are not checked, and the tool sees them only at its next read (up to about 60 s).</li>
+    </ul>`,
+  ],
   orders: [
     'Orders switch',
     `While it is <b>off</b> the tool cannot open or change a position: only FLAT, FLATTEN ALL and the cancel buttons work.

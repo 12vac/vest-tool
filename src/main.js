@@ -60,6 +60,7 @@ function start(version) {
   const overlay = require('./chart/overlay');
   const orders = require('./core/orders');
   const flatten = require('./core/flatten');
+  const selfmatch = require('./core/selfmatch');
   const entry = require('./core/entry');
   const stops = require('./core/stops');
   const trail = require('./core/trail');
@@ -215,7 +216,7 @@ on that market are closed. Real money on every account. It switches off at every
     panel.say(`ACCOUNT LIMITS: ${f.map((x) => GD.ROWS[x.k].name).join(', ')} reached -> FLAT`, 'warn');
     guardBusy = true;
     for (const x of stops.list()) if (ids.includes(x.accountId)) stops.cancel(x.id, 'ACCOUNT LIMITS'); // local entries first: they must not open anything
-    Promise.resolve(flatten.flattenAll(ids, 'ACCOUNT LIMITS'))
+    Promise.resolve(flatten.flattenAll(ids, 'ACCOUNT LIMITS', { auto: true }))
       .catch((e) => log.error(`ACCOUNT LIMITS FLAT: ${e.message}`))
       .finally(() => (guardBusy = false));
   }
@@ -855,9 +856,14 @@ ${u.brOn && en && !pos ? 'Bracket ON: its SL / TP go on the first LIMIT, then th
         if (!symbol || !S.selected) throw new Error('chart market not recognised');
         const st = stops.cancelWhere(S.selected, symbol, 'FLAT');
         const acc = S.selected;
+        // SELF-MATCHING: with the copier ON the master's close must not fill against a copy's order still being
+        // cancelled by its own FLAT: the orders of master and copies on this market are cancelled first
+        const cs = copier.state();
+        const grp = cs.armed && !cs.dry && cs.master === acc ? [acc, ...cs.followers.filter((id) => id !== acc)] : [];
+        const pre = grp.length > 1 ? (await Promise.allSettled(grp.map((id) => flatten.cancelOrdersOn(id, symbol)))).reduce((a, x) => a + (x.status === 'fulfilled' ? x.value : 0), 0) : 0;
         const [r] = await Promise.all([flatten.flattenMarket(acc, symbol), copier.mirrorFlat(acc, symbol)]); // master: FLAT on the copies too
         const cp = await copier.flatIdleCopies(acc, symbol); // copier OFF: copies still open on this market -> asked (after the master)
-        if (!r.cancelled && !r.closed && !st && !cp) throw new Error('nothing to close or cancel on this market');
+        if (!r.cancelled && !r.closed && !st && !cp && !pre) throw new Error('nothing to close or cancel on this market');
       }),
     closePct: () => Promise.resolve().then(() => entry.closePct({ accountId: S.selected, symbol: chartMarket(), pct: +panel.ui().closePct || 0 })),
     setClosePct: (v) => panel.setUi('closePct', v),
@@ -1262,6 +1268,7 @@ ${u.brOn && en && !pos ? 'Bracket ON: its SL / TP go on the first LIMIT, then th
 
   function boot() {
     panel.mount(version, {
+      selfMatch: { run: () => selfmatch.run(), dismiss: () => selfmatch.dismiss() },
       riskOn: () => overlay.riskOn(),
       riskOff: () => overlay.riskOff(),
       trailStatus: () => trail.status(),
@@ -1302,6 +1309,14 @@ Works even with Orders OFF. It cannot be undone.`,
         stop: () => copier.stop('from the panel'),
         start: copyStart,
       },
+    });
+    // SELF-MATCHING: block / warning of the last order, and resting orders that already cross (checked at most twice a second)
+    selfmatch.subscribe((v) => panel.smShow(v));
+    let smAt = 0;
+    store.subscribe(() => {
+      if (Date.now() - smAt < 500) return;
+      smAt = Date.now();
+      panel.smCross(selfmatch.crossingText());
     });
     overlay.mount({ getModel: tradeModel, actions: tradeActions });
     // start: the panel (right column, header says what is missing) is there at once; the sections and the chart lines are
