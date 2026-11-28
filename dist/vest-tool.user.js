@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         VestTool
 // @namespace    vest-tool
-// @version      0.20.69
+// @version      0.20.71
 // @description  Account status and P&L in dollars, trade overlay on the chart (BE, draggable SL/TP, FLAT) for Vest Markets. Unofficial: not made, endorsed or supported by Vest Markets.
 // @match        https://next.vestmarkets.com/*
 // @run-at       document-start
@@ -3927,6 +3927,34 @@ function snapshot(accountId) {
 }
 
 const onSym = (list, symbol) => (list || []).find((p) => p.symbol === symbol) || null;
+let mirrorSeq = 0; // every copied action: a size check is dropped when something else was copied meanwhile
+
+/**
+ * v0.20.71 (Gerry 2026-11-27): after a copied REDUCE, the copy's size is read again from Vest. If it is still larger than
+ * expected (an IOC filled only in part, a reject...), the difference is reduced once more (protected by the self-match
+ * guard like any reduce); if it is still off after that, the log says so in red. Smaller than expected: only said.
+ */
+async function checkReduce(f, symbol, posId, expected, step, lev, seq, tries = 1) {
+  await sleep(2500);
+  if (seq !== mirrorSeq || !st.armed) return; // something else was copied meanwhile: the expected size no longer holds
+  await sync.refreshAccount(f);
+  if (seq !== mirrorSeq) return;
+  const p = onSym((S.state[f] || {}).positions, symbol);
+  const have = p && p.id === posId ? +p.qty : p ? NaN : 0;
+  if (!Number.isFinite(have)) return; // a different position: not ours to fix
+  const diff = +(have - expected).toFixed(8);
+  const tol = step > 0 ? step / 2 : 1e-9;
+  if (Math.abs(diff) <= tol) return log.info(`COPY ${label(f)}: size checked after the reduce, ${have} as expected`);
+  if (diff < 0) return log.warn(`COPY ${label(f)}: size ${have} after the reduce, expected ${expected} (smaller): not changed`);
+  if (!tries) return log.error(`COPY ${label(f)}: size ${have} after the reduce, expected ${expected}: still ${diff} too much, reduce it by hand`);
+  log.warn(`COPY ${label(f)}: size ${have} after the reduce, expected ${expected}: reducing the ${diff} left`);
+  try {
+    await fsend(f, Z.reduceOrder({ pos: p, qty: diff, leverage: lev, step }), `COPY ${label(f)}: rest of the reduce, ${diff} of ${have}`, p.id);
+  } catch (e) {
+    return log.error(`COPY ${label(f)}: rest of the reduce (${diff}) not sent: ${e.message}. Reduce it by hand`);
+  }
+  return checkReduce(f, symbol, posId, expected, step, lev, seq, tries - 1);
+}
 
 /** Successful order of an account: if it is the master and the copier is on, it is replicated on the copies. */
 async function mirror({ accountId, order, before, via, res: mRes }) {
@@ -3962,6 +3990,7 @@ async function mirror({ accountId, order, before, via, res: mRes }) {
   const src = via === 'page' ? 'Vest ticket' : 'tool';
   if (!m) return log.warn(`MASTER ${action} (${src}): market ${symbol || '?'} not recognised, not copied`);
   if (action === 'open') await leftoversGone(symbol); // e.g. LIMIT moved by the plan: cancel + new /open on the master
+  const seq = ++mirrorSeq;
   const mEq = (store.values(st.master) || {}).equity;
   const mRoom = st.mode === 'dd' ? roomOf(st.master) : NaN;
   const t0 = performance.now();
@@ -3972,6 +4001,7 @@ async function mirror({ accountId, order, before, via, res: mRes }) {
     const fLev = want > 0 && maxLev > 0 ? Math.min(want, maxLev) : want || maxLev;
     return {
       f,
+      fq: +(onSym(fs.positions, symbol) || {}).qty, // copy's size before, for the size check after a reduce
       plan: C.planFollower({
         action,
         method: order.method,
@@ -4018,6 +4048,17 @@ async function mirror({ accountId, order, before, via, res: mRes }) {
   }
   st.last = { at: Date.now(), action, src, ok, n: plans.length, ms: Math.round(performance.now() - t0) };
   log[ok === plans.length ? 'info' : 'warn'](`Copy ${action} from ${src}: ${ok}/${plans.length} copies in ${st.last.ms} ms`);
+  // v0.20.71: the copies' size is checked after a copied reduce (not in TEST mode: nothing was sent)
+  if (action === 'reduce' && !st.dry)
+    plans.forEach(({ f, fq, plan }, i) => {
+      const b0 = plan.order && plan.order.body;
+      const fp = onSym((S.state[f] || {}).positions, symbol);
+      if (res[i].status !== 'fulfilled' || !b0 || !plan.positionId) return;
+      const before = fq;
+      if (!(before > 0)) return;
+      const expected = Math.max(0, +(before - +b0.quantity).toFixed(8));
+      checkReduce(f, symbol, plan.positionId, expected, m.step, +b0.leverage || (fp && fp.leverage), seq).catch((e) => log.error(`COPY ${label(f)}: size check failed (${e.message})`));
+    });
   store.changed();
 }
 
@@ -5189,7 +5230,12 @@ async function send(accountId, order, label, positionId, opts = {}) {
   // account is refused; a manual exit gets a button in the header that cancels those orders and sends it again; an
   // automatic one (opts.auto, copier) cancels them itself and goes out.
   const label0 = label; // label is prefixed with the account below
-  await selfmatch.guard(accountId, order, { retry: () => send(accountId, order, label0, positionId, opts), auto: !!(opts.auto || opts.copy) });
+  const asked = order; // what was asked (market): the copier mirrors this, not the protected form
+  const g = await selfmatch.guard(accountId, order, { retry: () => send(accountId, order, label0, positionId, opts), auto: !!(opts.auto || opts.copy) });
+  if (g && g.order) {
+    order = g.order; // v0.20.70: copy reduce made safe (LIMIT IOC beyond the orders in the way)
+    label = `${label} [LIMIT IOC @ ${order.body.price}]`;
+  }
   if (positionId && busy.has(positionId)) throw new Error(`wait: "${busy.get(positionId)}" is still in progress`);
   if (positionId) busy.set(positionId, label);
   notify();
@@ -5216,7 +5262,7 @@ async function send(accountId, order, label, positionId, opts = {}) {
     log.info(`✓ ${label} (${tokMs + vestMs} ms${tokMs > 5 ? ` = token ${tokMs} + Vest ${vestMs}` : ''})`);
     if (sentHook)
       try {
-        sentHook({ accountId, order, before, res });
+        sentHook({ accountId, order: asked, before, res });
       } catch (e) {
         log.error('copiatore: ' + e.message);
       }
@@ -5676,9 +5722,23 @@ async function guard(accountId, order, { retry, skip, position, auto } = {}) {
   }
   if (r.hits.length && !r.leg && r.exit) {
     const name = (S.accounts[accountId] || {}).label || accountId;
+    // v0.20.71 (Gerry 2026-11-27, "compliant but the accounts must close"): a MARKET reduce of ANY account (master, copy,
+    // automatic or by hand) goes out first as a LIMIT IOC beyond every order in the way: nothing is cancelled, nothing is
+    // blocked, the orders of the other accounts (e.g. the copies' pending LIMITs) stay. Close / FLAT: rules below.
+    const o0 = SM.sideOf(order, (id) => (position && position.id === id ? position : pos));
+    const pr = o0 ? SM.protect({ order, side: o0.side, hits: r.hits, tick: (S.symbols[sym] || {}).tick, mark: (S.marks[sym] || {}).px }) : { why: 'side unknown' };
+    if (pr.order) {
+      const again = SM.check({ order: pr.order, accountId, accounts: accounts(), tick: (S.symbols[sym] || {}).tick, skip, position });
+      if (again && !again.hits.length) {
+        const text = `SELF-MATCH: ${name} reduce sent as LIMIT IOC @ ${pr.order.body.price} instead of market, so it cannot trade against ${r.hits.map((h) => h.text).join('; ')} (nothing cancelled). What does not fill at once is cancelled by Vest`;
+        log.warn(text);
+        show({ text, kind: 'warn', button: '', run: null });
+        return { order: pr.order };
+      }
+    }
     const pl = SM.exitPlan({ hits: r.hits, accountId, roles: rolesOf ? rolesOf() : null, auto });
     if (pl.block) {
-      const text = `SELF-MATCH BLOCKED: copy ${name} NOT closed (${r.what}): it could trade against the master's resting order ${pl.block.map((h) => h.text).join('; ')}. The master's orders are never touched: close this copy by hand when that order is gone`;
+      const text = `SELF-MATCH BLOCKED: copy ${name} NOT closed (${r.what}): it could trade against the master's resting order ${pl.block.map((h) => h.text).join('; ')}. The master's orders are never touched: close this copy by hand when that order is gone${pr.why ? ` (${pr.why})` : ''}`;
       log.error(text);
       show({ text, kind: 'err', button: '', run: null });
       throw new Error(text);
@@ -7492,7 +7552,9 @@ function scaleQty(reqQty, followerQty, masterQty, step) {
 function planFollower(p) {
   const { action, body = {}, mBefore, fPos, fPh, step, tick } = p;
   const lev = p.fLev > 0 ? p.fLev : +body.leverage || null;
-  const market = String(body.orderType || 'market').toLowerCase() === 'market';
+  // v0.20.71: a LIMIT IOC reduce never rests (it is the self-match protected form of a market reduce): copied as a reduce now
+  const ioc = action === 'reduce' && String(body.timeInForce || '').toUpperCase() === 'IOC';
+  const market = ioc || String(body.orderType || 'market').toLowerCase() === 'market';
   if (!market && (action === 'open' || action === 'append' || action === 'reduce')) return planPending(p, lev);
   if (action === 'stop-loss' || action === 'take-profit') return planLeg(p);
   if (action === 'open' || action === 'append') {
@@ -8757,6 +8819,9 @@ module.exports = { evaluate, split, DEFAULTS, KEYS };
 // - entries are blocked; a manual exit is blocked with a button that cancels the orders in the way and then closes;
 //   an automatic exit (Account limits, Safe runner, copier) cancels them itself, says so, then goes out;
 // - unknown or stale orders of another account: entries are blocked, exits are warned (see core/selfmatch.js).
+// - v0.20.70 (Gerry 2026-11-27: PARTIAL CLOSE left every copy at 100 %): a copy's MARKET reduce blocked by a resting
+//   order (the master's, never touched) goes out as a LIMIT IOC one tick beyond the nearest order in the way (protect()):
+//   it fills now against the better prices and by construction can never trade with that order.
 // SL / TP legs: the tool sends them as executionType 'market', so they never rest on the book; when they trigger it is
 // Vest that sends the market order, which this guard cannot see. Placing or moving a leg is only warned.
 
@@ -8822,7 +8887,7 @@ function check({ order, accountId, accounts, tick, skip, position }) {
     }
     for (const r of a.orders || []) {
       if (r.symbol !== o.symbol || (skip && skip.has(r.id))) continue;
-      if (crosses(o, r, tick)) hits.push({ accountId: id, label, orderId: r.id, text: fmt(label, r) });
+      if (crosses(o, r, tick)) hits.push({ accountId: id, label, orderId: r.id, price: r.price, text: fmt(label, r) });
     }
   }
   const leg = o.kind === 'stop-loss' ? 'SL' : 'TP';
@@ -8880,7 +8945,30 @@ function exitPlan({ hits, accountId, roles, auto }) {
   return { cancel, ask };
 }
 
-module.exports = { check, sideOf, crosses, crossings, textOf, exitPlan };
+const { decimalsOf: decs } = require('./num');
+
+/**
+ * A MARKET reduce that would cross resting orders (hits from check()) turned into a reduce that cannot: LIMIT IOC one
+ * tick ABOVE the highest buy in the way (selling) or one tick BELOW the lowest sell in the way (buying). IOC: what does
+ * not fill at once is cancelled by Vest, it never rests on the book.
+ * order { method, path, body }, side of the exit 'buy'|'sell', mark (to say when it cannot fill), tick.
+ * -> { order, price } | { why } (not possible: not a market reduce, no tick, or the order in the way is at the market)
+ */
+function protect({ order, side, hits, tick, mark }) {
+  const b = (order && order.body) || {};
+  if (!/\/v3\/positions\/reduce$/.test(String((order && order.path) || '')) || String(b.orderType || 'market').toLowerCase() !== 'market')
+    return { why: 'only a market reduce can be protected' };
+  const ps = (hits || []).map((h) => +h.price).filter((p) => p > 0);
+  if (!(tick > 0) || !ps.length) return { why: 'price of the order in the way or tick unknown' };
+  const sell = side === 'sell';
+  const raw = sell ? Math.max(...ps) + tick : Math.min(...ps) - tick;
+  const price = +(Math.round(raw / tick) * tick).toFixed(decs(tick));
+  // it must still be able to fill now: selling, the limit below the market; buying, above it
+  if (mark > 0 && (sell ? price > mark : price < mark)) return { why: `the order in the way is at the market (limit ${price} vs market ${mark})` };
+  return { order: { ...order, body: { ...b, orderType: 'limit', price: price.toFixed(decs(tick)), timeInForce: 'IOC' } }, price };
+}
+
+module.exports = { check, sideOf, crosses, crossings, textOf, exitPlan, protect };
 
   },
   "domain/shapes.js": function (module, exports, require) {
@@ -12351,5 +12439,5 @@ module.exports = {
     });
     return module.exports;
   };
-  __load("main.js").start("0.20.69");
+  __load("main.js").start("0.20.71");
 })();

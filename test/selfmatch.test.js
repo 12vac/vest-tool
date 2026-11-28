@@ -112,3 +112,33 @@ test('exitPlan: the master commands (copier ON)', () => {
   assert.deepEqual(exitPlan({ hits: [h('C1')], accountId: 'M', roles: null, auto: false }).ask.length, 1);
   assert.deepEqual(exitPlan({ hits: [h('C1')], accountId: 'M', roles: null, auto: true }).cancel.length, 1);
 });
+
+test('v0.20.70 protect: the copy PARTIAL CLOSE of Gerry 2026-11-27 (master BUY LIMIT @ 26651 resting, market ~26737)', () => {
+  const { protect } = require('../src/domain/selfmatch');
+  const Z = require('../src/domain/sizing');
+  const pos = { id: 'P1', symbol: SYM, side: 'long', qty: 0.0018 };
+  const reduce = Z.reduceOrder({ pos, qty: 0.0009, leverage: 10, step: 0.0001 });
+  const accounts = { M: acc('19', [rest('m1', 'long', 26651, 0.0028)]), C: acc('20', [], [pos]) };
+  // as in v0.20.69: the market reduce crosses the master's resting BUY
+  const r = check({ order: reduce, accountId: 'C', accounts, tick: TICK });
+  assert.equal(r.hits.length, 1);
+  assert.equal(r.hits[0].price, 26651);
+  const p = protect({ order: reduce, side: 'sell', hits: r.hits, tick: TICK, mark: 26737 });
+  assert.equal(p.order.body.orderType, 'limit');
+  assert.equal(p.order.body.price, '26651.25');
+  assert.equal(p.order.body.timeInForce, 'IOC');
+  assert.equal(p.order.body.reduceOnly, true);
+  assert.equal(p.order.body.quantity, reduce.body.quantity);
+  assert.equal(reduce.body.orderType, 'market', 'the original order is not changed');
+  // the protected order no longer crosses anything
+  assert.equal(check({ order: p.order, accountId: 'C', accounts, tick: TICK }).hits.length, 0);
+  // several orders in the way: beyond all of them
+  assert.equal(protect({ order: reduce, side: 'sell', hits: [{ price: 26600 }, { price: 26700 }], tick: TICK, mark: 26737 }).order.body.price, '26700.25');
+  // short position (exit = buy): one tick below the lowest SELL in the way
+  assert.equal(protect({ order: reduce, side: 'buy', hits: [{ price: 26800 }, { price: 26790.5 }], tick: TICK, mark: 26737 }).order.body.price, '26790.25');
+  // the order in the way is at the market: it could not fill, stays blocked
+  assert.match(protect({ order: reduce, side: 'sell', hits: [{ price: 26737 }], tick: TICK, mark: 26737 }).why, /at the market/);
+  // only a market reduce: close / limit are not changed
+  assert.ok(protect({ order: { path: '/v3/positions/close', body: {} }, side: 'sell', hits: [{ price: 1 }], tick: TICK }).why);
+  assert.ok(protect({ order: { ...reduce, body: { ...reduce.body, orderType: 'limit' } }, side: 'sell', hits: [{ price: 1 }], tick: TICK }).why);
+});

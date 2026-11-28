@@ -71,7 +71,9 @@ function scaleQty(reqQty, followerQty, masterQty, step) {
 function planFollower(p) {
   const { action, body = {}, mBefore, fPos, fPh, step, tick } = p;
   const lev = p.fLev > 0 ? p.fLev : +body.leverage || null;
-  const market = String(body.orderType || 'market').toLowerCase() === 'market';
+  // v0.20.71: a LIMIT IOC reduce never rests (it is the self-match protected form of a market reduce): copied as a reduce now
+  const ioc = action === 'reduce' && String(body.timeInForce || '').toUpperCase() === 'IOC';
+  const market = ioc || String(body.orderType || 'market').toLowerCase() === 'market';
   if (!market && (action === 'open' || action === 'append' || action === 'reduce')) return planPending(p, lev);
   if (action === 'stop-loss' || action === 'take-profit') return planLeg(p);
   if (action === 'open' || action === 'append') {

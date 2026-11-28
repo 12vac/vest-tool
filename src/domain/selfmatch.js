@@ -12,6 +12,9 @@
 // - entries are blocked; a manual exit is blocked with a button that cancels the orders in the way and then closes;
 //   an automatic exit (Account limits, Safe runner, copier) cancels them itself, says so, then goes out;
 // - unknown or stale orders of another account: entries are blocked, exits are warned (see core/selfmatch.js).
+// - v0.20.70 (Gerry 2026-11-27: PARTIAL CLOSE left every copy at 100 %): a copy's MARKET reduce blocked by a resting
+//   order (the master's, never touched) goes out as a LIMIT IOC one tick beyond the nearest order in the way (protect()):
+//   it fills now against the better prices and by construction can never trade with that order.
 // SL / TP legs: the tool sends them as executionType 'market', so they never rest on the book; when they trigger it is
 // Vest that sends the market order, which this guard cannot see. Placing or moving a leg is only warned.
 
@@ -77,7 +80,7 @@ function check({ order, accountId, accounts, tick, skip, position }) {
     }
     for (const r of a.orders || []) {
       if (r.symbol !== o.symbol || (skip && skip.has(r.id))) continue;
-      if (crosses(o, r, tick)) hits.push({ accountId: id, label, orderId: r.id, text: fmt(label, r) });
+      if (crosses(o, r, tick)) hits.push({ accountId: id, label, orderId: r.id, price: r.price, text: fmt(label, r) });
     }
   }
   const leg = o.kind === 'stop-loss' ? 'SL' : 'TP';
@@ -135,4 +138,27 @@ function exitPlan({ hits, accountId, roles, auto }) {
   return { cancel, ask };
 }
 
-module.exports = { check, sideOf, crosses, crossings, textOf, exitPlan };
+const { decimalsOf: decs } = require('./num');
+
+/**
+ * A MARKET reduce that would cross resting orders (hits from check()) turned into a reduce that cannot: LIMIT IOC one
+ * tick ABOVE the highest buy in the way (selling) or one tick BELOW the lowest sell in the way (buying). IOC: what does
+ * not fill at once is cancelled by Vest, it never rests on the book.
+ * order { method, path, body }, side of the exit 'buy'|'sell', mark (to say when it cannot fill), tick.
+ * -> { order, price } | { why } (not possible: not a market reduce, no tick, or the order in the way is at the market)
+ */
+function protect({ order, side, hits, tick, mark }) {
+  const b = (order && order.body) || {};
+  if (!/\/v3\/positions\/reduce$/.test(String((order && order.path) || '')) || String(b.orderType || 'market').toLowerCase() !== 'market')
+    return { why: 'only a market reduce can be protected' };
+  const ps = (hits || []).map((h) => +h.price).filter((p) => p > 0);
+  if (!(tick > 0) || !ps.length) return { why: 'price of the order in the way or tick unknown' };
+  const sell = side === 'sell';
+  const raw = sell ? Math.max(...ps) + tick : Math.min(...ps) - tick;
+  const price = +(Math.round(raw / tick) * tick).toFixed(decs(tick));
+  // it must still be able to fill now: selling, the limit below the market; buying, above it
+  if (mark > 0 && (sell ? price > mark : price < mark)) return { why: `the order in the way is at the market (limit ${price} vs market ${mark})` };
+  return { order: { ...order, body: { ...b, orderType: 'limit', price: price.toFixed(decs(tick)), timeInForce: 'IOC' } }, price };
+}
+
+module.exports = { check, sideOf, crosses, crossings, textOf, exitPlan, protect };

@@ -88,7 +88,11 @@
       pos.quantity = String(q0 + q1);
       return [200, {}];
     }
-    if (p === '/v3/positions/reduce') { pos.quantity = String(+(+pos.quantity - +b.quantity).toFixed(4)); return [200, {}]; }
+    if (p === '/v3/positions/reduce') {
+      // ?ioc50: a LIMIT IOC reduce fills only half (size check of the copier, v0.20.71)
+      const q = b.orderType === 'limit' && /[?&]ioc50/.test(location.search) ? +(+b.quantity / 2).toFixed(4) : +b.quantity;
+      pos.quantity = String(+(+pos.quantity - q).toFixed(4)); return [200, {}];
+    }
     if (p === '/v3/positions/close') {
       // ?flatlag: the first close is accepted but lost (the position stays), like a FLAT that left the position open
       if (/flatlag/.test(location.search) && !window.__lagDone) { window.__lagDone = true; return [200, { orderId: 'C' + legN++ }]; }

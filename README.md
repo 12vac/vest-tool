@@ -27,14 +27,18 @@ others, a candle countdown and the last swing high / low.
   already refuses the opposite side on the same account). A LIMIT that would cross one of them, or a market order with any
   opposite pending order there, is a risk:
   - entries are refused, with a red strip in the header naming the order in the way;
-  - manual exits are refused too, with a *CANCEL THAT ORDER, THEN CLOSE* button;
+  - a partial exit (PARTIAL CLOSE, a reduction by hand, by the copier or automatic) goes out as a LIMIT IOC one tick beyond
+    every order in the way: it fills only at prices that cannot hit them, the rest is cancelled at once, and nothing of yours
+    is cancelled. Only when that is not possible (the order in the way is at the market) the rules below apply;
+  - manual exits are refused, with a *CANCEL THAT ORDER, THEN CLOSE* button;
   - automatic exits (Account limits FLAT, Safe runner, copies following the master) cancel the orders in the way, say so,
     then close; if a cancel fails, the exit is not sent;
   - if another account's orders are not read yet or older than 90 s, entries are refused and exits go out with a warning;
   - a violet strip shows pending orders of two accounts that already cross (for example placed by hand on Vest);
-  - with the copier ON the master commands: the master's exits cancel the copies' pending orders in the way, and the master's
-    orders are never touched. A copy whose exit could hit a master's pending order is NOT closed: a red strip names it, and
-    you close it by hand once that order is gone.
+  - with the copier ON the master commands: the master's orders are never touched. A copy whose full close could hit a
+    master's pending order is NOT closed: a red strip names it, and you close it by hand once that order is gone.
+    About 2.5 s after a copied reduction the copy's size is read again; if it is still too big the rest is reduced once more,
+    and if it is still off a red line in the log says so.
   Orders placed with Vest's own ticket are not checked.
 - Only the order endpoints the tool needs are allowed; everything else (withdrawals, account settings...) is blocked in code.
 

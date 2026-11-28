@@ -59,7 +59,12 @@ async function send(accountId, order, label, positionId, opts = {}) {
   // account is refused; a manual exit gets a button in the header that cancels those orders and sends it again; an
   // automatic one (opts.auto, copier) cancels them itself and goes out.
   const label0 = label; // label is prefixed with the account below
-  await selfmatch.guard(accountId, order, { retry: () => send(accountId, order, label0, positionId, opts), auto: !!(opts.auto || opts.copy) });
+  const asked = order; // what was asked (market): the copier mirrors this, not the protected form
+  const g = await selfmatch.guard(accountId, order, { retry: () => send(accountId, order, label0, positionId, opts), auto: !!(opts.auto || opts.copy) });
+  if (g && g.order) {
+    order = g.order; // v0.20.70: copy reduce made safe (LIMIT IOC beyond the orders in the way)
+    label = `${label} [LIMIT IOC @ ${order.body.price}]`;
+  }
   if (positionId && busy.has(positionId)) throw new Error(`wait: "${busy.get(positionId)}" is still in progress`);
   if (positionId) busy.set(positionId, label);
   notify();
@@ -86,7 +91,7 @@ async function send(accountId, order, label, positionId, opts = {}) {
     log.info(`✓ ${label} (${tokMs + vestMs} ms${tokMs > 5 ? ` = token ${tokMs} + Vest ${vestMs}` : ''})`);
     if (sentHook)
       try {
-        sentHook({ accountId, order, before, res });
+        sentHook({ accountId, order: asked, before, res });
       } catch (e) {
         log.error('copiatore: ' + e.message);
       }

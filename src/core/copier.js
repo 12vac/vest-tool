@@ -326,6 +326,34 @@ function snapshot(accountId) {
 }
 
 const onSym = (list, symbol) => (list || []).find((p) => p.symbol === symbol) || null;
+let mirrorSeq = 0; // every copied action: a size check is dropped when something else was copied meanwhile
+
+/**
+ * v0.20.71 (Gerry 2026-11-27): after a copied REDUCE, the copy's size is read again from Vest. If it is still larger than
+ * expected (an IOC filled only in part, a reject...), the difference is reduced once more (protected by the self-match
+ * guard like any reduce); if it is still off after that, the log says so in red. Smaller than expected: only said.
+ */
+async function checkReduce(f, symbol, posId, expected, step, lev, seq, tries = 1) {
+  await sleep(2500);
+  if (seq !== mirrorSeq || !st.armed) return; // something else was copied meanwhile: the expected size no longer holds
+  await sync.refreshAccount(f);
+  if (seq !== mirrorSeq) return;
+  const p = onSym((S.state[f] || {}).positions, symbol);
+  const have = p && p.id === posId ? +p.qty : p ? NaN : 0;
+  if (!Number.isFinite(have)) return; // a different position: not ours to fix
+  const diff = +(have - expected).toFixed(8);
+  const tol = step > 0 ? step / 2 : 1e-9;
+  if (Math.abs(diff) <= tol) return log.info(`COPY ${label(f)}: size checked after the reduce, ${have} as expected`);
+  if (diff < 0) return log.warn(`COPY ${label(f)}: size ${have} after the reduce, expected ${expected} (smaller): not changed`);
+  if (!tries) return log.error(`COPY ${label(f)}: size ${have} after the reduce, expected ${expected}: still ${diff} too much, reduce it by hand`);
+  log.warn(`COPY ${label(f)}: size ${have} after the reduce, expected ${expected}: reducing the ${diff} left`);
+  try {
+    await fsend(f, Z.reduceOrder({ pos: p, qty: diff, leverage: lev, step }), `COPY ${label(f)}: rest of the reduce, ${diff} of ${have}`, p.id);
+  } catch (e) {
+    return log.error(`COPY ${label(f)}: rest of the reduce (${diff}) not sent: ${e.message}. Reduce it by hand`);
+  }
+  return checkReduce(f, symbol, posId, expected, step, lev, seq, tries - 1);
+}
 
 /** Successful order of an account: if it is the master and the copier is on, it is replicated on the copies. */
 async function mirror({ accountId, order, before, via, res: mRes }) {
@@ -361,6 +389,7 @@ async function mirror({ accountId, order, before, via, res: mRes }) {
   const src = via === 'page' ? 'Vest ticket' : 'tool';
   if (!m) return log.warn(`MASTER ${action} (${src}): market ${symbol || '?'} not recognised, not copied`);
   if (action === 'open') await leftoversGone(symbol); // e.g. LIMIT moved by the plan: cancel + new /open on the master
+  const seq = ++mirrorSeq;
   const mEq = (store.values(st.master) || {}).equity;
   const mRoom = st.mode === 'dd' ? roomOf(st.master) : NaN;
   const t0 = performance.now();
@@ -371,6 +400,7 @@ async function mirror({ accountId, order, before, via, res: mRes }) {
     const fLev = want > 0 && maxLev > 0 ? Math.min(want, maxLev) : want || maxLev;
     return {
       f,
+      fq: +(onSym(fs.positions, symbol) || {}).qty, // copy's size before, for the size check after a reduce
       plan: C.planFollower({
         action,
         method: order.method,
@@ -417,6 +447,17 @@ async function mirror({ accountId, order, before, via, res: mRes }) {
   }
   st.last = { at: Date.now(), action, src, ok, n: plans.length, ms: Math.round(performance.now() - t0) };
   log[ok === plans.length ? 'info' : 'warn'](`Copy ${action} from ${src}: ${ok}/${plans.length} copies in ${st.last.ms} ms`);
+  // v0.20.71: the copies' size is checked after a copied reduce (not in TEST mode: nothing was sent)
+  if (action === 'reduce' && !st.dry)
+    plans.forEach(({ f, fq, plan }, i) => {
+      const b0 = plan.order && plan.order.body;
+      const fp = onSym((S.state[f] || {}).positions, symbol);
+      if (res[i].status !== 'fulfilled' || !b0 || !plan.positionId) return;
+      const before = fq;
+      if (!(before > 0)) return;
+      const expected = Math.max(0, +(before - +b0.quantity).toFixed(8));
+      checkReduce(f, symbol, plan.positionId, expected, m.step, +b0.leverage || (fp && fp.leverage), seq).catch((e) => log.error(`COPY ${label(f)}: size check failed (${e.message})`));
+    });
   store.changed();
 }
 

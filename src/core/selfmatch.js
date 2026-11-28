@@ -70,9 +70,23 @@ async function guard(accountId, order, { retry, skip, position, auto } = {}) {
   }
   if (r.hits.length && !r.leg && r.exit) {
     const name = (S.accounts[accountId] || {}).label || accountId;
+    // v0.20.71 (Gerry 2026-11-27, "compliant but the accounts must close"): a MARKET reduce of ANY account (master, copy,
+    // automatic or by hand) goes out first as a LIMIT IOC beyond every order in the way: nothing is cancelled, nothing is
+    // blocked, the orders of the other accounts (e.g. the copies' pending LIMITs) stay. Close / FLAT: rules below.
+    const o0 = SM.sideOf(order, (id) => (position && position.id === id ? position : pos));
+    const pr = o0 ? SM.protect({ order, side: o0.side, hits: r.hits, tick: (S.symbols[sym] || {}).tick, mark: (S.marks[sym] || {}).px }) : { why: 'side unknown' };
+    if (pr.order) {
+      const again = SM.check({ order: pr.order, accountId, accounts: accounts(), tick: (S.symbols[sym] || {}).tick, skip, position });
+      if (again && !again.hits.length) {
+        const text = `SELF-MATCH: ${name} reduce sent as LIMIT IOC @ ${pr.order.body.price} instead of market, so it cannot trade against ${r.hits.map((h) => h.text).join('; ')} (nothing cancelled). What does not fill at once is cancelled by Vest`;
+        log.warn(text);
+        show({ text, kind: 'warn', button: '', run: null });
+        return { order: pr.order };
+      }
+    }
     const pl = SM.exitPlan({ hits: r.hits, accountId, roles: rolesOf ? rolesOf() : null, auto });
     if (pl.block) {
-      const text = `SELF-MATCH BLOCKED: copy ${name} NOT closed (${r.what}): it could trade against the master's resting order ${pl.block.map((h) => h.text).join('; ')}. The master's orders are never touched: close this copy by hand when that order is gone`;
+      const text = `SELF-MATCH BLOCKED: copy ${name} NOT closed (${r.what}): it could trade against the master's resting order ${pl.block.map((h) => h.text).join('; ')}. The master's orders are never touched: close this copy by hand when that order is gone${pr.why ? ` (${pr.why})` : ''}`;
       log.error(text);
       show({ text, kind: 'err', button: '', run: null });
       throw new Error(text);

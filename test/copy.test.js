@@ -175,3 +175,16 @@ test('DD left: same share of the drawdown left as the master, scaling down only'
   const add = C.planFollower({ action: 'append', body: { positionId: 'PM', quantity: '1', orderType: 'market', leverage: '50' }, mBefore: mPos, fPos: { ...fPos, qty: 0.6 }, mode: 'dd', mRoom: 2000, fRoom: 600, step, tick });
   assert.strictEqual(+add.order.body.quantity, 0.3);
 });
+
+test('v0.20.71: a master LIMIT IOC reduce (self-match protected) is copied as a reduce now, a GTC limit reduce stays pending', () => {
+  const step = 0.0001, tick = 0.25;
+  const mBefore = { id: 'M1', symbol: 'NDX-USD-PERP', side: 'long', qty: 0.0002 };
+  const fPos = { id: 'F1', symbol: 'NDX-USD-PERP', side: 'long', qty: 0.0002, leverage: 10 };
+  const ioc = { positionId: 'M1', symbol: 'NDX-USD-PERP', orderType: 'limit', price: '26651.25', timeInForce: 'IOC', quantity: '0.0001', leverage: '10', reduceOnly: true };
+  const p = C.planFollower({ action: 'reduce', body: ioc, mBefore, fPos, mode: '1:1', step, tick, fLev: 10 });
+  assert.equal(p.order.path, '/v3/positions/reduce');
+  assert.equal(p.order.body.orderType, 'market');
+  assert.equal(p.order.body.quantity, '0.0001');
+  const gtc = C.planFollower({ action: 'reduce', body: { ...ioc, timeInForce: 'GTC' }, mBefore, fPos, mode: '1:1', step, tick, fLev: 10 });
+  assert.notEqual(gtc.order && gtc.order.body.orderType, 'market', 'a resting limit reduce is still copied as pending');
+});
